@@ -30,143 +30,172 @@ export default function Landing() {
 
   const roles = [
     {
-      title: '🏛️ Government & Policy Makers',
+      title: 'Government & Policy Makers',
       path: '/government',
       desc: 'Monitor state-wide skill demands, district capacity gaps, and plan data-backed workforce investment.',
       badge: 'State Overview',
-      accent: 'border-slate-300 dark:border-slate-800 hover:border-slate-900 dark:hover:border-teal-500 bg-white dark:bg-slate-900',
+      icon: '🏛️',
+      accent: 'border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-teal-500 bg-white dark:bg-slate-900',
       btn: 'bg-slate-900 dark:bg-teal-600 text-white',
     },
     {
-      title: '🎓 Training Institutes & ITIs',
+      title: 'Training Institutes & ITIs',
       path: '/institute',
       desc: 'Audit course placement outcomes, detect obsolete curricula, and align syllabus with local industry demand.',
       badge: 'Curriculum Alignment',
-      accent: 'border-teal-200 dark:border-teal-900/60 hover:border-teal-600 dark:hover:border-teal-400 bg-white dark:bg-slate-900',
+      icon: '🎓',
+      accent: 'border-slate-200 dark:border-slate-800 hover:border-teal-500 dark:hover:border-teal-400 bg-white dark:bg-slate-900',
       btn: 'bg-teal-700 text-white',
     },
     {
-      title: '👤 Students & Job Seekers',
+      title: 'Students & Job Seekers',
       path: '/student',
       desc: 'Explore your Dynamic Skill Passport, see missing competencies for target roles, and follow guided roadmaps.',
       badge: 'Skill Passport',
-      accent: 'border-blue-200 dark:border-blue-900/60 hover:border-blue-600 dark:hover:border-blue-400 bg-white dark:bg-slate-900',
+      icon: '👤',
+      accent: 'border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-400 bg-white dark:bg-slate-900',
       btn: 'bg-blue-700 text-white',
     },
     {
-      title: '🏢 Employers & Industry',
+      title: 'Employers & Industry',
       path: '/employer',
       desc: 'Validate AI-forecasted skill trends, report hiring bottlenecks, and shape regional talent supply.',
       badge: 'Human-in-the-Loop',
-      accent: 'border-purple-200 dark:border-purple-900/60 hover:border-purple-600 dark:hover:border-purple-400 bg-white dark:bg-slate-900',
+      icon: '🏢',
+      accent: 'border-slate-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-400 bg-white dark:bg-slate-900',
       btn: 'bg-purple-700 text-white',
     },
+  ];
+
+  const capabilities = [
+    { label: 'Skill Demand Sensing', detail: 'Continuously extract and rank in-demand skills from live job postings across Maharashtra districts.' },
+    { label: 'Skill Gap Detection', detail: 'Compare employer requirements against existing ITI/polytechnic curriculum to identify critical coverage gaps.' },
+    { label: 'Curriculum Recommendations', detail: 'AI-generated, evidence-backed module recommendations for MSBTE and Directorate of Vocational Education.' },
+    { label: 'Student Skill Passport', detail: 'Dynamic competency tracking with target-role alignment, gap analysis, and guided learning roadmaps.' },
+    { label: 'Employer Validation', detail: 'Human-in-the-loop workflow where employers confirm, correct, or reject AI-extracted skill signals.' },
+    { label: 'Predictive Forecasting', detail: '6, 12, and 24-month skill demand projections based on industry trends and employer surveys.' },
+  ];
+
+  const steps = [
+    { num: '01', title: 'Sense Market Demand', desc: 'Ingest job postings, employer surveys, and industry signals across Maharashtra.' },
+    { num: '02', title: 'Detect Skill Gaps', desc: 'Compare demand against current curriculum coverage in ITIs and polytechnics.' },
+    { num: '03', title: 'Generate Recommendations', desc: 'AI produces evidence-backed curriculum, training, and career recommendations.' },
+    { num: '04', title: 'Validate with Employers', desc: 'Human-in-the-loop feedback refines AI predictions with ground-truth data.' },
+    { num: '05', title: 'Act on Intelligence', desc: 'Government plans training seats, institutes update curricula, students follow roadmaps.' },
   ];
 
   return (
     <Layout>
       {/* Hero Section */}
-      <div className="text-center py-10 sm:py-16">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold mb-4">
-          <span>🌟</span> Smart India Hackathon 2026 · Problem Statement #26134
+      <section className="text-center py-12 sm:py-20">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold mb-5">
+          Smart India Hackathon 2026 · Problem Statement #26134
         </div>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 dark:text-white tracking-tight max-w-4xl mx-auto leading-tight">
-          Bridging the Gap Between <br className="hidden sm:inline" />
-          <span className="bg-gradient-to-r from-slate-900 via-teal-800 to-teal-600 dark:from-white dark:via-teal-300 dark:to-teal-500 bg-clip-text text-transparent">
-            Labour Market & Dynamic Curriculum
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 dark:text-white tracking-tight max-w-4xl mx-auto leading-[1.1]">
+          AI-Powered Labour-Market{' '}
+          <span className="bg-gradient-to-r from-teal-700 to-teal-500 dark:from-teal-400 dark:to-teal-200 bg-clip-text text-transparent">
+            Intelligence Platform
           </span>
         </h1>
-        <p className="mt-4 text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-          SkillSetu continuously senses industrial job requirements, detects emerging technology signals, and translates them into actionable curriculum upgrades and student learning pathways across Maharashtra.
+        <p className="mt-5 text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
+          SkillSetu converts changing industry demand into actionable skill-gap insights,
+          curriculum recommendations, and career pathways — connecting Government, Institutes,
+          Students, and Employers across Maharashtra.
         </p>
-
-        {/* Demo Flow Indicator */}
-        <div className="mt-8 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs max-w-4xl mx-auto">
-          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-            🔄 Continuous Evidence-Based Loop
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">📊 Market Data</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">🎯 Skill Demand</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-lg">⚠️ Skill Gap</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg">📡 Industry Signal</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-lg">🔮 Future Forecast</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg">📘 Curriculum Update</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg">👤 Skill Passport</span>
-            <span>→</span>
-            <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-lg">🏢 Employer Validation</span>
-          </div>
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            to="/government"
+            className="px-6 py-2.5 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+          >
+            Explore Government Dashboard
+          </Link>
+          <Link
+            to="/student/copilot"
+            className="px-6 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm transition-colors"
+          >
+            Ask AI Copilot
+          </Link>
         </div>
-      </div>
+      </section>
 
-      {/* Live Metrics Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-        <StatCard
-          title="Active Job Postings"
-          value={stats.jobsCount.toString()}
-          subtitle="Across 10 Maharashtra districts"
-          icon="💼"
-          trend="up"
-          trendLabel="+18% YoY"
-        />
-        <StatCard
-          title="Skills Tracked"
-          value={stats.skillsCount.toString()}
-          subtitle="Mapped to NSQF & NCO-2015"
-          icon="🧠"
-          color="teal"
-        />
-        <StatCard
-          title="High Priority Gaps"
-          value={stats.criticalGaps.toString()}
-          subtitle="Demanded skills missing in courses"
-          icon="⚠️"
-          color="rose"
-        />
-        <StatCard
-          title="Districts Indexed"
-          value={stats.districtsCount.toString()}
-          subtitle="Maharashtra workforce zones"
-          icon="📍"
-          color="navy"
-        />
-      </div>
+      {/* Live Metrics */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
+        <StatCard title="Active Job Postings" value={stats.jobsCount.toString()} subtitle="Across 10 Maharashtra districts" icon="💼" trend="up" trendLabel="+18% YoY" />
+        <StatCard title="Skills Tracked" value={stats.skillsCount.toString()} subtitle="Mapped to NSQF & NCO-2015" icon="🧠" color="teal" />
+        <StatCard title="High Priority Gaps" value={stats.criticalGaps.toString()} subtitle="Demanded skills missing in courses" icon="⚠️" color="rose" />
+        <StatCard title="Districts Indexed" value={stats.districtsCount.toString()} subtitle="Maharashtra workforce zones" icon="📍" color="navy" />
+      </section>
+
+      {/* How It Works */}
+      <section className="mb-16">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">How SkillSetu Works</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl mx-auto">
+            A continuous evidence-based loop from market data to workforce action
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {steps.map((s, i) => (
+            <div key={s.num} className="relative p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-3xl font-black text-slate-200 dark:text-slate-800 absolute top-3 right-4">{s.num}</span>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1.5">{s.title}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{s.desc}</p>
+              {i < steps.length - 1 && (
+                <span className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-700 text-lg">→</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Platform Capabilities */}
+      <section className="mb-16">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Platform Capabilities</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl mx-auto">
+            End-to-end labour-market intelligence for data-driven workforce decisions
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {capabilities.map((c) => (
+            <div key={c.label} className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1.5">{c.label}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{c.detail}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Role Selection Cards */}
-      <div className="mb-14">
+      <section className="mb-16">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Select Your Role to Launch Dashboard</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Explore specialized decision-support tools built for each stakeholder</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Select Your Role</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Specialized decision-support tools for each stakeholder
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {roles.map((r) => (
             <div
               key={r.path}
-              className={`p-6 rounded-2xl border shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between ${r.accent}`}
+              className={`p-6 rounded-xl border shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between ${r.accent}`}
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                     {r.badge}
                   </span>
-                  <span className="text-xs text-slate-400 font-mono">SIH 2026</span>
+                  <span className="text-2xl">{r.icon}</span>
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{r.title}</h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{r.desc}</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{r.title}</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{r.desc}</p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Interactive Demo Ready</span>
+              <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
                 <Link
                   to={r.path}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-transform hover:scale-105 shadow-xs ${r.btn}`}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-xs ${r.btn}`}
                 >
                   Enter Dashboard →
                 </Link>
@@ -174,7 +203,31 @@ export default function Landing() {
             </div>
           ))}
         </div>
-      </div>
+      </section>
+
+      {/* Key Outcomes */}
+      <section className="mb-16 bg-slate-900 dark:bg-slate-800 rounded-xl p-8 text-white">
+        <h2 className="text-xl font-bold mb-6 text-center">Key Outcomes</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
+          <div>
+            <p className="text-3xl font-black text-teal-400">34%</p>
+            <p className="text-xs text-slate-300 mt-1">Average skill deficit detected across Maharashtra ITIs</p>
+          </div>
+          <div>
+            <p className="text-3xl font-black text-teal-400">12</p>
+            <p className="text-xs text-slate-300 mt-1">High-priority curriculum revision actions identified</p>
+          </div>
+          <div>
+            <p className="text-3xl font-black text-teal-400">82%</p>
+            <p className="text-xs text-slate-300 mt-1">Projected surge in AI & EV skill demand (24 months)</p>
+          </div>
+          <div>
+            <p className="text-3xl font-black text-teal-400">10</p>
+            <p className="text-xs text-slate-300 mt-1">District workforce hubs indexed with scalable architecture</p>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-500 mt-6 text-center">Based on demo synthetic data · Not official government statistics</p>
+      </section>
     </Layout>
   );
 }

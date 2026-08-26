@@ -10,15 +10,20 @@ export default function DistrictPlan() {
   const districtName = name || 'Pune';
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     api.getDistrictPlan(districtName)
       .then((res) => {
         setPlan(res);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
   }, [districtName]);
 
   if (loading) {
@@ -32,34 +37,47 @@ export default function DistrictPlan() {
     );
   }
 
+  if (error || !plan) {
+    return (
+      <Layout>
+        <div className="py-20 text-center">
+          <p className="text-4xl font-black text-slate-200 dark:text-slate-800">⚠</p>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-3">Unable to load {districtName} data</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">The backend may be offline. Start it to view district workforce plans.</p>
+          <Link to="/government" className="inline-block mt-5 px-4 py-2 bg-slate-900 dark:bg-teal-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 dark:hover:bg-teal-700 transition-colors">
+            ← Back to Government Dashboard
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       {/* Breadcrumb & Title */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-          <Link to="/government" className="hover:underline">🏛️ Government Dashboard</Link>
+          <Link to="/government" className="hover:underline">Government Dashboard</Link>
           <span>/</span>
           <span className="font-semibold text-slate-900 dark:text-white">{districtName} District Training Plan</span>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               {districtName} District Workforce & Training Plan
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Localized skill demand forecasting, institutional capacity, and training seat recommendations
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              to="/student/copilot"
-              className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold hover:bg-teal-100 dark:hover:bg-teal-900 transition-colors"
-            >
-              Ask Copilot about {districtName} →
-            </Link>
-          </div>
+          <Link
+            to="/student/copilot"
+            className="px-3.5 py-2 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-sm font-semibold hover:bg-teal-100 dark:hover:bg-teal-900 transition-colors self-start"
+          >
+            Ask Copilot about {districtName} →
+          </Link>
         </div>
       </div>
 
@@ -87,7 +105,7 @@ export default function DistrictPlan() {
         />
         <StatCard
           title="Top Demanded Role"
-          value={plan?.top_roles?.[0]?.role || 'AI Engineer'}
+          value={plan?.top_roles?.[0]?.role || 'N/A'}
           subtitle={`${plan?.top_roles?.[0]?.count || 0} job postings`}
           icon="🎯"
           color="navy"
@@ -97,13 +115,13 @@ export default function DistrictPlan() {
       {/* Grid: Top Demanded Roles & Industry Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Top Demanded Job Roles */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white text-base">Top 5 Demanded Roles in {districtName}</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Based on local job vacancy analysis</p>
             </div>
-            <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700">
+            <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700">
               High Hiring
             </span>
           </div>
@@ -112,7 +130,7 @@ export default function DistrictPlan() {
             {plan?.top_roles?.map((r, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700"
+                className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700"
               >
                 <div className="flex items-center gap-3">
                   <span className="w-7 h-7 rounded-lg bg-slate-900 dark:bg-teal-600 text-white font-bold text-xs flex items-center justify-center">
@@ -129,20 +147,20 @@ export default function DistrictPlan() {
         </div>
 
         {/* Local Industry Clusters */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white text-base">Sector Breakdown</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Primary industries driving hiring in {districtName}</p>
             </div>
-            <span className="text-xs font-bold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">
+            <span className="text-xs font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">
               Cluster Data
             </span>
           </div>
 
           <div className="space-y-3">
             {plan?.industry_demand?.map((ind, idx) => (
-              <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
+              <div key={idx} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
                 <div className="flex justify-between items-center text-xs mb-1">
                   <span className="font-bold text-slate-900 dark:text-white">{ind.industry}</span>
                   <span className="font-mono text-slate-600 dark:text-slate-400">{ind.count} jobs</span>
@@ -160,7 +178,7 @@ export default function DistrictPlan() {
       </div>
 
       {/* Local Courses and Institutional Capacity */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
         <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white text-base">Local Training Institutes & Course Health</h3>
@@ -208,7 +226,7 @@ export default function DistrictPlan() {
       </div>
 
       {/* District Skill Gaps */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
         <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white text-base">Key Skill Gaps in {districtName}</h3>
@@ -229,6 +247,42 @@ export default function DistrictPlan() {
               demandCount={g.demand_count}
             />
           ))}
+        </div>
+      </div>
+
+      {/* Recommended Government Action */}
+      <div className="bg-slate-900 dark:bg-slate-800 p-6 rounded-xl mb-8 text-white">
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-700">
+          <div>
+            <h3 className="font-bold text-white text-base">Recommended Government Action for {districtName}</h3>
+            <p className="text-xs text-slate-400">Evidence-based training investment priorities derived from gap analysis</p>
+          </div>
+          <span className="text-[11px] font-semibold px-2.5 py-1 bg-teal-500/20 text-teal-300 rounded-full border border-teal-500/30">
+            AI Recommended
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {(plan?.skill_gaps?.slice(0, 3) || []).map((g, idx) => (
+            <div key={idx} className="p-4 rounded-lg bg-slate-800 dark:bg-slate-700/50 border border-slate-700 dark:border-slate-600">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-teal-400 uppercase">Priority {idx + 1}</span>
+                <span className="text-[10px] font-mono bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/30">
+                  {g.gap_pct}% gap
+                </span>
+              </div>
+              <h4 className="font-bold text-sm text-white mb-1">{g.skill_name}</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Allocate {Math.round((g.gap_pct / 100) * 200)} new training seats in {g.category || 'this domain'} courses across {districtName} ITIs.
+                Current demand: {g.demand_count} employers actively hiring. Coverage: {g.coverage_pct}%.
+              </p>
+            </div>
+          ))}
+          {(!plan?.skill_gaps || plan.skill_gaps.length === 0) && (
+            <div className="col-span-full text-center py-8 text-sm text-slate-400">
+              No skill gap data available for recommendations.
+            </div>
+          )}
         </div>
       </div>
     </Layout>

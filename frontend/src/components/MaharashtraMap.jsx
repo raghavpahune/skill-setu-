@@ -16,11 +16,11 @@ const MAHA_DISTRICTS = [
 
 export default function MaharashtraMap({ selectedDistrict, onSelectDistrict }) {
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
         <div>
-          <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
-            <span>🗺️</span> Maharashtra District Workforce Hubs
+          <h3 className="font-bold text-slate-900 dark:text-white text-base">
+            Maharashtra District Workforce Hubs
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">Select any district to inspect local skill demand and district training plans</p>
         </div>
@@ -57,7 +57,7 @@ export default function MaharashtraMap({ selectedDistrict, onSelectDistrict }) {
                 {d.cluster}
               </p>
               <p className={`text-[11px] mt-1.5 font-medium line-clamp-1 ${isSelected ? 'text-teal-300' : 'text-teal-700 dark:text-teal-400'}`}>
-                🎯 {d.focus}
+                Focus: {d.focus}
               </p>
 
               <div className="mt-2.5 pt-2 border-t border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center text-[10px]">

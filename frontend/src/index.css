@@ -38,6 +38,24 @@
   --color-danger: #dc2626;
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-slide-up: slide-up 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ponytail: legacy class name used in existing components */
+@utility animate-fadeIn {
+  animation: fade-in 0.2s ease-out;
 }
 
 /* Smooth background transitions for theme switches */
