@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api } from '../services/api';
 
 export default function CopilotChat({ defaultRole = 'student', initialPrompt = '' }) {
@@ -67,9 +68,9 @@ export default function CopilotChat({ defaultRole = 'student', initialPrompt = '
           sender: 'copilot',
           text: `[Intelligence Fallback] Based on indexed Maharashtra labour market records:
 
-• **Key High-Demand Focus:** Artificial Intelligence, Cloud DevOps, EV Powertrain, Precision Welding, and Solar Systems.
-• **Evidence:** Over 550+ active postings across Pune, Mumbai, and Nagpur indicate an average 34% curriculum deficit.
-• **Recommended Action:** Align local ITI seat allocation with emerging industry clusters and validate quarterly with regional employer consortiums.`,
+- **Key High-Demand Focus:** Artificial Intelligence, Cloud DevOps, EV Powertrain, Precision Welding, and Solar Systems.
+- **Evidence:** Over 550+ active postings across Pune, Mumbai, and Nagpur indicate an average 34% curriculum deficit.
+- **Recommended Action:** Align local ITI seat allocation with emerging industry clusters and validate quarterly with regional employer consortiums.`,
           isGrounded: true,
           demoMode: true,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -157,66 +158,87 @@ export default function CopilotChat({ defaultRole = 'student', initialPrompt = '
                 <span>{m.time}</span>
               </div>
 
-              {/* Render with ReactMarkdown */}
-              <div className="text-xs sm:text-[13px] leading-relaxed overflow-hidden">
-                <ReactMarkdown
-                  components={{
-                    h1: ({ node, ...props }) => (
-                      <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-3 mb-1.5 first:mt-0" {...props} />
-                    ),
-                    h2: ({ node, ...props }) => (
-                      <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-2.5 mb-1 first:mt-0" {...props} />
-                    ),
-                    h3: ({ node, ...props }) => (
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-2 mb-1 first:mt-0" {...props} />
-                    ),
-                    p: ({ node, ...props }) => (
-                      <p className="mb-2 last:mb-0 leading-relaxed break-words" {...props} />
-                    ),
-                    ul: ({ node, ...props }) => (
-                      <ul className="list-disc list-outside pl-4 space-y-1 mb-2.5 text-xs sm:text-[13px]" {...props} />
-                    ),
-                    ol: ({ node, ...props }) => (
-                      <ol className="list-decimal list-outside pl-4 space-y-1 mb-2.5 text-xs sm:text-[13px]" {...props} />
-                    ),
-                    li: ({ node, ...props }) => (
-                      <li className="leading-relaxed pl-0.5" {...props} />
-                    ),
-                    strong: ({ node, ...props }) => (
-                      <strong className="font-bold text-slate-900 dark:text-white" {...props} />
-                    ),
-                    em: ({ node, ...props }) => (
-                      <em className="italic" {...props} />
-                    ),
-                    hr: ({ node, ...props }) => (
-                      <hr className="my-3 border-slate-200 dark:border-slate-700" {...props} />
-                    ),
-                    a: ({ node, ...props }) => (
-                      <a
-                        className="text-teal-600 dark:text-teal-400 underline hover:text-teal-700 dark:hover:text-teal-300 font-medium break-all"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        {...props}
-                      />
-                    ),
-                    code: ({ node, inline, ...props }) => (
-                      inline ? (
-                        <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-teal-800 dark:text-teal-300 font-mono text-[11px] border border-slate-200 dark:border-slate-700 break-all" {...props} />
-                      ) : (
-                        <code className="block p-3 my-2 rounded-lg bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto border border-slate-800 leading-normal" {...props} />
-                      )
-                    ),
-                    pre: ({ node, ...props }) => (
-                      <pre className="overflow-x-auto my-2 rounded-lg max-w-full" {...props} />
-                    ),
-                    blockquote: ({ node, ...props }) => (
-                      <blockquote className="border-l-2 border-teal-500 pl-3 my-2 text-slate-600 dark:text-slate-400 italic" {...props} />
-                    ),
-                  }}
-                >
+              {/* Message Content */}
+              {m.sender === 'user' ? (
+                <div className="text-xs sm:text-[13px] leading-relaxed break-words whitespace-pre-wrap">
                   {m.text}
-                </ReactMarkdown>
-              </div>
+                </div>
+              ) : (
+                <div className="text-xs sm:text-[13px] leading-relaxed overflow-hidden prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({ node, ...props }) => (
+                        <h1 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white mt-3 mb-2 first:mt-0 tracking-tight" {...props} />
+                      ),
+                      h2: ({ node, ...props }) => (
+                        <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-3 mb-1.5 first:mt-0 tracking-tight" {...props} />
+                      ),
+                      h3: ({ node, ...props }) => (
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-2.5 mb-1 first:mt-0" {...props} />
+                      ),
+                      h4: ({ node, ...props }) => (
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white mt-2 mb-1 first:mt-0" {...props} />
+                      ),
+                      p: ({ node, ...props }) => (
+                        <p className="mb-2.5 last:mb-0 leading-relaxed break-words text-slate-800 dark:text-slate-200" {...props} />
+                      ),
+                      ul: ({ node, ...props }) => (
+                        <ul className="list-disc list-outside pl-4 space-y-1.5 mb-3 text-xs sm:text-[13px]" {...props} />
+                      ),
+                      ol: ({ node, ...props }) => (
+                        <ol className="list-decimal list-outside pl-4 space-y-1.5 mb-3 text-xs sm:text-[13px]" {...props} />
+                      ),
+                      li: ({ node, ...props }) => (
+                        <li className="leading-relaxed pl-0.5 text-slate-800 dark:text-slate-200" {...props} />
+                      ),
+                      strong: ({ node, ...props }) => (
+                        <strong className="font-bold text-slate-900 dark:text-white" {...props} />
+                      ),
+                      em: ({ node, ...props }) => (
+                        <em className="italic" {...props} />
+                      ),
+                      hr: ({ node, ...props }) => (
+                        <hr className="my-3.5 border-t border-slate-200 dark:border-slate-700" {...props} />
+                      ),
+                      a: ({ node, ...props }) => (
+                        <a
+                          className="text-teal-600 dark:text-teal-400 underline hover:text-teal-700 dark:hover:text-teal-300 font-medium break-all"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          {...props}
+                        />
+                      ),
+                      code: ({ node, inline, ...props }) => (
+                        inline ? (
+                          <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-teal-800 dark:text-teal-300 font-mono text-[11px] border border-slate-200 dark:border-slate-700 break-all" {...props} />
+                        ) : (
+                          <code className="block p-3 my-2 rounded-lg bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto border border-slate-800 leading-normal" {...props} />
+                        )
+                      ),
+                      pre: ({ node, ...props }) => (
+                        <pre className="overflow-x-auto my-2 rounded-lg max-w-full" {...props} />
+                      ),
+                      blockquote: ({ node, ...props }) => (
+                        <blockquote className="border-l-2 border-teal-500 pl-3 my-2 text-slate-600 dark:text-slate-400 italic" {...props} />
+                      ),
+                      table: ({ node, ...props }) => (
+                        <div className="overflow-x-auto my-2.5">
+                          <table className="w-full text-left text-xs border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-200 dark:divide-slate-700" {...props} />
+                        </div>
+                      ),
+                      th: ({ node, ...props }) => (
+                        <th className="p-2 bg-slate-100 dark:bg-slate-800/80 font-bold text-slate-900 dark:text-white" {...props} />
+                      ),
+                      td: ({ node, ...props }) => (
+                        <td className="p-2 border-b border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200" {...props} />
+                      ),
+                    }}
+                  >
+                    {m.text}
+                  </ReactMarkdown>
+                </div>
+              )}
 
               {m.sender === 'copilot' && (
                 <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
