@@ -82,7 +82,7 @@ async def handle_question(question: str, role: str = "student") -> dict:
             "role": role,
             "demo_mode": not is_live_ai,
             "data_grounded": bool(context),
-            "model": getattr(provider, "model", "gemini-2.0-flash"),
+            "model": getattr(provider, "model", "gemini-3.6-flash"),
         }
     except Exception as e:
         err_msg = str(e)

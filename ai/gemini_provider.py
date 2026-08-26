@@ -7,7 +7,8 @@ from ai.provider import LLMProvider
 
 logger = logging.getLogger("skillsetu.ai.gemini")
 
-MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+# Primary: gemini-3.6-flash, with automatic failover to currently supported Gemini models
+MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
 
 
 class GeminiProvider(LLMProvider):
@@ -16,7 +17,7 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         self.api_key = self._resolve_api_key()
         self.client = None
-        self.model = "gemini-2.0-flash"
+        self.model = "gemini-3.6-flash"
         self._sdk = None
 
         if not self.api_key:
@@ -83,7 +84,8 @@ class GeminiProvider(LLMProvider):
                 "installed_sdks": installed_sdks,
             }
 
-        # Perform live probe
+        # Perform live probe iterating through models until success
+        last_failure = None
         async with httpx.AsyncClient(timeout=15.0) as http_client:
             for model_name in MODELS:
                 try:
@@ -95,6 +97,7 @@ class GeminiProvider(LLMProvider):
                     if res.status_code == 200:
                         res_json = res.json()
                         reply = res_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+                        self.model = model_name
                         return {
                             "gemini_key_present": True,
                             "key_length": key_len,
@@ -106,9 +109,8 @@ class GeminiProvider(LLMProvider):
                             "installed_sdks": installed_sdks,
                         }
                     else:
-                        # Extract error without leaking query params or keys
                         err_json = res.json().get("error", {}) if "application/json" in res.headers.get("content-type", "") else {}
-                        return {
+                        last_failure = {
                             "gemini_key_present": True,
                             "key_length": key_len,
                             "provider": "gemini",
@@ -119,8 +121,9 @@ class GeminiProvider(LLMProvider):
                             "error_message": err_json.get("message", res.text[:200]),
                             "installed_sdks": installed_sdks,
                         }
+                        logger.warning(f"[Gemini Diagnose] Probe for {model_name} failed ({res.status_code}), testing next model...")
                 except Exception as probe_err:
-                    return {
+                    last_failure = {
                         "gemini_key_present": True,
                         "key_length": key_len,
                         "provider": "gemini",
@@ -130,6 +133,16 @@ class GeminiProvider(LLMProvider):
                         "error_message": str(probe_err),
                         "installed_sdks": installed_sdks,
                     }
+
+        return last_failure or {
+            "gemini_key_present": True,
+            "key_length": key_len,
+            "provider": "gemini",
+            "model": self.model,
+            "status": "error",
+            "error_code": "ALL_MODELS_FAILED",
+            "installed_sdks": installed_sdks,
+        }
 
     async def generate(self, prompt: str, context: dict | None = None) -> str:
         if not self.api_key:
@@ -197,7 +210,7 @@ class GeminiProvider(LLMProvider):
                     last_error = str(e)
 
         # Strategy 3: google.generativeai SDK
-        if self._sdk == "google-generativeai" and self.client:
+        if self._sdk == "google.generativeai" and self.client:
             for model_name in ["gemini-1.5-flash", "gemini-pro"]:
                 try:
                     gen_model = self.client.GenerativeModel(model_name)
