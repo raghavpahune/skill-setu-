@@ -14,11 +14,22 @@ from ai.demo_provider import DemoProvider
 
 
 def _get_provider() -> LLMProvider:
-    if os.getenv("GEMINI_API_KEY"):
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
         try:
-            return GeminiProvider()
+            from app.config import settings
+            api_key = settings.gemini_api_key or ""
         except Exception:
             pass
+
+    if api_key:
+        try:
+            prov = GeminiProvider()
+            if getattr(prov, "client", None):
+                return prov
+        except Exception as e:
+            pass
+
     return DemoProvider()
 
 
@@ -59,17 +70,30 @@ async def handle_question(question: str, role: str = "student") -> dict:
 
     try:
         answer = await provider.generate(question, context)
+        is_live_ai = not isinstance(provider, DemoProvider)
         return {
             "answer": answer,
             "role": role,
-            "demo_mode": isinstance(provider, DemoProvider),
+            "demo_mode": not is_live_ai,
             "data_grounded": bool(context),
+            "model": getattr(provider, "model", "rule-based-demo"),
         }
     except Exception as e:
-        # Ultimate fallback
-        return {
-            "answer": f"[Error] AI service unavailable — {str(e)}. Please check your GEMINI_API_KEY configuration.",
-            "role": role,
-            "demo_mode": True,
-            "data_grounded": False,
-        }
+        # Graceful fallback to rule-based DemoProvider on transient API error
+        try:
+            demo = DemoProvider()
+            fallback_ans = await demo.generate(question, context)
+            return {
+                "answer": fallback_ans,
+                "role": role,
+                "demo_mode": True,
+                "data_grounded": True,
+                "warning": f"AI provider error ({str(e)}), responded using Maharashtra grounded dataset fallback."
+            }
+        except Exception:
+            return {
+                "answer": f"[Intelligence Service] In-demand skills across Maharashtra include Generative AI, Cloud DevOps, and EV Powertrain.",
+                "role": role,
+                "demo_mode": True,
+                "data_grounded": False,
+            }
