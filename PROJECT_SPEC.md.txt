@@ -1,0 +1,1315 @@
+# SKILLSETU — PROJECT SPECIFICATION
+
+## 1. PROJECT NAME
+
+SkillSetu
+
+AI-Powered Labour-Market Intelligence & Curriculum-Alignment Platform
+
+Smart India Hackathon 2026
+Problem Statement ID: 26134
+
+Organization:
+Government of Maharashtra
+
+Department:
+Maharashtra State Innovation Society —
+Department of Skills, Employment, Entrepreneurship & Innovation
+
+---
+
+# 2. CORE PROBLEM
+
+Skill-development programs may not stay aligned with changing technologies, local industry demand, emerging job roles, productivity standards and employer expectations.
+
+Course curricula, equipment, trainer capacity and assessment methods can lag behind industry requirements.
+
+This creates:
+
+- Skill mismatch
+- Poor placement outcomes
+- Outdated courses
+- Oversupplied training
+- Shortage of emerging skills
+- Poor employer satisfaction
+- Slow curriculum revision
+- Poor district-level training planning
+- Unclear career pathways for students
+
+SkillSetu must create a continuous evidence-based feedback loop between:
+
+LABOUR MARKET
+→ SKILLS
+→ COURSES
+→ TRAINING
+→ EMPLOYERS
+→ PLACEMENTS
+→ FUTURE DEMAND
+
+---
+
+# 3. MAIN OBJECTIVE
+
+Build a working web platform that continuously analyzes labour-market signals and converts them into actionable recommendations for:
+
+1. Government
+2. Training institutes
+3. Employers
+4. Students / candidates
+
+The system should answer:
+
+- What skills are currently in demand?
+- Where are those skills demanded?
+- Which skills are missing from existing courses?
+- Which courses are outdated or oversupplied?
+- Which skills will become important in the future?
+- What should an institute change?
+- What should the government invest in?
+- What should a student learn?
+- Why is a particular skill being recommended?
+
+---
+
+# 4. CORE USER ROLES
+
+## Government / Policy Officer
+
+Can view:
+
+- State-level skill demand
+- District-level skill gaps
+- Emerging skills
+- Future demand
+- Course performance
+- Training capacity
+- Equipment requirements
+- Trainer requirements
+- Industry signals
+- Policy simulations
+- District training plans
+
+## Training Institute
+
+Can view:
+
+- Course performance
+- Skill gaps
+- Curriculum gaps
+- Emerging skills
+- Placement performance
+- Recommended curriculum updates
+- Equipment requirements
+- Trainer requirements
+
+## Employer
+
+Can:
+
+- Submit skill requirements
+- Validate SkillSetu's skill-demand analysis
+- Confirm / correct / reject recommendations
+- Report difficult-to-hire skills
+
+## Student
+
+Can:
+
+- Create skill profile
+- Select target career
+- See skill gaps
+- See future skills
+- Receive personalized industry alerts
+- Get recommended courses
+- Follow a learning roadmap
+- Use AI Career Copilot
+
+---
+
+# 5. CORE SYSTEM ARCHITECTURE
+
+Use this architecture:
+
+DATA SOURCES
+    ↓
+DATA INGESTION
+    ↓
+DATA CLEANING
+    ↓
+NLP SKILL EXTRACTION
+    ↓
+SKILL TAXONOMY MAPPING
+    ↓
+LABOUR MARKET INTELLIGENCE
+    ↓
+SKILL GAP ENGINE
+    ↓
+CURRICULUM RECOMMENDATION ENGINE
+    ↓
+FUTURE SKILL FORECAST
+    ↓
+INDUSTRY SIGNALS ENGINE
+    ↓
+USER-SPECIFIC RECOMMENDATIONS
+    ↓
+DASHBOARDS / AI COPILOT
+    ↓
+EMPLOYER VALIDATION
+    ↓
+PLACEMENT FEEDBACK
+    ↓
+CONTINUOUS IMPROVEMENT
+
+---
+
+# 6. DATA SOURCES
+
+The system architecture must support:
+
+1. Government open datasets
+2. Job posting data
+3. Employer survey data
+4. Course / qualification data
+5. Enrolment data
+6. Placement data
+7. Sector growth data
+8. Industry / technology signals
+
+For the hackathon MVP:
+
+- Use real publicly available data where practical.
+- Use clearly labelled synthetic data where live data is unavailable.
+- Do NOT pretend synthetic data is real.
+
+Possible data sources:
+
+- data.gov.in
+- Adzuna API
+- Kaggle datasets
+- NSDC Skills Intelligence Platform
+- Employer survey through Google Forms
+- Sample Maharashtra district data
+
+---
+
+# 7. STANDARD TAXONOMIES
+
+Use:
+
+- NCO-2015 for occupations
+- NSQF for qualification/skill levels
+- NSDC Qualification Packs
+- Sector Skill Council references
+
+Create a normalized internal skill taxonomy.
+
+Example:
+
+"Gen AI"
+"Generative AI"
+"Generative Artificial Intelligence"
+
+should map to:
+
+GENERATIVE_AI
+
+---
+
+# 8. NLP SKILL EXTRACTION
+
+Extract from:
+
+- Job descriptions
+- Course descriptions
+- Employer requirements
+- Industry announcements
+
+Extract:
+
+- Skills
+- Tools
+- Technologies
+- Certifications
+- Job roles
+- Experience level
+- Proficiency level
+- Industry
+- Location
+
+Recommended implementation:
+
+Primary:
+Python + spaCy
+
+Optional:
+LLM extraction using Gemini or Groq
+
+Use structured JSON output.
+
+Example:
+
+{
+  "role": "AI Engineer",
+  "skills": [
+    "Python",
+    "Machine Learning",
+    "RAG",
+    "AI Agents"
+  ],
+  "proficiency": "Intermediate",
+  "location": "Pune",
+  "industry": "Technology"
+}
+
+---
+
+# 9. SKILL TAXONOMY MAPPING
+
+Use:
+
+- Sentence Transformers
+- Supabase pgvector
+
+Map extracted skills to standardized skills.
+
+Store:
+
+- Skill ID
+- Skill name
+- Category
+- NSQF level
+- Related roles
+- Related sectors
+- Synonyms
+- Embedding
+
+---
+
+# 10. SKILL GAP ENGINE
+
+Calculate:
+
+DEMAND - CURRICULUM COVERAGE = SKILL GAP
+
+Also consider:
+
+- Job demand
+- Skill frequency
+- Employer demand
+- Placement outcomes
+- Enrolment
+- Training capacity
+- District demand
+- Proficiency requirement
+
+Example:
+
+Skill:
+AI Agents
+
+Job demand:
+82%
+
+Curriculum coverage:
+24%
+
+Skill Gap:
+58%
+
+Priority:
+HIGH
+
+---
+
+# 11. COURSE OBSOLESCENCE / OVERSUPPLY ENGINE
+
+Flag courses when:
+
+- Enrolment is high
+- Job demand is low
+- Placement is poor
+
+Example:
+
+Course:
+Traditional Office Data Entry
+
+Enrolment:
+High
+
+Job demand:
+Low
+
+Placement:
+Low
+
+Status:
+REVIEW / POSSIBLE OVERSUPPLY
+
+Do NOT automatically delete courses.
+
+Flag them for human review.
+
+---
+
+# 12. CURRICULUM RECOMMENDATION ENGINE
+
+Generate explainable recommendations.
+
+Examples:
+
+"Add RAG module"
+
+"Add AI Agent fundamentals"
+
+"Increase cybersecurity practical training"
+
+"Update cloud infrastructure module"
+
+"Review oversupplied course"
+
+"Increase training seats in Pune"
+
+Every recommendation must include:
+
+- Recommendation
+- Reason
+- Supporting data
+- Confidence score
+- Affected district
+- Affected job roles
+- Affected industries
+
+---
+
+# 13. DISTRICT TRAINING PLAN
+
+Generate district-level plans.
+
+Each plan should contain:
+
+- Top 5 demanded roles
+- Top skills
+- Skill gaps
+- Recommended courses
+- Courses needing review
+- Required training seats
+- Required equipment
+- Required trainers
+- Nearby training institutes
+- Industry demand
+- Expected impact
+
+Initial demo districts can include:
+
+Pune
+Mumbai
+Nagpur
+Nashik
+Aurangabad / Chhatrapati Sambhajinagar
+
+Use Maharashtra's 36 districts as the scalable architecture.
+
+---
+
+# 14. INDUSTRY SIGNALS ENGINE — NEW FEATURE
+
+IMPORTANT DIFFERENTIATOR.
+
+Monitor important industry and technology signals:
+
+- New AI models
+- New AI tools
+- Major technology launches
+- Major company announcements
+- Emerging technologies
+- New certifications
+- Government technology policies
+- Industry investments
+- New job roles
+- Major technology trends
+
+DO NOT build a generic news app.
+
+Convert:
+
+INDUSTRY SIGNAL
+↓
+TECHNOLOGY
+↓
+AFFECTED SKILLS
+↓
+AFFECTED JOB ROLES
+↓
+AFFECTED INDUSTRIES
+↓
+AFFECTED DISTRICTS
+↓
+SKILL GAP
+↓
+CURRICULUM IMPACT
+↓
+RECOMMENDED ACTION
+
+Example:
+
+Signal:
+New AI Agent technology announced
+
+Affected skills:
+AI Agents
+RAG
+LLM Engineering
+
+Affected roles:
+AI Engineer
+ML Engineer
+
+Curriculum coverage:
+22%
+
+Recommendation:
+Add/update AI Agent module.
+
+---
+
+# 15. FUTURE SKILL FORECASTING ENGINE — NEW FEATURE
+
+Predict skills that may become important over:
+
+6 months
+12 months
+24 months
+
+Inputs:
+
+- Historical job demand
+- Current job demand
+- Industry signals
+- Employer requirements
+- Sector growth
+- Technology trends
+- Placement outcomes
+
+Output:
+
+Skill:
+AI Agents
+
+Current Demand:
+Medium
+
+Future Demand:
+Very High
+
+Trend:
+↑ Rising
+
+Confidence:
+82%
+
+Priority:
+HIGH
+
+Affected Roles:
+AI Engineer
+ML Engineer
+Automation Engineer
+
+---
+
+# 16. AI SKILLSETU COPILOT — NEW FEATURE
+
+Build a conversational AI assistant connected to SkillSetu data.
+
+It must NOT behave like a generic chatbot.
+
+It should answer using SkillSetu's database and provide evidence.
+
+Government question:
+
+"Which skills should Pune prioritize?"
+
+Institute question:
+
+"What should we update in our AI curriculum?"
+
+Student question:
+
+"What skills am I missing for AI Engineer?"
+
+Employer question:
+
+"Which skills are difficult to hire?"
+
+Recommended architecture:
+
+LLM
++
+RAG
++
+Supabase / pgvector
++
+SkillSetu structured data
+
+Possible LLM:
+
+Gemini
+OR
+Groq
+
+---
+
+# 17. DYNAMIC STUDENT SKILL PASSPORT — NEW FEATURE
+
+Each student gets:
+
+- Current skills
+- Skill proficiency
+- Target career
+- Skill gaps
+- Industry demand
+- Future demand
+- Recommended courses
+- Learning roadmap
+- Progress
+
+Example:
+
+TARGET:
+AI ENGINEER
+
+Python — Advanced
+SQL — Intermediate
+Machine Learning — Intermediate
+Deep Learning — Beginner
+RAG — Missing
+AI Agents — Missing
+
+Skill Match:
+67%
+
+ROADMAP:
+
+Machine Learning
+↓
+Deep Learning
+↓
+RAG
+↓
+AI Agents
+↓
+Industry Project
+
+---
+
+# 18. "WHY SHOULD I LEARN THIS?" — NEW FEATURE
+
+Every recommendation must explain itself.
+
+Example:
+
+SKILL:
+AI Agents
+
+Industry Demand:
+↑ 48%
+
+Future Demand:
+HIGH
+
+Relevant Roles:
+6
+
+Employer Demand:
+HIGH
+
+Current Curriculum Coverage:
+22%
+
+Recommendation:
+HIGH PRIORITY
+
+Why?
+
+"Recommended because job-posting trends, employer requirements and emerging technology signals indicate increasing demand while current curriculum coverage is low."
+
+---
+
+# 19. PERSONALIZED INDUSTRY ALERTS — NEW FEATURE
+
+Students select interests:
+
+AI/ML
+Data Science
+Cloud
+Cybersecurity
+Robotics
+EV
+IoT
+
+The system only shows relevant industry signals.
+
+Example:
+
+INDUSTRY SIGNAL
+
+New AI technology detected.
+
+Career Impact:
+HIGH
+
+Affected Skills:
+RAG
+AI Agents
+LLM Engineering
+
+Recommended Action:
+Learn RAG + Agentic AI.
+
+This is NOT a social-media feed.
+
+The goal is:
+
+USEFUL PROFESSIONAL INFORMATION
+WITHOUT SOCIAL-MEDIA DISTRACTION.
+
+---
+
+# 20. POLICY WHAT-IF SIMULATOR — NEW WOW FEATURE
+
+Government user can simulate decisions.
+
+Example:
+
+WHAT IF TRAINING CAPACITY FOR EV SKILLS INCREASES BY 30%?
+
+Show estimated:
+
+Current seats
+New seats
+Skill gap before
+Skill gap after
+Trainer requirement
+Equipment requirement
+Expected placement impact
+
+Another scenario:
+
+WHAT IF CURRICULUM IS NOT UPDATED FOR 2 YEARS?
+
+Show:
+
+Projected skill mismatch
+Potential placement impact
+Industry shortage
+Emerging skills not covered
+
+This is a decision-support simulation.
+
+Clearly label results as:
+
+"SIMULATED ESTIMATE"
+
+NOT guaranteed real-world predictions.
+
+---
+
+# 21. EMPLOYER VALIDATION
+
+Employers should be able to:
+
+CONFIRM
+CORRECT
+REJECT
+
+AI-generated skill-demand summaries.
+
+Example:
+
+Skill:
+RAG
+
+Skill demand:
+HIGH
+
+Employer:
+YES — CONFIRM
+
+OR:
+
+Correction:
+"Intermediate RAG required, not beginner."
+
+This creates a human-in-the-loop validation mechanism.
+
+---
+
+# 22. DASHBOARDS
+
+## GOVERNMENT DASHBOARD
+
+Include:
+
+- Maharashtra overview
+- District map
+- Skill demand
+- Skill gaps
+- Emerging skills
+- Future forecast
+- Course alerts
+- Training capacity
+- Equipment needs
+- Trainer needs
+- Industry signals
+- Policy simulator
+- District plan generator
+
+---
+
+## TRAINING INSTITUTE DASHBOARD
+
+Include:
+
+- Course health
+- Skill gaps
+- Curriculum recommendations
+- Placement rate
+- Employer feedback
+- Emerging skills
+- Equipment recommendations
+- Trainer recommendations
+
+---
+
+## STUDENT DASHBOARD
+
+Include:
+
+- Skill Passport
+- Target career
+- Skill match
+- Missing skills
+- Learning roadmap
+- Rising skills
+- Industry alerts
+- Recommended courses
+- AI Copilot
+
+---
+
+## EMPLOYER DASHBOARD
+
+Include:
+
+- Skill demand submission
+- Validate AI analysis
+- Difficult-to-hire skills
+- Required proficiency
+- Industry trends
+
+---
+
+# 23. UI DESIGN
+
+Create a professional government-tech dashboard.
+
+Use:
+
+- React
+- Tailwind CSS
+- Recharts / Chart.js
+- Leaflet.js
+
+Design principles:
+
+- Clean
+- Professional
+- Data-rich
+- Modern
+- Responsive
+- Easy to understand
+- Strong visual hierarchy
+
+Avoid:
+
+- Excessive animations
+- Clutter
+- Generic AI-looking UI
+- Social-media style design
+
+---
+
+# 24. TECH STACK
+
+## FRONTEND
+
+React
+Tailwind CSS
+Recharts
+Leaflet.js
+
+## BACKEND
+
+Python
+FastAPI
+
+## DATABASE
+
+Supabase
+PostgreSQL
+pgvector
+
+## DATA / ML
+
+Python
+pandas
+NumPy
+scikit-learn
+spaCy
+Sentence Transformers
+
+## AI
+
+Gemini OR Groq
+
+## DATA
+
+data.gov.in
+Adzuna
+Kaggle
+NSDC references
+Employer surveys
+Synthetic demo data
+
+## DEPLOYMENT
+
+GitHub
+Vercel / Netlify
+Render / Hugging Face Spaces
+Supabase
+
+---
+
+# 25. IMPORTANT: NO UNNECESSARY MCP SERVERS
+
+Do NOT create a separate MCP server for every government website.
+
+Use normal connectors/APIs wherever possible.
+
+Architecture:
+
+Government API
+     ↓
+FastAPI connector
+     ↓
+Database
+     ↓
+SkillSetu intelligence engine
+
+Only introduce MCP if it provides a clear benefit and is actually required.
+
+The system must remain modular so data connectors can be replaced later.
+
+---
+
+# 26. DATABASE TABLES
+
+Create a practical MVP database.
+
+TABLES:
+
+users
+- id
+- name
+- email
+- role
+
+skills
+- id
+- name
+- category
+- nsqf_level
+
+jobs
+- id
+- title
+- company
+- district
+- industry
+- description
+- date
+
+job_skills
+- job_id
+- skill_id
+- proficiency
+
+courses
+- id
+- name
+- institute
+- district
+- description
+
+course_skills
+- course_id
+- skill_id
+- coverage_level
+
+placements
+- id
+- course_id
+- student_count
+- placed_count
+
+employers
+- id
+- name
+- industry
+
+employer_feedback
+- employer_id
+- skill_id
+- demand
+- proficiency
+
+industry_signals
+- id
+- title
+- source
+- technology
+- summary
+- date
+- impact_level
+
+signal_skills
+- signal_id
+- skill_id
+- impact_score
+
+skill_forecasts
+- skill_id
+- forecast_period
+- demand_score
+- confidence
+
+student_profiles
+- user_id
+- target_role
+
+student_skills
+- user_id
+- skill_id
+- proficiency
+
+recommendations
+- id
+- target_type
+- target_id
+- recommendation
+- reason
+- confidence
+
+---
+
+# 27. MVP DATA STRATEGY
+
+The demo must work even without live APIs.
+
+Create a realistic seed dataset containing:
+
+- 500+ jobs
+- 50+ skills
+- 20+ courses
+- Multiple Maharashtra districts
+- Employers
+- Placement records
+- Industry signals
+- Future forecasts
+
+Synthetic data must be clearly marked internally as:
+
+DEMO / SYNTHETIC DATA
+
+The architecture must allow live APIs to replace the demo dataset later.
+
+---
+
+# 28. DEMO FLOW
+
+The primary SIH demonstration should be:
+
+1. Select Maharashtra
+2. Select district
+3. Show labour-market demand
+4. Show skill gap
+5. Show emerging skill
+6. Show industry signal
+7. Show future forecast
+8. Show curriculum recommendation
+9. Show district training plan
+10. Run policy what-if simulation
+11. Open student Skill Passport
+12. Ask AI Copilot a question
+13. Show employer validation
+
+The complete story:
+
+JOB DEMAND
+↓
+SKILL GAP
+↓
+INDUSTRY SIGNAL
+↓
+FUTURE DEMAND
+↓
+CURRICULUM RECOMMENDATION
+↓
+TRAINING PLAN
+↓
+STUDENT GUIDANCE
+↓
+EMPLOYER VALIDATION
+↓
+PLACEMENT FEEDBACK
+
+---
+
+# 29. DEVELOPMENT PRIORITY
+
+Because this is a hackathon MVP, prioritize working functionality.
+
+PHASE 1:
+Project setup
+Database
+Backend
+Frontend
+
+PHASE 2:
+Job data
+Skills
+Skill-gap engine
+Course matching
+
+PHASE 3:
+Government dashboard
+Institute dashboard
+Student dashboard
+
+PHASE 4:
+Industry Signals
+Future Forecast
+AI Copilot
+
+PHASE 5:
+Student Skill Passport
+Why Learn This
+Employer Validation
+
+PHASE 6:
+Policy What-If Simulator
+
+PHASE 7:
+Testing
+Deployment
+Demo polishing
+
+---
+
+# 30. IMPORTANT DEVELOPMENT RULES FOR AI CODING AGENTS
+
+When implementing this project:
+
+1. Read PROJECT_SPEC.md first.
+2. Do not rewrite the whole project when adding a feature.
+3. Build modular components.
+4. Reuse existing components.
+5. Do not create duplicate databases.
+6. Do not create duplicate API systems.
+7. Keep frontend and backend separated.
+8. Use environment variables for API keys.
+9. Never hardcode secret API keys.
+10. Provide fallback demo data when APIs fail.
+11. Every major feature must be testable.
+12. Do not add unnecessary features.
+13. Keep the project deployable.
+14. Explain major architecture changes before making destructive changes.
+15. Preserve working features when adding new features.
+
+---
+
+# 31. ENVIRONMENT VARIABLES
+
+Use .env files.
+
+Example:
+
+DATABASE_URL=
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+GEMINI_API_KEY=
+GROQ_API_KEY=
+ADZUNA_APP_ID=
+ADZUNA_APP_KEY=
+
+Never commit .env files to GitHub.
+
+Create:
+
+.env.example
+
+with empty placeholders.
+
+---
+
+# 32. FALLBACK MODE
+
+The application must work even if:
+
+- Job API is unavailable
+- LLM API is unavailable
+- Government API is unavailable
+- Internet connection fails temporarily
+
+Use local demo data.
+
+For AI failure:
+
+Show:
+
+"AI service unavailable — displaying rule-based recommendation."
+
+This prevents the live demo from breaking.
+
+---
+
+# 33. SUCCESS METRICS
+
+Track:
+
+1. Placement rate
+2. Skill mismatch score
+3. Employer approval rate
+4. Curriculum update time
+5. Training capacity gaps
+6. Equipment/trainer gaps
+7. Student recommendation engagement
+
+Additional system metrics:
+
+- Skill forecast confidence
+- Recommendation confidence
+- Industry signal relevance
+- AI Copilot response grounding
+
+---
+
+# 34. SECURITY
+
+Implement:
+
+- Authentication
+- Role-based access
+- Protected API routes
+- Environment variables
+- Input validation
+- Anonymized aggregate public data
+- No unnecessary personal data
+
+Government and employer data must not be publicly exposed.
+
+---
+
+# 35. PROJECT STRUCTURE
+
+Use this general structure:
+
+SkillSetu/
+│
+├── frontend/
+│
+├── backend/
+│
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── demo/
+│
+├── ai/
+│
+├── docs/
+│
+├── tests/
+│
+├── .env.example
+├── PROJECT_SPEC.md
+├── README.md
+└── .gitignore
+
+The AI coding agent may adjust the structure if there is a strong technical reason.
+
+---
+
+# 36. FINAL PRODUCT IDENTITY
+
+SkillSetu is NOT:
+
+- A social media platform
+- A generic news app
+- A normal job portal
+- A generic chatbot
+- A course marketplace
+
+SkillSetu IS:
+
+A continuous skill-intelligence and workforce decision-support platform connecting:
+
+GOVERNMENT
++
+INDUSTRY
++
+TRAINING INSTITUTES
++
+STUDENTS
+
+through continuously updated labour-market intelligence.
+
+---
+
+# 37. UNIQUE VALUE PROPOSITION
+
+"SkillSetu converts changing industry demand into actionable skill, curriculum, training and career decisions."
+
+The strongest differentiators are:
+
+1. Continuous Industry Signals
+2. Future Skill Forecasting
+3. Explainable Skill-Gap Recommendations
+4. Dynamic Student Skill Passport
+5. Employer Human-in-the-Loop Validation
+6. Policy What-If Simulation
+7. District-level workforce intelligence
+
+---
+
+# 38. FIRST IMPLEMENTATION INSTRUCTION
+
+DO NOT IMPLEMENT EVERYTHING AT ONCE.
+
+First:
+
+1. Read this PROJECT_SPEC.md.
+2. Analyze the requirements.
+3. Create the complete project architecture.
+4. Create the frontend/backend/database structure.
+5. Create the database schema.
+6. Create seed/demo data.
+7. Create the initial README.
+8. Create .env.example.
+9. Verify that the architecture supports every feature in this specification.
+10. DO NOT implement advanced features yet.
+
+After architecture creation, wait for the next development instruction.
+
+The goal is a stable, modular, fully connected SIH MVP rather than a collection of disconnected AI-generated features.

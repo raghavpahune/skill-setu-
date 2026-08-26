@@ -1,0 +1,134 @@
+[
+  {
+    "id": "sig-001",
+    "title": "AI Agent Frameworks Reach Production Maturity",
+    "source": "Industry Analysis",
+    "technology": "AI Agents",
+    "summary": "Major tech companies have released production-ready AI agent frameworks, enabling autonomous task completion. This creates demand for engineers who can build, deploy, and monitor agent systems.",
+    "impact_level": "critical",
+    "signal_date": "2026-07-15",
+    "affected_skills": ["sk-005", "sk-006", "sk-004", "sk-041"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-002",
+    "title": "Maharashtra Announces EV Manufacturing Hub in Chakan",
+    "source": "Government of Maharashtra",
+    "technology": "Electric Vehicles",
+    "summary": "State government announces a dedicated EV manufacturing zone near Pune with incentives for battery and motor component manufacturers. Expected to create 15,000+ jobs over 3 years.",
+    "impact_level": "critical",
+    "signal_date": "2026-06-20",
+    "affected_skills": ["sk-018", "sk-019", "sk-023", "sk-045"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-003",
+    "title": "Cloud-Native Architecture Becomes Default for Enterprise",
+    "source": "Industry Analysis",
+    "technology": "Cloud Computing",
+    "summary": "Enterprise adoption of Kubernetes and serverless architectures has crossed 70%. Cloud and DevOps skills are now baseline requirements for most IT roles.",
+    "impact_level": "high",
+    "signal_date": "2026-05-10",
+    "affected_skills": ["sk-009", "sk-010", "sk-028", "sk-029"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-004",
+    "title": "CERT-In Mandates Cybersecurity Compliance for SMEs",
+    "source": "Government of India",
+    "technology": "Cybersecurity",
+    "summary": "New regulations require SMEs handling sensitive data to implement cybersecurity measures and employ certified security professionals. Creates urgency for cybersecurity training.",
+    "impact_level": "high",
+    "signal_date": "2026-04-01",
+    "affected_skills": ["sk-011", "sk-012", "sk-052"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-005",
+    "title": "Industry 4.0 Adoption Accelerates in Maharashtra Manufacturing",
+    "source": "MCCIA (Mahratta Chamber of Commerce)",
+    "technology": "Industry 4.0",
+    "summary": "Major Pune and Nashik manufacturing firms investing in smart factory upgrades — IoT sensors, robotics, predictive maintenance. Demand for mechatronics and automation skills surging.",
+    "impact_level": "high",
+    "signal_date": "2026-06-05",
+    "affected_skills": ["sk-053", "sk-017", "sk-021", "sk-020", "sk-054"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-006",
+    "title": "RAG Becomes Standard Architecture for Enterprise AI",
+    "source": "Industry Analysis",
+    "technology": "RAG / LLM",
+    "summary": "Retrieval-Augmented Generation is now the default pattern for enterprise AI applications, replacing fine-tuning for most use cases. RAG engineering becomes a distinct skill.",
+    "impact_level": "high",
+    "signal_date": "2026-07-01",
+    "affected_skills": ["sk-006", "sk-041", "sk-004", "sk-001"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-007",
+    "title": "India Drone Policy 2026 Opens Commercial Operations",
+    "source": "Ministry of Civil Aviation",
+    "technology": "Drone Technology",
+    "summary": "Updated drone regulations enable commercial operations in agriculture, surveying, and delivery. Creates demand for licensed drone pilots and technicians.",
+    "impact_level": "medium",
+    "signal_date": "2026-03-15",
+    "affected_skills": ["sk-033", "sk-036"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-008",
+    "title": "National Solar Mission Phase III Targets 500GW",
+    "source": "Ministry of New and Renewable Energy",
+    "technology": "Solar Energy",
+    "summary": "Ambitious solar targets require massive workforce expansion in installation, maintenance, and system design across Maharashtra's solar-rich districts.",
+    "impact_level": "medium",
+    "signal_date": "2026-02-20",
+    "affected_skills": ["sk-035", "sk-023"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-009",
+    "title": "Pharma Sector Shifts to Continuous Manufacturing",
+    "source": "Industry Analysis",
+    "technology": "Pharmaceutical Manufacturing",
+    "summary": "Leading pharma companies adopting continuous manufacturing processes, requiring updated skills in automation, quality control, and process monitoring.",
+    "impact_level": "medium",
+    "signal_date": "2026-05-25",
+    "affected_skills": ["sk-055", "sk-049", "sk-017"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-010",
+    "title": "Blockchain-Based Supply Chain Tracking Gains Traction",
+    "source": "Industry Analysis",
+    "technology": "Blockchain",
+    "summary": "Major logistics and manufacturing companies implementing blockchain for supply chain transparency and compliance tracking.",
+    "impact_level": "low",
+    "signal_date": "2026-04-15",
+    "affected_skills": ["sk-046", "sk-037"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-011",
+    "title": "Prompt Engineering Emerges as Entry-Level AI Skill",
+    "source": "Industry Analysis",
+    "technology": "Generative AI",
+    "summary": "Companies across sectors are training non-technical staff in prompt engineering. While not a standalone hiring skill for tech roles, it's becoming a baseline productivity skill.",
+    "impact_level": "medium",
+    "signal_date": "2026-06-10",
+    "affected_skills": ["sk-040", "sk-004"],
+    "source_label": "DEMO_SYNTHETIC"
+  },
+  {
+    "id": "sig-012",
+    "title": "Maharashtra Smart Agriculture Mission Launched",
+    "source": "Government of Maharashtra",
+    "technology": "AgriTech",
+    "summary": "State launches digital agriculture initiative covering precision farming, drone spraying, and IoT-based crop monitoring across Vidarbha and Marathwada regions.",
+    "impact_level": "medium",
+    "signal_date": "2026-07-20",
+    "affected_skills": ["sk-036", "sk-020", "sk-033"],
+    "source_label": "DEMO_SYNTHETIC"
+  }
+]

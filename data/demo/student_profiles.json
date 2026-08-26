@@ -1,0 +1,74 @@
+[
+  {
+    "user_id": "stu-001",
+    "name": "Aarav Patil",
+    "target_role": "AI Engineer",
+    "skills": [
+      {"skill_id": "sk-001", "proficiency": "advanced"},
+      {"skill_id": "sk-008", "proficiency": "intermediate"},
+      {"skill_id": "sk-002", "proficiency": "intermediate"},
+      {"skill_id": "sk-003", "proficiency": "beginner"},
+      {"skill_id": "sk-007", "proficiency": "intermediate"}
+    ],
+    "required_skills": ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"],
+    "skill_match_pct": 52,
+    "roadmap": ["sk-003", "sk-004", "sk-006", "sk-005"],
+    "source": "DEMO_SYNTHETIC"
+  },
+  {
+    "user_id": "stu-002",
+    "name": "Priya Deshmukh",
+    "target_role": "Data Analyst",
+    "skills": [
+      {"skill_id": "sk-001", "proficiency": "intermediate"},
+      {"skill_id": "sk-008", "proficiency": "beginner"},
+      {"skill_id": "sk-050", "proficiency": "intermediate"}
+    ],
+    "required_skills": ["sk-001", "sk-007", "sk-008", "sk-030"],
+    "skill_match_pct": 38,
+    "roadmap": ["sk-008", "sk-007", "sk-030"],
+    "source": "DEMO_SYNTHETIC"
+  },
+  {
+    "user_id": "stu-003",
+    "name": "Rohan Kulkarni",
+    "target_role": "EV Technician",
+    "skills": [
+      {"skill_id": "sk-023", "proficiency": "intermediate"},
+      {"skill_id": "sk-042", "proficiency": "advanced"}
+    ],
+    "required_skills": ["sk-018", "sk-019", "sk-023", "sk-045"],
+    "skill_match_pct": 30,
+    "roadmap": ["sk-023", "sk-018", "sk-019", "sk-045"],
+    "source": "DEMO_SYNTHETIC"
+  },
+  {
+    "user_id": "stu-004",
+    "name": "Sneha Joshi",
+    "target_role": "Cybersecurity Analyst",
+    "skills": [
+      {"skill_id": "sk-001", "proficiency": "intermediate"},
+      {"skill_id": "sk-012", "proficiency": "beginner"},
+      {"skill_id": "sk-008", "proficiency": "intermediate"}
+    ],
+    "required_skills": ["sk-011", "sk-012", "sk-052", "sk-001"],
+    "skill_match_pct": 45,
+    "roadmap": ["sk-012", "sk-011", "sk-052"],
+    "source": "DEMO_SYNTHETIC"
+  },
+  {
+    "user_id": "stu-005",
+    "name": "Vikram Shinde",
+    "target_role": "Cloud Architect",
+    "skills": [
+      {"skill_id": "sk-001", "proficiency": "advanced"},
+      {"skill_id": "sk-014", "proficiency": "intermediate"},
+      {"skill_id": "sk-009", "proficiency": "beginner"},
+      {"skill_id": "sk-008", "proficiency": "intermediate"}
+    ],
+    "required_skills": ["sk-009", "sk-010", "sk-028", "sk-029"],
+    "skill_match_pct": 35,
+    "roadmap": ["sk-009", "sk-010", "sk-028", "sk-029"],
+    "source": "DEMO_SYNTHETIC"
+  }
+]

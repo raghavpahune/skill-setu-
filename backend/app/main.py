@@ -1,0 +1,54 @@
+"""FastAPI application for SkillSetu backend."""
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: load demo data if needed
+    if settings.use_demo_data:
+        from app.db import load_demo_data
+        load_demo_data()
+    yield
+
+
+app = FastAPI(
+    title="SkillSetu API",
+    description="AI-Powered Labour-Market Intelligence & Curriculum-Alignment Platform",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ponytail: tighten to frontend URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Import and mount routers
+from app.routers import skills, jobs, gaps, courses, signals, forecast, districts, student, copilot, employer
+
+app.include_router(skills.router, prefix="/api", tags=["Skills"])
+app.include_router(jobs.router, prefix="/api", tags=["Jobs"])
+app.include_router(gaps.router, prefix="/api", tags=["Skill Gaps"])
+app.include_router(courses.router, prefix="/api", tags=["Courses"])
+app.include_router(signals.router, prefix="/api", tags=["Industry Signals"])
+app.include_router(forecast.router, prefix="/api", tags=["Forecast"])
+app.include_router(districts.router, prefix="/api", tags=["Districts"])
+app.include_router(student.router, prefix="/api", tags=["Student"])
+app.include_router(copilot.router, prefix="/api", tags=["AI Copilot"])
+app.include_router(employer.router, prefix="/api", tags=["Employer"])
+
+
+@app.get("/api/health")
+async def health():
+    return {
+        "status": "ok",
+        "demo_mode": settings.use_demo_data,
+        "ai_available": bool(settings.gemini_api_key),
+    }

@@ -1,0 +1,18 @@
+[
+  {"id": "emp-001", "name": "Tata Consultancy Services", "industry": "IT/ITES", "district": "Pune"},
+  {"id": "emp-002", "name": "Infosys", "industry": "IT/ITES", "district": "Pune"},
+  {"id": "emp-003", "name": "Persistent Systems", "industry": "IT/ITES", "district": "Pune"},
+  {"id": "emp-004", "name": "Wipro", "industry": "IT/ITES", "district": "Mumbai"},
+  {"id": "emp-005", "name": "KPIT Technologies", "industry": "IT/ITES", "district": "Pune"},
+  {"id": "emp-006", "name": "Bajaj Auto", "industry": "Manufacturing", "district": "Pune"},
+  {"id": "emp-007", "name": "Bharat Forge", "industry": "Manufacturing", "district": "Pune"},
+  {"id": "emp-008", "name": "Siemens India", "industry": "Manufacturing", "district": "Pune"},
+  {"id": "emp-009", "name": "Tata Motors", "industry": "Electric Vehicles", "district": "Pune"},
+  {"id": "emp-010", "name": "Serum Institute of India", "industry": "Pharmaceuticals", "district": "Pune"},
+  {"id": "emp-011", "name": "Cipla", "industry": "Pharmaceuticals", "district": "Mumbai"},
+  {"id": "emp-012", "name": "Quick Heal Technologies", "industry": "IT/ITES", "district": "Pune"},
+  {"id": "emp-013", "name": "Thermax", "industry": "Manufacturing", "district": "Pune"},
+  {"id": "emp-014", "name": "Mahindra Logistics", "industry": "Logistics", "district": "Mumbai"},
+  {"id": "emp-015", "name": "Tata Power Solar", "industry": "Green Energy", "district": "Mumbai"},
+  {"id": "emp-016", "name": "ideaForge", "industry": "Emerging Tech", "district": "Mumbai"}
+]

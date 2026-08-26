@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* SkillSetu Design Tokens */
+@theme {
+  --color-navy-50: #f0f4ff;
+  --color-navy-100: #dbe4ff;
+  --color-navy-200: #bac8ff;
+  --color-navy-300: #91a7ff;
+  --color-navy-400: #748ffc;
+  --color-navy-500: #5c7cfa;
+  --color-navy-600: #4c6ef5;
+  --color-navy-700: #3b5bdb;
+  --color-navy-800: #1e3a5f;
+  --color-navy-900: #0f172a;
+  --color-navy-950: #0a0f1e;
+
+  --color-teal-50: #e6fcf5;
+  --color-teal-100: #c3fae8;
+  --color-teal-200: #96f2d7;
+  --color-teal-300: #63e6be;
+  --color-teal-400: #38d9a9;
+  --color-teal-500: #0d9488;
+  --color-teal-600: #0c8577;
+  --color-teal-700: #0b7566;
+  --color-teal-800: #095c51;
+  --color-teal-900: #064e3b;
+
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Smooth background transitions for theme switches */
+html, body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
