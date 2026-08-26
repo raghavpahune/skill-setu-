@@ -24,8 +24,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ponytail: tighten to frontend URL in production
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -47,8 +47,10 @@ app.include_router(employer.router, prefix="/api", tags=["Employer"])
 
 @app.get("/api/health")
 async def health():
+    import os
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or settings.gemini_api_key
     return {
         "status": "ok",
         "demo_mode": settings.use_demo_data,
-        "ai_available": bool(settings.gemini_api_key),
+        "ai_available": bool(key and key.strip()),
     }

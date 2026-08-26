@@ -25,16 +25,15 @@ def _get_provider() -> LLMProvider:
         except Exception:
             pass
 
-    if api_key:
+    if api_key and api_key.strip():
         try:
             prov = GeminiProvider()
-            if getattr(prov, "client", None):
+            if prov.api_key:
                 return prov
-            else:
-                logger.warning("[Copilot] API key found but Gemini client failed initialization. Falling back to DemoProvider.")
         except Exception as e:
             logger.error(f"[Copilot] GeminiProvider instantiation failed: {e}")
 
+    logger.info("[Copilot] Using DemoProvider (no API key configured).")
     return DemoProvider()
 
 
@@ -75,7 +74,7 @@ async def handle_question(question: str, role: str = "student") -> dict:
     context = _build_context(role)
     is_live_ai = not isinstance(provider, DemoProvider)
 
-    logger.info(f"[Copilot] Processing inquiry with provider={provider.__class__.__name__} (is_live_ai={is_live_ai}, role={role})")
+    logger.info(f"[Copilot] Query: '{question}' (provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
 
     try:
         answer = await provider.generate(question, context)
@@ -87,8 +86,7 @@ async def handle_question(question: str, role: str = "student") -> dict:
             "model": getattr(provider, "model", "rule-based-demo"),
         }
     except Exception as e:
-        logger.error(f"[Copilot] Live generation error: {str(e)}. Triggering graceful fallback.")
-        # Graceful fallback to rule-based DemoProvider on transient API error
+        logger.error(f"[Copilot] Live generation error: {str(e)}. Falling back to DemoProvider.")
         try:
             demo = DemoProvider()
             fallback_ans = await demo.generate(question, context)
