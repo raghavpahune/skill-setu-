@@ -20,6 +20,18 @@ export default function Layout({ children }) {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  // Global Cmd+K / Ctrl+K shortcut to open AI Copilot
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        window.location.href = '/student/copilot';
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const navLinks = [
     { path: '/government', label: 'Government', desc: 'State & District Intelligence' },
     { path: '/institute', label: 'Institutes', desc: 'Curriculum & Course Health' },
@@ -106,7 +118,8 @@ export default function Layout({ children }) {
               to="/student/copilot"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
             >
-              Ask Copilot
+              <span>Ask Copilot</span>
+              <kbd className="bg-teal-800/80 text-teal-200 text-[10px] px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
             </Link>
 
             {/* Mobile hamburger */}
