@@ -1,6 +1,9 @@
 """Gemini LLM provider implementation."""
 import os
+import logging
 from ai.provider import LLMProvider
+
+logger = logging.getLogger("skillsetu.ai.gemini")
 
 
 class GeminiProvider(LLMProvider):
@@ -20,6 +23,7 @@ class GeminiProvider(LLMProvider):
                 pass
 
         if not api_key:
+            logger.info("[GeminiProvider] No GEMINI_API_KEY found in environment.")
             return
 
         # Attempt modern google-genai SDK first
@@ -27,14 +31,18 @@ class GeminiProvider(LLMProvider):
             from google import genai
             self.client = genai.Client(api_key=api_key)
             self._sdk = "google-genai"
-        except Exception:
+            logger.info(f"[GeminiProvider] Initialized with google-genai SDK (model: {self.model})")
+        except Exception as e1:
             # Fallback to legacy google-generativeai SDK if installed
             try:
                 import google.generativeai as genai_legacy
                 genai_legacy.configure(api_key=api_key)
                 self.client = genai_legacy.GenerativeModel("gemini-1.5-flash")
+                self.model = "gemini-1.5-flash"
                 self._sdk = "google-generativeai"
-            except Exception:
+                logger.info(f"[GeminiProvider] Initialized with legacy google-generativeai SDK (model: {self.model})")
+            except Exception as e2:
+                logger.error(f"[GeminiProvider] Failed to initialize Gemini SDKs: genai={e1}, legacy={e2}")
                 self.client = None
 
     async def generate(self, prompt: str, context: dict | None = None) -> str:
@@ -45,9 +53,9 @@ class GeminiProvider(LLMProvider):
             "You are SkillSetu AI Copilot, an official labour-market intelligence and curriculum-alignment assistant for Maharashtra, India. "
             "You answer questions about skill demand, skill gaps, curriculum recommendations, "
             "future skill forecasts, industry signals, and career guidance for Government, Institutes, Students, and Employers. "
-            "Always ground your answers in the provided data context. "
-            "Structure your answers with: 1) Direct Answer, 2) Data Evidence from Maharashtra dataset, 3) Recommended Action. "
-            "Cite specific numbers, districts, and evidence. Be concise, actionable, and authoritative."
+            "Always ground your answers in the provided data context when applicable. "
+            "Structure your answers clearly with actionable insights. "
+            "Be concise, actionable, and helpful."
         )
 
         data_section = ""
@@ -57,14 +65,18 @@ class GeminiProvider(LLMProvider):
 
         full_prompt = f"{system_instruction}{data_section}\n\nUser question: {prompt}"
 
-        if self._sdk == "google-genai":
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=full_prompt,
-            )
-            return response.text
-        elif self._sdk == "google-generativeai":
-            response = self.client.generate_content(full_prompt)
-            return response.text
-        else:
-            raise RuntimeError("No active Gemini SDK client initialized")
+        try:
+            if self._sdk == "google-genai":
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=full_prompt,
+                )
+                return response.text
+            elif self._sdk == "google-generativeai":
+                response = self.client.generate_content(full_prompt)
+                return response.text
+            else:
+                raise RuntimeError("No active Gemini SDK client initialized")
+        except Exception as e:
+            logger.error(f"[GeminiProvider] generate_content failed: {str(e)}")
+            raise

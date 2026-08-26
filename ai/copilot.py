@@ -1,7 +1,10 @@
 """AI Copilot orchestrator — selects provider, fetches context, returns grounded answer."""
 import os
 import sys
+import logging
 from pathlib import Path
+
+logger = logging.getLogger("skillsetu.ai.copilot")
 
 # Ensure backend app is importable
 _backend_dir = Path(__file__).resolve().parent.parent / "backend"
@@ -27,8 +30,10 @@ def _get_provider() -> LLMProvider:
             prov = GeminiProvider()
             if getattr(prov, "client", None):
                 return prov
+            else:
+                logger.warning("[Copilot] API key found but Gemini client failed initialization. Falling back to DemoProvider.")
         except Exception as e:
-            pass
+            logger.error(f"[Copilot] GeminiProvider instantiation failed: {e}")
 
     return DemoProvider()
 
@@ -59,7 +64,8 @@ def _build_context(role: str) -> dict:
             context["confirmed"] = len([f for f in feedback if f["status"] == "confirmed"])
 
         return context
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[Copilot] Failed to build context: {e}")
         return {}
 
 
@@ -67,10 +73,12 @@ async def handle_question(question: str, role: str = "student") -> dict:
     """Handle a copilot question end-to-end."""
     provider = _get_provider()
     context = _build_context(role)
+    is_live_ai = not isinstance(provider, DemoProvider)
+
+    logger.info(f"[Copilot] Processing inquiry with provider={provider.__class__.__name__} (is_live_ai={is_live_ai}, role={role})")
 
     try:
         answer = await provider.generate(question, context)
-        is_live_ai = not isinstance(provider, DemoProvider)
         return {
             "answer": answer,
             "role": role,
@@ -79,6 +87,7 @@ async def handle_question(question: str, role: str = "student") -> dict:
             "model": getattr(provider, "model", "rule-based-demo"),
         }
     except Exception as e:
+        logger.error(f"[Copilot] Live generation error: {str(e)}. Triggering graceful fallback.")
         # Graceful fallback to rule-based DemoProvider on transient API error
         try:
             demo = DemoProvider()
@@ -88,12 +97,13 @@ async def handle_question(question: str, role: str = "student") -> dict:
                 "role": role,
                 "demo_mode": True,
                 "data_grounded": True,
-                "warning": f"AI provider error ({str(e)}), responded using Maharashtra grounded dataset fallback."
+                "warning": f"AI provider error: {str(e)}"
             }
-        except Exception:
+        except Exception as fallback_err:
             return {
-                "answer": f"[Intelligence Service] In-demand skills across Maharashtra include Generative AI, Cloud DevOps, and EV Powertrain.",
+                "answer": f"In-demand skills across Maharashtra include Generative AI, Cloud DevOps, and EV Powertrain.",
                 "role": role,
                 "demo_mode": True,
                 "data_grounded": False,
+                "error": str(fallback_err),
             }
