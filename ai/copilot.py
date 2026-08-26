@@ -31,9 +31,8 @@ def _get_provider() -> LLMProvider:
             if prov.api_key:
                 return prov
         except Exception as e:
-            logger.error(f"[Copilot] GeminiProvider instantiation failed: {e}")
+            logger.error(f"[Copilot] GeminiProvider initialization failed: {e}")
 
-    logger.info("[Copilot] Using DemoProvider (no API key configured).")
     return DemoProvider()
 
 
@@ -72,7 +71,7 @@ async def handle_question(question: str, role: str = "student") -> dict:
     """Handle a copilot question end-to-end."""
     provider = _get_provider()
     context = _build_context(role)
-    is_live_ai = not isinstance(provider, DemoProvider)
+    is_live_ai = isinstance(provider, GeminiProvider)
 
     logger.info(f"[Copilot] Query: '{question}' (provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
 
@@ -83,25 +82,17 @@ async def handle_question(question: str, role: str = "student") -> dict:
             "role": role,
             "demo_mode": not is_live_ai,
             "data_grounded": bool(context),
-            "model": getattr(provider, "model", "rule-based-demo"),
+            "model": getattr(provider, "model", "gemini-2.0-flash"),
         }
     except Exception as e:
-        logger.error(f"[Copilot] Live generation error: {str(e)}. Falling back to DemoProvider.")
-        try:
-            demo = DemoProvider()
-            fallback_ans = await demo.generate(question, context)
-            return {
-                "answer": fallback_ans,
-                "role": role,
-                "demo_mode": True,
-                "data_grounded": True,
-                "warning": f"AI provider error: {str(e)}"
-            }
-        except Exception as fallback_err:
-            return {
-                "answer": f"In-demand skills across Maharashtra include Generative AI, Cloud DevOps, and EV Powertrain.",
-                "role": role,
-                "demo_mode": True,
-                "data_grounded": False,
-                "error": str(fallback_err),
-            }
+        err_msg = str(e)
+        logger.error(f"[Copilot] Live generation error: {err_msg}")
+        # Return the actual error message clearly so debugging is transparent
+        return {
+            "answer": f"[Gemini API Error] {err_msg}\n\nPlease check your Google AI Studio quota / API key permissions on Render.",
+            "role": role,
+            "demo_mode": True,
+            "data_grounded": bool(context),
+            "error_details": err_msg,
+            "model": getattr(provider, "model", "unknown"),
+        }

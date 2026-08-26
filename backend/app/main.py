@@ -54,3 +54,12 @@ async def health():
         "demo_mode": settings.use_demo_data,
         "ai_available": bool(key and key.strip()),
     }
+
+
+@app.get("/api/health/ai")
+async def health_ai():
+    """Safe diagnostic endpoint for AI provider status without exposing secrets."""
+    from ai.gemini_provider import GeminiProvider
+    provider = GeminiProvider()
+    probe_result = await provider.diagnose()
+    return probe_result
