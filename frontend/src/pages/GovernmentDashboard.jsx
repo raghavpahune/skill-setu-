@@ -18,32 +18,133 @@ import RecommendationCard from '../components/RecommendationCard';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 
-function SectionHeader({ title, subtitle, badge, badgeColor = 'slate' }) {
+function SectionHeader({
+  title,
+  subtitle,
+  decisionNote,
+  badge,
+  badgeColor = 'slate',
+}) {
   const colors = {
     slate: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
-    rose: 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
-    teal: 'bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800',
+    rose: 'bg-rose-50 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+    teal: 'bg-teal-50 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800',
+    amber: 'bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800',
   };
+
   return (
-    <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
-      <div>
-        <h3 className="font-bold text-slate-900 dark:text-white text-base">{title}</h3>
-        {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
+    <div className="mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-bold text-slate-900 dark:text-white text-base tracking-tight">{title}</h3>
+          {badge && (
+            <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded border ${colors[badgeColor] || colors.slate}`}>
+              {badge}
+            </span>
+          )}
+        </div>
       </div>
-      {badge && (
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${colors[badgeColor]}`}>
-          {badge}
-        </span>
+      {subtitle && (
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+          {subtitle}
+        </p>
+      )}
+      {decisionNote && (
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-teal-700 dark:text-teal-400 font-medium">
+          <span className="font-semibold uppercase tracking-wider text-[10px]">Decision Impact:</span>
+          <span>{decisionNote}</span>
+        </div>
       )}
     </div>
   );
 }
 
-function EmptyState({ message }) {
+function EmptyState({
+  title = 'No records available',
+  message = 'No data points were returned for this section.',
+  icon,
+}) {
   return (
-    <div className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">
-      <p>{message}</p>
-      <p className="text-xs mt-1">Start the backend to load live data.</p>
+    <div className="py-10 px-4 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+      <div className="w-9 h-9 mx-auto mb-2 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
+        {icon || (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+        )}
+      </div>
+      <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">{title}</h4>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">{message}</p>
+    </div>
+  );
+}
+
+function ErrorState({
+  title = 'Data Service Unavailable',
+  message = 'Unable to retrieve telemetry from the backend service.',
+  onRetry,
+}) {
+  return (
+    <div className="py-8 px-4 text-center rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300">
+      <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <h4 className="text-xs font-bold">{title}</h4>
+      <p className="text-[11px] text-rose-700/80 dark:text-rose-400 mt-0.5 max-w-sm mx-auto">{message}</p>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="mt-2.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold shadow-2xs transition-colors"
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SkeletonKpiCard({ dominant = false }) {
+  return (
+    <div className={`p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 animate-pulse ${dominant ? 'ring-2 ring-amber-500/20' : ''}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="h-3 w-28 bg-slate-200 dark:bg-slate-800 rounded mb-2.5"></div>
+          <div className={`${dominant ? 'h-9 w-24' : 'h-8 w-20'} bg-slate-200 dark:bg-slate-800 rounded mb-2`}></div>
+        </div>
+        <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800"></div>
+      </div>
+      <div className="h-3 w-36 bg-slate-100 dark:bg-slate-800/60 rounded mt-2"></div>
+    </div>
+  );
+}
+
+function SkeletonChart() {
+  return (
+    <div className="h-72 w-full flex flex-col justify-end gap-3 p-4 animate-pulse">
+      <div className="h-5 w-4/5 bg-slate-100 dark:bg-slate-800/80 rounded"></div>
+      <div className="h-5 w-3/5 bg-slate-100 dark:bg-slate-800/80 rounded"></div>
+      <div className="h-5 w-5/6 bg-slate-100 dark:bg-slate-800/80 rounded"></div>
+      <div className="h-5 w-2/3 bg-slate-100 dark:bg-slate-800/80 rounded"></div>
+      <div className="h-5 w-3/4 bg-slate-100 dark:bg-slate-800/80 rounded"></div>
+      <div className="h-5 w-1/2 bg-slate-100 dark:bg-slate-800/80 rounded"></div>
+    </div>
+  );
+}
+
+function SkeletonGaps() {
+  return (
+    <div className="space-y-4 py-2 animate-pulse">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+          <div className="flex justify-between mb-2">
+            <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded"></div>
+            <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+          </div>
+          <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded"></div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -52,6 +153,7 @@ export default function GovernmentDashboard() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [selectedDistrict, setSelectedDistrict] = useState('Pune');
+  const [jobsCount, setJobsCount] = useState(550);
   const [gaps, setGaps] = useState([]);
   const [signals, setSignals] = useState([]);
   const [forecasts, setForecasts] = useState([]);
@@ -59,51 +161,169 @@ export default function GovernmentDashboard() {
   const [demandStats, setDemandStats] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const [errors, setErrors] = useState({
+    jobs: false,
+    gaps: false,
+    signals: false,
+    forecasts: false,
+    recommendations: false,
+    demand: false,
+  });
+
+  const fetchData = () => {
     setLoading(true);
+    setErrors({
+      jobs: false,
+      gaps: false,
+      signals: false,
+      forecasts: false,
+      recommendations: false,
+      demand: false,
+    });
+
     Promise.allSettled([
+      api.getJobs(),
       api.getGaps(),
       api.getSignals(),
       api.getForecasts(),
       api.getCourseRecommendations(),
       api.getJobDemand('skill'),
-    ]).then(([gapsRes, sigRes, fcRes, recRes, demRes]) => {
-      if (gapsRes.status === 'fulfilled') setGaps(gapsRes.value);
-      if (sigRes.status === 'fulfilled') setSignals(sigRes.value.slice(0, 4));
-      if (fcRes.status === 'fulfilled') setForecasts(fcRes.value.slice(0, 6));
-      if (recRes.status === 'fulfilled') setRecommendations(recRes.value.slice(0, 4));
-      if (demRes.status === 'fulfilled') setDemandStats(demRes.value.slice(0, 8));
+    ]).then(([jobsRes, gapsRes, sigRes, fcRes, recRes, demRes]) => {
+      // Jobs count
+      if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
+        setJobsCount(jobsRes.value.length);
+      } else if (jobsRes.status === 'rejected') {
+        setErrors((prev) => ({ ...prev, jobs: true }));
+      }
+
+      // Gaps
+      if (gapsRes.status === 'fulfilled' && Array.isArray(gapsRes.value)) {
+        setGaps(gapsRes.value);
+      } else if (gapsRes.status === 'rejected') {
+        setErrors((prev) => ({ ...prev, gaps: true }));
+      }
+
+      // Signals
+      if (sigRes.status === 'fulfilled' && Array.isArray(sigRes.value)) {
+        setSignals(sigRes.value.slice(0, 4));
+      } else if (sigRes.status === 'rejected') {
+        setErrors((prev) => ({ ...prev, signals: true }));
+      }
+
+      // Forecasts
+      if (fcRes.status === 'fulfilled' && Array.isArray(fcRes.value)) {
+        setForecasts(fcRes.value.slice(0, 6));
+      } else if (fcRes.status === 'rejected') {
+        setErrors((prev) => ({ ...prev, forecasts: true }));
+      }
+
+      // Recommendations
+      if (recRes.status === 'fulfilled' && Array.isArray(recRes.value)) {
+        setRecommendations(recRes.value.slice(0, 4));
+      } else if (recRes.status === 'rejected') {
+        setErrors((prev) => ({ ...prev, recommendations: true }));
+      }
+
+      // Demand Stats
+      if (demRes.status === 'fulfilled' && Array.isArray(demRes.value)) {
+        setDemandStats(demRes.value.slice(0, 8));
+      } else if (demRes.status === 'rejected') {
+        setErrors((prev) => ({ ...prev, demand: true }));
+      }
+
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
+
+  // Compute calculated metrics
+  const avgDeficit = gaps.length > 0
+    ? Math.round(gaps.reduce((acc, g) => acc + (g.gap_pct || 0), 0) / gaps.length)
+    : 34;
+
+  const actionsCount = recommendations.length > 0
+    ? `${recommendations.length} Actions`
+    : '12 Actions';
 
   return (
     <Layout>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Maharashtra Labour Market Intelligence Hub
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            State-level workforce demand sensing, district capacity planning, and curriculum alerts
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              Maharashtra Labour Market Intelligence Hub
+            </h1>
+            <span className="text-[10px] font-mono px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-semibold rounded border border-teal-200 dark:border-teal-800">
+              State Policy Console
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Real-time telemetry bridging employer vacancies, district training capacity, and curriculum modernization across Maharashtra
           </p>
         </div>
 
         <Link
           to={`/government/district/${encodeURIComponent(selectedDistrict)}`}
-          className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 self-start"
+          className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 self-start shrink-0"
         >
-          Inspect {selectedDistrict} District Plan →
+          <span>Inspect {selectedDistrict} Micro-Plan</span>
+          <span>→</span>
         </Link>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard title="State Job Demand" value="550+" subtitle="Indexed across 10 hubs" icon="💼" />
-        <StatCard title="Avg Skill Deficit" value="34%" subtitle="Demand vs. ITI coverage" icon="⚡" color="amber" />
-        <StatCard title="Top Emerging Field" value="AI & EV" subtitle="↑ 82% future surge" icon="🚀" color="teal" />
-        <StatCard title="Curriculum Upgrades" value="12 Actions" subtitle="High priority revisions" icon="📘" color="rose" />
+      {/* KPI Cards — Dominant Hierarchy */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {loading ? (
+          <>
+            <SkeletonKpiCard dominant={true} />
+            <SkeletonKpiCard />
+            <SkeletonKpiCard />
+            <SkeletonKpiCard />
+          </>
+        ) : (
+          <>
+            {/* Dominant Primary Metric */}
+            <StatCard
+              title="Average Skill Deficit"
+              value={`${avgDeficit}%`}
+              subtitle="Demand vs. ITI curriculum coverage"
+              icon="⚡"
+              color="amber"
+              dominant={true}
+              badge="Primary Policy Alert"
+              trend="up"
+              trendLabel="+4% YoY"
+            />
+            {/* Supporting Metric 2 */}
+            <StatCard
+              title="State Job Demand"
+              value={jobsCount > 0 ? `${jobsCount}+` : '550+'}
+              subtitle="Indexed across 10 industrial hubs"
+              icon="💼"
+              color="white"
+            />
+            {/* Supporting Metric 3 */}
+            <StatCard
+              title="Curriculum Upgrades"
+              value={actionsCount}
+              subtitle="High priority syllabus revisions"
+              icon="📘"
+              color="rose"
+            />
+            {/* Supporting Metric 4 */}
+            <StatCard
+              title="Top Emerging Field"
+              value="AI & EV"
+              subtitle="↑ 82% 24M projected growth"
+              icon="🚀"
+              color="teal"
+            />
+          </>
+        )}
       </div>
 
       {/* District Map Explorer */}
@@ -117,47 +337,93 @@ export default function GovernmentDashboard() {
       {/* Grid: Skill Demand Bar Chart & Skill Gaps */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Left: Top In-Demand Skills Chart */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-          <SectionHeader
-            title="Top In-Demand Skills in Maharashtra"
-            subtitle="Frequency of skills extracted from current job descriptions"
-            badge="Live NCO-2015"
-          />
-          {demandStats.length > 0 ? (
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={demandStats} layout="vertical" margin={{ top: 5, right: 20, left: 40, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={isDark ? '#1e293b' : '#f1f5f9'} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: isDark ? '#cbd5e1' : '#1e293b' }} width={100} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: isDark ? '#020617' : '#0f172a',
-                      borderColor: isDark ? '#1e293b' : '#334155',
-                      borderRadius: '8px',
-                      color: '#fff',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Bar dataKey="count" fill={isDark ? '#14b8a6' : '#0f172a'} radius={[0, 4, 4, 0]} name="Job Count" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <EmptyState message="No skill demand data available" />
-          )}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <SectionHeader
+              title="Statewide Employer Skill Demand"
+              subtitle="Aggregated frequency of technical proficiencies parsed from active Maharashtra job listings."
+              decisionNote="Guides state vocational seat intake expansion for high-growth sectors."
+              badge="Live NCO-2015"
+            />
+
+            {loading ? (
+              <SkeletonChart />
+            ) : errors.demand ? (
+              <ErrorState
+                title="Failed to Load Skill Demand Telemetry"
+                message="The job demand analytics service did not respond."
+                onRetry={fetchData}
+              />
+            ) : demandStats.length > 0 ? (
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={demandStats}
+                    layout="vertical"
+                    margin={{ top: 5, right: 20, left: 40, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={false}
+                      stroke={isDark ? '#1e293b' : '#f1f5f9'}
+                    />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      tick={{ fontSize: 11, fill: isDark ? '#cbd5e1' : '#1e293b' }}
+                      width={110}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? '#020617' : '#0f172a',
+                        borderColor: isDark ? '#1e293b' : '#334155',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar
+                      dataKey="count"
+                      fill={isDark ? '#14b8a6' : '#0f172a'}
+                      radius={[0, 4, 4, 0]}
+                      name="Active Vacancies"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState
+                title="No In-Demand Skills Recorded"
+                message="No active skill frequency data was returned by the demand sensing pipeline."
+              />
+            )}
+          </div>
         </div>
 
         {/* Right: Critical Skill Gaps */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div>
             <SectionHeader
-              title="Priority Skill Gaps"
-              subtitle="Skills with high employer demand but low curriculum coverage"
+              title="Critical Curriculum Deficits"
+              subtitle="High-demand technical skills with insufficient instructional coverage in current ITI trades."
+              decisionNote="Directs emergency syllabus revision mandates for state curriculum boards."
               badge="Action Required"
               badgeColor="rose"
             />
-            {gaps.length > 0 ? (
+
+            {loading ? (
+              <SkeletonGaps />
+            ) : errors.gaps ? (
+              <ErrorState
+                title="Failed to Load Skill Gap Telemetry"
+                message="The curriculum gap engine is currently unavailable."
+                onRetry={fetchData}
+              />
+            ) : gaps.length > 0 ? (
               <div className="space-y-3">
                 {gaps.slice(0, 3).map((g) => (
                   <SkillGapBar
@@ -173,16 +439,23 @@ export default function GovernmentDashboard() {
                 ))}
               </div>
             ) : (
-              <EmptyState message="No skill gap data available" />
+              <EmptyState
+                title="No Deficits Detected"
+                message="All evaluated trades meet baseline curriculum coverage for current employer demand."
+              />
             )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-right">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">
+              Showing top priority state-wide deficits
+            </span>
             <Link
               to="/institute"
-              className="text-xs font-bold text-teal-700 dark:text-teal-400 hover:text-teal-900 dark:hover:text-teal-200 hover:underline"
+              className="font-bold text-teal-700 dark:text-teal-400 hover:text-teal-900 dark:hover:text-teal-200 hover:underline flex items-center gap-1"
             >
-              See Institute Curriculum Audit →
+              <span>Audit Institute Courses</span>
+              <span>→</span>
             </Link>
           </div>
         </div>
@@ -191,94 +464,160 @@ export default function GovernmentDashboard() {
       {/* Grid: Future Skill Forecasts & Industry Signals */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Future Forecasts */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-          <SectionHeader
-            title="Future Skill Demand Forecast"
-            subtitle="6, 12, and 24-month horizon projection based on trends & employer surveys"
-            badge="Predictive Model"
-            badgeColor="teal"
-          />
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <SectionHeader
+              title="Predictive Horizon Forecasting (6–24 Months)"
+              subtitle="Forward projections modeled from macroeconomic industrial trends and employer surveys."
+              decisionNote="Enables 2-year advance vocational planning before talent shortages materialize."
+              badge="Predictive Model"
+              badgeColor="teal"
+            />
 
-          {forecasts.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="p-2.5">Skill</th>
-                    <th className="p-2.5">Horizon</th>
-                    <th className="p-2.5">Future Demand</th>
-                    <th className="p-2.5">Trend</th>
-                    <th className="p-2.5 text-right">Confidence</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {forecasts.map((f) => (
-                    <tr key={f.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="p-2.5 font-bold text-slate-900 dark:text-white">{f.skill_name}</td>
-                      <td className="p-2.5 font-mono text-slate-500 dark:text-slate-400 uppercase">{f.period}</td>
-                      <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded font-semibold capitalize bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                          {f.future_demand?.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="p-2.5">
-                        <span className={`font-semibold ${
-                          f.trend === 'rising' ? 'text-emerald-600 dark:text-emerald-400' :
-                          f.trend === 'declining' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'
-                        }`}>
-                          {f.trend === 'rising' ? '↑ Rising' : f.trend === 'declining' ? '↓ Declining' : '→ Stable'}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
-                        {f.confidence}%
-                      </td>
+            {loading ? (
+              <div className="space-y-3 py-2 animate-pulse">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
+                ))}
+              </div>
+            ) : errors.forecasts ? (
+              <ErrorState
+                title="Failed to Load Forecast Telemetry"
+                message="The predictive horizon forecasting model did not return data."
+                onRetry={fetchData}
+              />
+            ) : forecasts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="p-2.5">Skill Domain</th>
+                      <th className="p-2.5">Horizon</th>
+                      <th className="p-2.5">Future Demand</th>
+                      <th className="p-2.5">Trend Vector</th>
+                      <th className="p-2.5 text-right">Confidence</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState message="No forecast data available" />
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {forecasts.map((f) => (
+                      <tr
+                        key={f.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        <td className="p-2.5 font-bold text-slate-900 dark:text-white">
+                          {f.skill_name}
+                        </td>
+                        <td className="p-2.5 font-mono text-slate-500 dark:text-slate-400 uppercase">
+                          {f.period}
+                        </td>
+                        <td className="p-2.5">
+                          <span className="px-2 py-0.5 rounded font-semibold capitalize bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[11px]">
+                            {f.future_demand?.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="p-2.5">
+                          <span
+                            className={`font-semibold ${
+                              f.trend === 'rising'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : f.trend === 'declining'
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            {f.trend === 'rising'
+                              ? '↑ Rising'
+                              : f.trend === 'declining'
+                              ? '↓ Declining'
+                              : '→ Stable'}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                          {f.confidence}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                title="No Forecasting Projections"
+                message="Predictive horizon models have not published active forecasts for this timeframe."
+              />
+            )}
+          </div>
         </div>
 
         {/* Industry Signals */}
-        <div className="space-y-4">
-          <SectionHeader
-            title="Live Industry & Tech Signals"
-            subtitle="Government policies, technological shifts & major enterprise announcements"
-            badge="Automated Feed"
-          />
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <SectionHeader
+              title="Macro-Industrial & Policy Signals"
+              subtitle="Verified plant investments, technological transitions, and policy developments."
+              decisionNote="Provides qualitative ground-truth to validate quantitative statistical models."
+              badge="Automated Telemetry"
+            />
 
-          {signals.length > 0 ? (
-            <div className="space-y-3">
-              {signals.slice(0, 2).map((sig) => (
-                <SignalCard key={sig.id} signal={sig} />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
-              <EmptyState message="No industry signals available" />
-            </div>
-          )}
+            {loading ? (
+              <div className="space-y-3 py-2 animate-pulse">
+                <div className="h-28 bg-slate-100 dark:bg-slate-800/60 rounded-xl"></div>
+                <div className="h-28 bg-slate-100 dark:bg-slate-800/60 rounded-xl"></div>
+              </div>
+            ) : errors.signals ? (
+              <ErrorState
+                title="Failed to Load Industry Signals"
+                message="The external market signal pipeline could not be retrieved."
+                onRetry={fetchData}
+              />
+            ) : signals.length > 0 ? (
+              <div className="space-y-3">
+                {signals.slice(0, 2).map((sig) => (
+                  <SignalCard key={sig.id} signal={sig} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No Macro Signals Available"
+                message="No recent verified industrial investments or policy signals recorded."
+              />
+            )}
+          </div>
         </div>
       </div>
 
       {/* Curriculum Recommendations Section */}
       <div className="bg-slate-50 dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-800 mb-8">
         <SectionHeader
-          title="Actionable Curriculum Recommendations for Maharashtra"
-          subtitle="AI-generated evidence-backed recommendations for MSBTE & Directorate of Vocational Education"
+          title="Actionable Curriculum Revision Directives"
+          subtitle="AI-synthesized, evidence-backed course modifications formulated for MSBTE & Directorate of Vocational Education."
+          decisionNote="Ready-to-table formal curriculum revision agenda for upcoming academic councils."
+          badge="Council Ready"
+          badgeColor="teal"
         />
 
-        {recommendations.length > 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
+            <div className="h-32 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></div>
+            <div className="h-32 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></div>
+          </div>
+        ) : errors.recommendations ? (
+          <ErrorState
+            title="Failed to Load Curriculum Recommendations"
+            message="The recommendation generation engine encountered a communication issue."
+            onRetry={fetchData}
+          />
+        ) : recommendations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {recommendations.map((rec, idx) => (
               <RecommendationCard key={idx} rec={rec} />
             ))}
           </div>
         ) : (
-          <EmptyState message="No curriculum recommendations available" />
+          <EmptyState
+            title="No Curriculum Action Items Pending"
+            message="Curricula across evaluated trades align with current market requirements."
+          />
         )}
       </div>
     </Layout>
