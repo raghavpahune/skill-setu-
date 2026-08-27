@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_key: str = ""
     gemini_api_key: str = ""
+    data_gov_api_key: str = ""
     use_demo_data: bool = True
 
     @property

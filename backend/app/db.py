@@ -15,3 +15,15 @@ def load_demo_data():
 def get_demo(table: str) -> list[dict]:
     """Get demo data for a table name. Returns empty list if not loaded."""
     return _cache.get(table, [])
+
+
+def set_demo(table: str, data: list[dict]):
+    """Set demo data for a table name."""
+    _cache[table] = data
+
+
+def append_demo(table: str, record: dict):
+    """Append a single record to the cached table."""
+    if table not in _cache:
+        _cache[table] = []
+    _cache[table].append(record)

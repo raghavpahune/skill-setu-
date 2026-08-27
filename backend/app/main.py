@@ -33,7 +33,7 @@ app.add_middleware(
 # Import and mount routers
 from app.routers import (
     skills, jobs, gaps, courses, signals, forecast,
-    districts, student, copilot, employer, schemes, opportunities,
+    districts, student, copilot, employer, schemes, opportunities, sync,
 )
 
 app.include_router(skills.router, prefix="/api", tags=["Skills"])
@@ -48,6 +48,7 @@ app.include_router(copilot.router, prefix="/api", tags=["AI Copilot"])
 app.include_router(employer.router, prefix="/api", tags=["Employer"])
 app.include_router(schemes.router, prefix="/api", tags=["Schemes"])
 app.include_router(opportunities.router, prefix="/api", tags=["Opportunities"])
+app.include_router(sync.router, prefix="/api", tags=["Data Ingestion & Sync"])
 
 
 @app.get("/api/health")
