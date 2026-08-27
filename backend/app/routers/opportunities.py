@@ -1,0 +1,171 @@
+"""Opportunities API — internships, apprenticeships, vocational training, and jobs."""
+from fastapi import APIRouter, HTTPException, Query
+from app.db import get_demo
+
+router = APIRouter()
+
+
+def _get_skills_by_job() -> dict[str, list[dict]]:
+    """Build a lookup of required skills per job/opportunity."""
+    job_skills = get_demo("job_skills")
+    skills_map = {s["id"]: s for s in get_demo("skills")}
+
+    result: dict[str, list[dict]] = {}
+    for js in job_skills:
+        jid = js["job_id"]
+        sid = js["skill_id"]
+        skill_info = skills_map.get(sid, {})
+        if jid not in result:
+            result[jid] = []
+        result[jid].append({
+            "skill_id": sid,
+            "skill_name": skill_info.get("name", sid),
+            "category": skill_info.get("category", ""),
+            "proficiency_required": js.get("proficiency_required", "intermediate"),
+        })
+    return result
+
+
+@router.get("/opportunities")
+async def list_opportunities(
+    opportunity_type: str | None = None,
+    district: str | None = None,
+    industry: str | None = None,
+    skill: str | None = None,
+    min_stipend: int | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """List opportunities (jobs, internships, apprenticeships, vocational training).
+
+    Supports filtering by opportunity type, district, industry, required skill,
+    stipend, status, and search query.
+    """
+    jobs = get_demo("jobs")
+    skills_by_job = _get_skills_by_job()
+
+    filtered = []
+    for j in jobs:
+        opp_type = j.get("opportunity_type", "job")
+
+        # Opportunity type filter (job, internship, apprenticeship, vocational_training)
+        if opportunity_type and opp_type.lower() != opportunity_type.lower():
+            continue
+
+        # District filter
+        if district and j.get("district", "").lower() != district.lower():
+            continue
+
+        # Industry filter
+        if industry and j.get("industry", "").lower() != industry.lower():
+            continue
+
+        # Status filter
+        if status and j.get("status", "active").lower() != status.lower():
+            continue
+
+        # Minimum stipend filter
+        if min_stipend is not None:
+            stipend = j.get("stipend_amount")
+            if stipend is None or stipend < min_stipend:
+                continue
+
+        # Attached skills
+        opp_skills = skills_by_job.get(j["id"], [])
+
+        # Skill filter: matches either skill ID or skill name (case-insensitive)
+        if skill:
+            skill_lower = skill.lower()
+            matched_skill = any(
+                skill_lower == s["skill_id"].lower() or skill_lower in s["skill_name"].lower()
+                for s in opp_skills
+            )
+            if not matched_skill:
+                continue
+
+        # Search query (title, company, description)
+        if q:
+            q_lower = q.lower()
+            corpus = f"{j.get('title', '')} {j.get('company', '')} {j.get('description', '')}".lower()
+            if q_lower not in corpus:
+                continue
+
+        # Enriched opportunity item
+        filtered.append({
+            "id": j["id"],
+            "title": j["title"],
+            "company": j["company"],
+            "district": j["district"],
+            "industry": j["industry"],
+            "opportunity_type": opp_type,
+            "portal_source": j.get("portal_source", "direct"),
+            "stipend_amount": j.get("stipend_amount"),
+            "duration_months": j.get("duration_months"),
+            "min_education": j.get("min_education"),
+            "vacancies_count": j.get("vacancies_count", 1),
+            "apply_url": j.get("apply_url"),
+            "description": j.get("description", ""),
+            "posted_date": j.get("posted_date"),
+            "status": j.get("status", "active"),
+            "source": j.get("source", "DEMO_SYNTHETIC"),
+            "skills": opp_skills,
+        })
+
+    return filtered[offset : offset + limit]
+
+
+@router.get("/opportunities/summary")
+async def opportunities_summary():
+    """Return count breakdown by opportunity_type and portal source."""
+    jobs = get_demo("jobs")
+    type_counts: dict[str, int] = {}
+    district_counts: dict[str, int] = {}
+
+    for j in jobs:
+        opp_type = j.get("opportunity_type", "job")
+        type_counts[opp_type] = type_counts.get(opp_type, 0) + 1
+        dist = j.get("district", "Unknown")
+        district_counts[dist] = district_counts.get(dist, 0) + 1
+
+    return {
+        "total_opportunities": len(jobs),
+        "by_type": type_counts,
+        "top_districts": sorted(
+            [{"district": k, "count": v} for k, v in district_counts.items()],
+            key=lambda x: x["count"],
+            reverse=True,
+        )[:5],
+    }
+
+
+@router.get("/opportunities/{opportunity_id}")
+async def get_opportunity(opportunity_id: str):
+    """Get single opportunity details by ID, including required skills."""
+    jobs = get_demo("jobs")
+    skills_by_job = _get_skills_by_job()
+
+    for j in jobs:
+        if j["id"] == opportunity_id:
+            return {
+                "id": j["id"],
+                "title": j["title"],
+                "company": j["company"],
+                "district": j["district"],
+                "industry": j["industry"],
+                "opportunity_type": j.get("opportunity_type", "job"),
+                "portal_source": j.get("portal_source", "direct"),
+                "stipend_amount": j.get("stipend_amount"),
+                "duration_months": j.get("duration_months"),
+                "min_education": j.get("min_education"),
+                "vacancies_count": j.get("vacancies_count", 1),
+                "apply_url": j.get("apply_url"),
+                "description": j.get("description", ""),
+                "posted_date": j.get("posted_date"),
+                "status": j.get("status", "active"),
+                "source": j.get("source", "DEMO_SYNTHETIC"),
+                "skills": skills_by_job.get(j["id"], []),
+            }
+
+    raise HTTPException(status_code=404, detail="Opportunity not found")

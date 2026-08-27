@@ -6653,5 +6653,75 @@
     "job_id": "job-0550",
     "skill_id": "sk-045",
     "proficiency_required": "advanced"
+  },
+  {
+    "job_id": "opp-001",
+    "skill_id": "sk-018",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-001",
+    "skill_id": "sk-017",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-002",
+    "skill_id": "sk-017",
+    "proficiency_required": "advanced"
+  },
+  {
+    "job_id": "opp-002",
+    "skill_id": "sk-016",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-003",
+    "skill_id": "sk-013",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-003",
+    "skill_id": "sk-014",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-003",
+    "skill_id": "sk-001",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-004",
+    "skill_id": "sk-007",
+    "proficiency_required": "advanced"
+  },
+  {
+    "job_id": "opp-004",
+    "skill_id": "sk-008",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-004",
+    "skill_id": "sk-001",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-005",
+    "skill_id": "sk-016",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-005",
+    "skill_id": "sk-022",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-006",
+    "skill_id": "sk-020",
+    "proficiency_required": "intermediate"
+  },
+  {
+    "job_id": "opp-006",
+    "skill_id": "sk-023",
+    "proficiency_required": "intermediate"
   }
 ]

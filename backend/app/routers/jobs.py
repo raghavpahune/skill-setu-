@@ -7,12 +7,19 @@ router = APIRouter()
 
 
 @router.get("/jobs")
-async def list_jobs(district: str | None = None, industry: str | None = None, limit: int = 50):
+async def list_jobs(
+    district: str | None = None,
+    industry: str | None = None,
+    opportunity_type: str | None = None,
+    limit: int = 50,
+):
     jobs = get_demo("jobs")
     if district:
         jobs = [j for j in jobs if j["district"].lower() == district.lower()]
     if industry:
         jobs = [j for j in jobs if j["industry"].lower() == industry.lower()]
+    if opportunity_type:
+        jobs = [j for j in jobs if j.get("opportunity_type", "job").lower() == opportunity_type.lower()]
     return jobs[:limit]
 
 
