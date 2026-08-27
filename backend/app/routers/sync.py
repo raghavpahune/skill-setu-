@@ -11,15 +11,15 @@ from app.ingestion.datagov_connector import (
 )
 from app.ingestion.sync_engine import SyncEngine
 
+from app.ingestion.scheduler import scheduler
+
 router = APIRouter()
 
 
 @router.post("/sync/trigger")
 async def trigger_sync(source: str = Query("data.gov.in", description="Source to ingest data from")):
-    """Trigger an on-demand automated ingestion run and record execution in sync_logs."""
-    connector = DataGovConnector()
-    engine = SyncEngine(connector=connector)
-    result = engine.run_sync(source_name=source)
+    """Trigger an on-demand automated ingestion run with concurrency/overlap protection."""
+    result = await scheduler.execute_sync(source=source)
     return result
 
 
@@ -46,6 +46,7 @@ async def get_sync_status():
     return {
         "status": "healthy",
         "api_key_configured": connector.has_api_key,
+        "scheduler": scheduler.get_status(),
         "total_sync_runs": len(logs),
         "last_sync": last_run,
         "approved_datasets": [

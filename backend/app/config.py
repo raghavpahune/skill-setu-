@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     data_gov_api_key: str = ""
     use_demo_data: bool = True
+    auto_sync_enabled: bool = True
+    sync_interval_hours: int = 24
+    sync_on_startup: bool = False
 
     @property
     def ai_available(self) -> bool:

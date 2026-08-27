@@ -12,7 +12,15 @@ async def lifespan(app: FastAPI):
     if settings.use_demo_data:
         from app.db import load_demo_data
         load_demo_data()
+
+    # Startup: start background data synchronization scheduler
+    from app.ingestion.scheduler import scheduler
+    scheduler.start()
+
     yield
+
+    # Shutdown: stop background scheduler gracefully
+    await scheduler.stop()
 
 
 app = FastAPI(
