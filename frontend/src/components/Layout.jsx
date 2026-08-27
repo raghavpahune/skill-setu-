@@ -56,11 +56,7 @@ export default function Layout({ children }) {
           <span className="hidden sm:inline">Dept. of Skills, Employment, Entrepreneurship & Innovation</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800 dark:bg-slate-900 text-[11px] font-medium text-emerald-400 border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            SIH 2026 Live MVP
-          </span>
-          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-mono hidden sm:inline">
+          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-mono">
             {health.demo_mode ? 'DEMO DATA ACTIVE' : 'LIVE DB CONNECTED'}
           </span>
         </div>
@@ -170,10 +166,6 @@ export default function Layout({ children }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-700 dark:text-slate-300">SkillSetu Platform</span>
-            <span>·</span>
-            <span>Problem Statement ID: 26134</span>
-            <span>·</span>
-            <span>Smart India Hackathon 2026</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-slate-400 dark:text-slate-500">Continuous feedback loop: Labour Market → Gaps → Curriculum → Validation</span>

@@ -2,7 +2,6 @@
 
 AI-Powered Labour-Market Intelligence & Curriculum-Alignment Platform
 
-**Smart India Hackathon 2026** · Problem Statement 26134  
 Government of Maharashtra — Department of Skills, Employment, Entrepreneurship & Innovation
 
 ---
@@ -82,4 +81,4 @@ All synthetic data is labelled `"source": "DEMO_SYNTHETIC"`.
 
 ## License
 
-Built for SIH 2026.
+MIT License

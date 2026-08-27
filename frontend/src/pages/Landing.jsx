@@ -87,10 +87,7 @@ export default function Landing() {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="text-center py-12 sm:py-20">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold mb-5">
-          Smart India Hackathon 2026 · Problem Statement #26134
-        </div>
+      <section className="text-center pt-8 pb-12 sm:pt-12 sm:pb-16">
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 dark:text-white tracking-tight max-w-4xl mx-auto leading-[1.1]">
           AI-Powered Labour-Market{' '}
           <span className="bg-gradient-to-r from-teal-700 to-teal-500 dark:from-teal-400 dark:to-teal-200 bg-clip-text text-transparent">

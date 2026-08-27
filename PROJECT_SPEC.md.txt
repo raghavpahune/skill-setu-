@@ -6,8 +6,6 @@ SkillSetu
 
 AI-Powered Labour-Market Intelligence & Curriculum-Alignment Platform
 
-Smart India Hackathon 2026
-Problem Statement ID: 26134
 
 Organization:
 Government of Maharashtra
@@ -175,7 +173,7 @@ The system architecture must support:
 7. Sector growth data
 8. Industry / technology signals
 
-For the hackathon MVP:
+For the MVP:
 
 - Use real publicly available data where practical.
 - Use clearly labelled synthetic data where live data is unavailable.
@@ -1038,7 +1036,7 @@ The architecture must allow live APIs to replace the demo dataset later.
 
 # 28. DEMO FLOW
 
-The primary SIH demonstration should be:
+The primary demonstration should be:
 
 1. Select Maharashtra
 2. Select district
@@ -1078,7 +1076,7 @@ PLACEMENT FEEDBACK
 
 # 29. DEVELOPMENT PRIORITY
 
-Because this is a hackathon MVP, prioritize working functionality.
+Because this is an MVP, prioritize working functionality.
 
 PHASE 1:
 Project setup
@@ -1312,4 +1310,4 @@ First:
 
 After architecture creation, wait for the next development instruction.
 
-The goal is a stable, modular, fully connected SIH MVP rather than a collection of disconnected AI-generated features.
+The goal is a stable, modular, fully connected MVP rather than a collection of disconnected AI-generated features.
