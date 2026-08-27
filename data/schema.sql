@@ -191,3 +191,74 @@ CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category);
 CREATE INDEX IF NOT EXISTS idx_employer_feedback_status ON employer_feedback(status);
 CREATE INDEX IF NOT EXISTS idx_skill_forecasts_trend ON skill_forecasts(trend);
 CREATE INDEX IF NOT EXISTS idx_recommendations_target_type ON recommendations(target_type);
+
+-- ============================================================
+-- SCHEMES (student welfare & government programmes)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS schemes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scheme_code TEXT UNIQUE,
+    title TEXT NOT NULL,
+    department TEXT NOT NULL,
+    scheme_type TEXT NOT NULL CHECK (scheme_type IN (
+        'scholarship', 'fee_waiver', 'hostel_allowance',
+        'training_scheme', 'stipend', 'tool_grant'
+    )),
+    beneficiary_category TEXT[] DEFAULT '{}',
+    income_ceiling_annual INT,
+    benefit_description TEXT NOT NULL,
+    max_amount INT,
+    eligible_course_types TEXT[] DEFAULT '{}',
+    application_portal_url TEXT,
+    deadline_date DATE,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'upcoming', 'closed')),
+    source TEXT NOT NULL,
+    external_id TEXT,
+    last_synced_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (source, external_id)
+);
+
+-- ============================================================
+-- JOBS — extended for internships, apprenticeships, vocational training
+-- ============================================================
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS opportunity_type TEXT
+    DEFAULT 'job' CHECK (opportunity_type IN (
+        'job', 'internship', 'apprenticeship', 'vocational_training'
+    ));
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS external_id TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS portal_source TEXT DEFAULT 'direct';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS stipend_amount INT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_months INT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_education TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vacancies_count INT DEFAULT 1;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_url TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ DEFAULT now();
+
+-- ============================================================
+-- SYNC_LOGS (ingestion audit trail)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sync_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_name TEXT NOT NULL,
+    job_type TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed', 'partial')),
+    records_fetched INT DEFAULT 0,
+    records_added INT DEFAULT 0,
+    records_updated INT DEFAULT 0,
+    records_skipped INT DEFAULT 0,
+    error_message TEXT,
+    started_at TIMESTAMPTZ DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    duration_ms INT
+);
+
+-- ============================================================
+-- INDEXES for new tables
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_schemes_type ON schemes(scheme_type);
+CREATE INDEX IF NOT EXISTS idx_schemes_status ON schemes(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_opportunity_type ON jobs(opportunity_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_external_id
+    ON jobs(source, external_id) WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sync_logs_source ON sync_logs(source_name, started_at DESC);
