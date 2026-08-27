@@ -8,10 +8,9 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: load demo data if needed
-    if settings.use_demo_data:
-        from app.db import load_demo_data
-        load_demo_data()
+    # Startup: initialize database layer (demo data + Supabase overlay)
+    from app.db import init_db
+    init_db()
 
     # Startup: start background data synchronization scheduler
     from app.ingestion.scheduler import scheduler
@@ -62,11 +61,22 @@ app.include_router(sync.router, prefix="/api", tags=["Data Ingestion & Sync"])
 @app.get("/api/health")
 async def health():
     import os
+    from app.db import _cache, _find_data_dir, is_supabase_connected
     key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or settings.gemini_api_key
+    total_records = sum(len(v) for v in _cache.values() if isinstance(v, list))
+    jobs = _cache.get("jobs", [])
+    districts = sorted(list(set(j.get("district") for j in jobs if j.get("district"))))
     return {
         "status": "ok",
         "demo_mode": settings.use_demo_data,
         "ai_available": bool(key and key.strip()),
+        "records_loaded": total_records,
+        "tables_loaded": len(_cache),
+        "data_dir": str(_find_data_dir()),
+        "jobs_count": len(jobs),
+        "districts_count": len(districts),
+        "districts": districts,
+        "supabase_connected": is_supabase_connected(),
     }
 
 

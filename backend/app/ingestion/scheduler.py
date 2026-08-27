@@ -147,7 +147,7 @@ class IngestionScheduler:
         """Check whether sufficient time has elapsed since the last recorded sync."""
         logs = list(get_demo("sync_logs"))
         if not logs:
-            return False
+            return True
 
         logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
         last_log = logs[0]
