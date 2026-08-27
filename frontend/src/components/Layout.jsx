@@ -169,14 +169,117 @@ export default function Layout({ children }) {
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-6 mt-auto text-xs text-slate-500 dark:text-slate-400 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">SkillSetu Platform</span>
+      {/* Professional Structured Footer */}
+      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-10 mt-auto text-xs text-slate-500 dark:text-slate-400 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+            {/* Col 1: Platform & Identity */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded bg-gradient-to-tr from-slate-900 to-teal-700 dark:from-teal-800 dark:to-slate-800 flex items-center justify-center text-white font-bold text-sm shadow-xs">
+                  S
+                </div>
+                <span className="font-bold text-sm text-slate-900 dark:text-white">
+                  SkillSetu Maha-Intel
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Labour-Market Intelligence & Curriculum-Alignment Platform. Connecting Maharashtra's state agencies, vocational institutes, candidates, and industry partners.
+              </p>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                <span>Active Intelligence Pipeline</span>
+              </div>
+            </div>
+
+            {/* Col 2: Stakeholder Portals */}
+            <div>
+              <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider mb-3">
+                Stakeholder Portals
+              </h4>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <Link to="/government" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                    State Government Overview
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/institute" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                    Training Institutes & ITIs
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/student" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                    Candidate Skill Passport
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/employer" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                    Employer Validation Hub
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 3: Intelligence & Navigation */}
+            <div>
+              <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider mb-3">
+                Intelligence Tools
+              </h4>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <Link to="/student/copilot" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors flex items-center gap-1">
+                    <span>Evidence-Based AI Copilot</span>
+                    <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">⌘K</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/government/district/Pune" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                    District Workforce Plans
+                  </Link>
+                </li>
+                <li>
+                  <span className="text-slate-400 dark:text-slate-500">NSQF & NCO-2015 Classification</span>
+                </li>
+                <li>
+                  <span className="text-slate-400 dark:text-slate-500">Open Data Ingestion Pipeline</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 4: State Alignment */}
+            <div>
+              <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider mb-3">
+                Governance & Alignment
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
+                Aligned with Maharashtra State Innovation Society (MSInS) and Dept. of Skills, Employment, Entrepreneurship & Innovation.
+              </p>
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+                <div className="flex justify-between">
+                  <span>Data Engine:</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">FastAPI + Async</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>System Status:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Operational</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-slate-400 dark:text-slate-500">Continuous feedback loop: Labour Market → Gaps → Curriculum → Validation</span>
+
+          {/* Bottom Bar */}
+          <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400 dark:text-slate-500">
+            <div>
+              © {new Date().getFullYear()} SkillSetu. Continuous evidence-based feedback loop: Labour Market → Gaps → Curriculum → Validation.
+            </div>
+            <div className="flex items-center gap-4">
+              <span>District Micro-Plans</span>
+              <span>•</span>
+              <span>Predictive Horizons</span>
+              <span>•</span>
+              <span>Human-in-the-Loop</span>
+            </div>
           </div>
         </div>
       </footer>
