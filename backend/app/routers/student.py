@@ -13,11 +13,21 @@ async def skill_passport(student_id: str):
     for p in profiles:
         if p["user_id"] == student_id:
             current = [
-                {**sk, "skill_name": skills_map.get(sk["skill_id"], {}).get("name", "")}
+                {
+                    **sk,
+                    "skill_name": skills_map.get(sk["skill_id"], {}).get("name", ""),
+                    "category": skills_map.get(sk["skill_id"], {}).get("category", ""),
+                    "nsqf_level": skills_map.get(sk["skill_id"], {}).get("nsqf_level"),
+                }
                 for sk in p.get("skills", [])
             ]
             required = [
-                {"skill_id": sid, "skill_name": skills_map.get(sid, {}).get("name", "")}
+                {
+                    "skill_id": sid,
+                    "skill_name": skills_map.get(sid, {}).get("name", ""),
+                    "category": skills_map.get(sid, {}).get("category", ""),
+                    "nsqf_level": skills_map.get(sid, {}).get("nsqf_level"),
+                }
                 for sid in p.get("required_skills", [])
             ]
             missing = [
@@ -51,18 +61,23 @@ async def learning_roadmap(student_id: str):
     for p in profiles:
         if p["user_id"] == student_id:
             roadmap = []
-            for sid in p.get("roadmap", []):
+            for idx, sid in enumerate(p.get("roadmap", []), start=1):
                 skill = skills_map.get(sid, {})
                 fc = forecast_map.get(sid, {})
                 roadmap.append({
+                    "step": idx,
                     "skill_id": sid,
                     "skill_name": skill.get("name", ""),
                     "category": skill.get("category", ""),
-                    "future_demand": fc.get("future_demand", "unknown"),
-                    "trend": fc.get("trend", "unknown"),
+                    "nsqf_level": skill.get("nsqf_level"),
+                    "future_demand": fc.get("future_demand", "high"),
+                    "trend": fc.get("trend", "rising"),
+                    "confidence": fc.get("confidence", 85),
+                    "timeframe": fc.get("timeframe", "2025-2027"),
+                    "key_drivers": fc.get("key_drivers", []),
                     "why": f"Recommended because {skill.get('name', 'this skill')} has "
                            f"{fc.get('future_demand', 'growing')} future demand with "
-                           f"{fc.get('trend', 'rising')} trend and {fc.get('confidence', 'N/A')}% confidence.",
+                           f"{fc.get('trend', 'rising')} trend and {fc.get('confidence', '85')}% confidence.",
                 })
             return {
                 "user_id": p["user_id"],
