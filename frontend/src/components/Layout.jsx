@@ -135,7 +135,7 @@ export default function Layout({ children }) {
 
         {/* Mobile Navigation Dropdown */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 animate-fade-in">
+          <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 animate-fade-in shadow-md">
             <nav className="max-w-7xl mx-auto px-4 py-3 space-y-1">
               {navLinks.map((link) => (
                 <Link
@@ -151,6 +151,14 @@ export default function Layout({ children }) {
                   <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">{link.desc}</span>
                 </Link>
               ))}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 sm:hidden">
+                <Link
+                  to="/student/copilot"
+                  className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg shadow-sm"
+                >
+                  <span>Ask AI Copilot</span>
+                </Link>
+              </div>
             </nav>
           </div>
         )}

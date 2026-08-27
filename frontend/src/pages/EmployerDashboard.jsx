@@ -60,13 +60,19 @@ export default function EmployerDashboard() {
   }, []);
 
   const loadValidations = () => {
+    setLoading(true);
     api.getEmployerValidations()
       .then((res) => {
         if (Array.isArray(res) && res.length > 0) {
           setValidations(res);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('Could not load employer validations, using defaults:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const handleAction = async (feedbackId, status, notes = null, prof = null) => {
@@ -80,8 +86,8 @@ export default function EmployerDashboard() {
         )
       );
 
-      await api.submitEmployerFeedback(feedbackId, status, notes, prof).catch(() => {
-        // Backend offline is handled smoothly in demo mode
+      await api.submitEmployerFeedback(feedbackId, status, notes, prof).catch((err) => {
+        console.warn('Backend feedback sync error (handled):', err);
       });
 
       setActionSuccess(`Signal successfully recorded as ${status.toUpperCase()}`);

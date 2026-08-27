@@ -29,9 +29,14 @@
 
   --color-surface: #ffffff;
   --color-surface-alt: #f8fafc;
+  --color-surface-dark: #0f172a;
+  --color-surface-dark-alt: #1e293b;
   --color-border: #e2e8f0;
+  --color-border-dark: #334155;
   --color-text: #1e293b;
+  --color-text-dark: #f8fafc;
   --color-text-muted: #64748b;
+  --color-text-muted-dark: #94a3b8;
 
   --color-success: #16a34a;
   --color-warning: #d97706;
@@ -40,7 +45,9 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
   --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-fadeIn: fadeIn 0.2s ease-out;
   --animate-slide-up: slide-up 0.25s ease-out;
+  --animate-pulse-subtle: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes fade-in {
@@ -48,14 +55,28 @@
   to { opacity: 1; }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ponytail: legacy class name used in existing components */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Compatibility utilities for components */
 @utility animate-fadeIn {
-  animation: fade-in 0.2s ease-out;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@utility animate-pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Smooth background transitions for theme switches */
