@@ -1,22 +1,74 @@
-const rawBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-const cleanBase = rawBase.replace(/\/+$/, '');
-const API_BASE = cleanBase.endsWith('/api') ? cleanBase : `${cleanBase}/api`;
+function getApiBase() {
+  // 1. Explicit Vite environment variable (baked in at build time)
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    const clean = envUrl.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+
+  // 2. Runtime override via window or localStorage (allows instant configuration without rebuild)
+  if (typeof window !== 'undefined') {
+    const localOverride = window.localStorage?.getItem('skillsetu_api_url') || window.__SKILLSETU_API_URL__;
+    if (localOverride && typeof localOverride === 'string' && localOverride.trim()) {
+      const clean = localOverride.trim().replace(/\/+$/, '');
+      return clean.endsWith('/api') ? clean : `${clean}/api`;
+    }
+
+    // 3. Localhost development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://127.0.0.1:8000/api';
+    }
+  }
+
+  // 4. Production default relative URL (works seamlessly with same-origin or Vercel rewrites)
+  return '/api';
+}
+
+const API_BASE = getApiBase();
 
 async function fetchJSON(endpoint, options = {}) {
+  const base = getApiBase();
+  const url = `${base}${endpoint}`;
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const res = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
       ...options,
     });
+
     if (!res.ok) {
-      throw new Error(`API error: ${res.status} ${res.statusText}`);
+      const errText = await res.text().catch(() => '');
+      let errMsg = `API error: ${res.status} ${res.statusText}`;
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson.detail) errMsg = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+        if (errJson.message) errMsg = errJson.message;
+      } catch {
+        if (errText && errText.length < 120 && !errText.includes('<html')) {
+          errMsg = errText;
+        }
+      }
+      throw new Error(errMsg);
     }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+        throw new Error(`Endpoint ${endpoint} returned HTML instead of JSON. Backend service may be connecting.`);
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+
     return await res.json();
   } catch (err) {
-    console.warn(`[SkillSetu API] Failed to fetch from ${endpoint}:`, err);
+    console.warn(`[SkillSetu API] Failed to fetch from ${url}:`, err.message || err);
     throw err;
   }
 }

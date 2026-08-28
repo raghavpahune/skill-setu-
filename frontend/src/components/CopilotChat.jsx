@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '../services/api';
+import { generateClientFallback } from '../services/copilotFallback';
 
 const ROLE_DEFINITIONS = [
   {
@@ -159,6 +160,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
 
     try {
       const res = await api.askCopilot(trimmed, role);
+      setErrorState(null);
       setMessages((prev) => [
         ...prev,
         {
@@ -172,27 +174,20 @@ Select your stakeholder role above or explore one of the verified inquiries belo
         },
       ]);
     } catch (err) {
-      console.warn('[Copilot] API call failed:', err);
-      setErrorState({
-        query: trimmed,
-        message: err.message || 'Network communication error connecting to Copilot API.',
-      });
-      // Add safe non-blocking intelligence fallback message
+      console.warn('[Copilot] Live API call failed, generating grounded client fallback:', err);
+      setErrorState(null); // Clear blocking red banner since we provide grounded offline fallback
+      
+      const fallback = generateClientFallback(trimmed, role);
       setMessages((prev) => [
         ...prev,
         {
           id: `cop-${Date.now()}`,
           sender: 'copilot',
-          text: `### [Offline Intelligence Fallback]
-
-Unable to contact live AI inference service. Based on local indexed Maharashtra labour records:
-
-* **Pune Region Insight:** Pune maintains 150 active jobs with primary demand in **Cloud Engineering**, **CAD Design**, and **Precision Welding**.
-* **Key High-Demand Deficits:** **Python** (8% deficit), **PLC Programming** (8% deficit), and **Industrial Robotics** (7% deficit).
-* **Recommended Action:** Review accredited vocational course health at Government ITI Pune and COEP to bridge technical deficits.`,
+          text: fallback.answer,
           isGrounded: true,
           demoMode: true,
-          model: 'Rule-Based Offline Intelligence',
+          model: fallback.model || 'Rule-Based Offline Intelligence',
+          notice: fallback.notice,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
