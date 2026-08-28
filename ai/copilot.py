@@ -104,32 +104,54 @@ def _build_context(role: str, question: str = "") -> dict:
 
 
 async def handle_question(question: str, role: str = "student") -> dict:
-    """Handle a copilot question end-to-end."""
+    """Handle a copilot question end-to-end with live inference and resilient offline fallback."""
     provider = _get_provider()
     context = _build_context(role, question)
     is_live_ai = isinstance(provider, GeminiProvider)
 
     logger.info(f"[Copilot] Query: '{question}' (provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
 
-    try:
-        answer = await provider.generate(question, context)
-        model_name = getattr(provider, "model", "gemini-2.5-flash") if is_live_ai else "Rule-Based Offline Intelligence"
-        return {
-            "answer": answer,
-            "role": role,
-            "demo_mode": not is_live_ai,
-            "data_grounded": bool(context),
-            "model": model_name,
-        }
-    except Exception as e:
-        err_msg = str(e)
-        logger.error(f"[Copilot] Live generation error: {err_msg}")
-        # Return the actual error message clearly so debugging is transparent
-        return {
-            "answer": f"[Gemini API Error] {err_msg}\n\nPlease check your Google AI Studio quota / API key permissions on Render.",
-            "role": role,
-            "demo_mode": True,
-            "data_grounded": bool(context),
-            "error_details": err_msg,
-            "model": getattr(provider, "model", "unknown"),
-        }
+    if is_live_ai:
+        try:
+            answer = await provider.generate(question, context)
+            return {
+                "answer": answer,
+                "role": role,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "model": getattr(provider, "model", "gemini-3.6-flash"),
+            }
+        except Exception as e:
+            err_msg = str(e)
+            logger.error(f"[Copilot] Live generation error, switching to rule-based offline fallback: {err_msg}")
+            # Fallback to DemoProvider rule-based intelligence so application never crashes
+            try:
+                demo_prov = DemoProvider()
+                fallback_answer = await demo_prov.generate(question, context)
+                return {
+                    "answer": fallback_answer,
+                    "role": role,
+                    "demo_mode": True,
+                    "data_grounded": bool(context),
+                    "model": "Rule-Based Offline Intelligence",
+                    "notice": f"AI service temporarily unavailable. Switched to offline intelligence.",
+                }
+            except Exception:
+                return {
+                    "answer": f"[Gemini API Error] {err_msg}\n\nPlease check your Google AI Studio quota / API key permissions on Render.",
+                    "role": role,
+                    "demo_mode": True,
+                    "data_grounded": bool(context),
+                    "error_details": err_msg,
+                    "model": "Rule-Based Offline Intelligence",
+                }
+
+    # Demo mode provider
+    answer = await provider.generate(question, context)
+    return {
+        "answer": answer,
+        "role": role,
+        "demo_mode": True,
+        "data_grounded": bool(context),
+        "model": "Rule-Based Offline Intelligence",
+    }

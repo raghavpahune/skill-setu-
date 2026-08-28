@@ -1,4 +1,4 @@
-"""Gemini LLM provider implementation with safe diagnostics, REST support, and SDK failover."""
+"""Gemini LLM provider implementation with safe diagnostics, REST support, and google-genai SDK."""
 import os
 import json
 import logging
@@ -7,40 +7,33 @@ from ai.provider import LLMProvider
 
 logger = logging.getLogger("skillsetu.ai.gemini")
 
-# Primary: gemini-2.5-flash, with automatic failover to supported Gemini models
-MODELS = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]
+# Primary supported model: gemini-3.6-flash (legacy models gemini-1.5-*, 2.0-*, 2.5-*, gemini-pro are retired by Google)
+MODELS = ["gemini-3.6-flash"]
 
 
 class GeminiProvider(LLMProvider):
-    """Robust Google Gemini provider supporting Direct REST HTTP, google-genai, and google.generativeai."""
+    """Robust Google Gemini provider supporting google-genai SDK (async/sync) and Direct REST HTTP failover."""
 
     def __init__(self):
         self.api_key = self._resolve_api_key()
         self.client = None
-        self.model = "gemini-2.5-flash"
+        self.model = "gemini-3.6-flash"
         self._sdk = None
 
         if not self.api_key:
             logger.info("[GeminiProvider] No GEMINI_API_KEY or GOOGLE_API_KEY detected in runtime environment.")
             return
 
-        # Initialize SDK client if available
+        # Initialize official google-genai SDK client if installed, otherwise fallback to direct REST
         try:
             from google import genai
             self.client = genai.Client(api_key=self.api_key)
             self._sdk = "google-genai"
             logger.info("[GeminiProvider] Initialized google-genai SDK.")
         except Exception:
-            try:
-                import google.generativeai as genai_legacy
-                genai_legacy.configure(api_key=self.api_key)
-                self.client = genai_legacy
-                self._sdk = "google-generativeai"
-                logger.info("[GeminiProvider] Initialized google.generativeai SDK.")
-            except Exception:
-                self.client = "httpx-rest"
-                self._sdk = "httpx-rest"
-                logger.info("[GeminiProvider] Initialized direct REST client.")
+            self.client = "httpx-rest"
+            self._sdk = "httpx-rest"
+            logger.info("[GeminiProvider] Initialized direct REST client.")
 
     def _resolve_api_key(self) -> str:
         key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
@@ -61,12 +54,6 @@ class GeminiProvider(LLMProvider):
         try:
             import google.genai
             installed_sdks.append("google-genai")
-        except Exception:
-            pass
-
-        try:
-            import google.generativeai
-            installed_sdks.append("google-generativeai")
         except Exception:
             pass
 
@@ -121,7 +108,7 @@ class GeminiProvider(LLMProvider):
                             "error_message": err_json.get("message", res.text[:200]),
                             "installed_sdks": installed_sdks,
                         }
-                        logger.warning(f"[Gemini Diagnose] Probe for {model_name} failed ({res.status_code}), testing next model...")
+                        logger.warning(f"[Gemini Diagnose] Probe for {model_name} failed ({res.status_code})")
                 except Exception as probe_err:
                     last_failure = {
                         "gemini_key_present": True,
@@ -163,7 +150,29 @@ class GeminiProvider(LLMProvider):
 
         last_error = None
 
-        # Strategy 1: Direct Async REST Call via httpx
+        # Strategy 1: official google-genai SDK (recommended by Google)
+        if self._sdk == "google-genai" and self.client:
+            for model_name in MODELS:
+                try:
+                    if hasattr(self.client, "aio") and hasattr(self.client.aio, "models"):
+                        response = await self.client.aio.models.generate_content(
+                            model=model_name,
+                            contents=full_prompt,
+                        )
+                    else:
+                        response = self.client.models.generate_content(
+                            model=model_name,
+                            contents=full_prompt,
+                        )
+                    if response and response.text:
+                        self.model = model_name
+                        logger.info(f"[GeminiProvider] Generated response via google-genai SDK (model: {model_name})")
+                        return response.text
+                except Exception as e:
+                    logger.warning(f"[GeminiProvider] google-genai SDK {model_name} error: {e}")
+                    last_error = str(e)
+
+        # Strategy 2: Direct Async REST Call via httpx
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             for model_name in MODELS:
                 try:
@@ -192,34 +201,6 @@ class GeminiProvider(LLMProvider):
                         last_error = f"HTTP {response.status_code} ({model_name}): {err_msg}"
                 except Exception as e:
                     logger.warning(f"[GeminiProvider] REST attempt with {model_name} failed: {e}")
-                    last_error = str(e)
-
-        # Strategy 2: google-genai SDK
-        if self._sdk == "google-genai" and self.client:
-            for model_name in MODELS:
-                try:
-                    response = self.client.models.generate_content(
-                        model=model_name,
-                        contents=full_prompt,
-                    )
-                    if response and response.text:
-                        self.model = model_name
-                        return response.text
-                except Exception as e:
-                    logger.warning(f"[GeminiProvider] google-genai SDK {model_name} error: {e}")
-                    last_error = str(e)
-
-        # Strategy 3: google.generativeai SDK
-        if self._sdk == "google.generativeai" and self.client:
-            for model_name in ["gemini-1.5-flash", "gemini-pro"]:
-                try:
-                    gen_model = self.client.GenerativeModel(model_name)
-                    response = gen_model.generate_content(full_prompt)
-                    if response and response.text:
-                        self.model = model_name
-                        return response.text
-                except Exception as e:
-                    logger.warning(f"[GeminiProvider] legacy SDK {model_name} error: {e}")
                     last_error = str(e)
 
         raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")

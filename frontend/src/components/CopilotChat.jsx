@@ -167,7 +167,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
           text: res.answer || 'No specific response was generated.',
           isGrounded: res.data_grounded !== false,
           demoMode: !!res.demo_mode,
-          model: res.model || (res.demo_mode ? 'Rule-Based Offline Intelligence' : 'Gemini 2.5 Flash'),
+          model: res.model || (res.demo_mode ? 'Rule-Based Offline Intelligence' : 'Gemini 3.6 Flash'),
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
