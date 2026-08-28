@@ -29,24 +29,24 @@ export default function DemoTour() {
     if (el) {
       const rect = el.getBoundingClientRect();
       setTargetRect({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.top,
+        left: rect.left,
         width: rect.width,
         height: rect.height,
-        bottom: rect.bottom + window.scrollY,
-        right: rect.right + window.scrollX,
+        bottom: rect.bottom,
+        right: rect.right,
       });
 
       // Position popover
       const popoverWidth = Math.min(460, window.innerWidth - 32);
-      const popoverHeight = 320; // approximate
+      const popoverHeight = 300; // approximate
       const padding = 16;
 
-      let top = rect.bottom + window.scrollY + padding;
+      let top = rect.bottom + padding;
       let left = Math.max(
         16,
         Math.min(
-          rect.left + window.scrollX + (rect.width / 2) - (popoverWidth / 2),
+          rect.left + (rect.width / 2) - (popoverWidth / 2),
           window.innerWidth - popoverWidth - 16
         )
       );
@@ -54,8 +54,11 @@ export default function DemoTour() {
 
       // If popover goes off the bottom of viewport, place above
       if (rect.bottom + popoverHeight + padding > window.innerHeight && rect.top > popoverHeight + padding) {
-        top = rect.top + window.scrollY - popoverHeight - padding;
+        top = Math.max(16, rect.top - popoverHeight - padding);
         placement = 'top';
+      } else if (rect.bottom + popoverHeight + padding > window.innerHeight) {
+        // If neither above nor below fits completely, constrain to viewport
+        top = Math.max(16, window.innerHeight - popoverHeight - 16);
       }
 
       setPopoverPos({ top, left, placement });
@@ -112,23 +115,58 @@ export default function DemoTour() {
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-auto font-sans">
-      {/* Dimmed Backdrop */}
+      {/* Semi-Transparent Dimmed Backdrop with Crisp Cutout (Zero Blur) */}
+      <svg
+        className="fixed inset-0 w-full h-full pointer-events-none z-40 transition-opacity duration-300"
+        style={{ width: '100vw', height: '100vh' }}
+        aria-hidden="true"
+      >
+        <defs>
+          <mask id="tour-spotlight-cutout">
+            {/* White reveals the dark overlay everywhere */}
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            {/* Black cuts a hole out for the active element, leaving it 100% bright & crisp */}
+            {targetRect && (
+              <rect
+                x={targetRect.left - 6}
+                y={targetRect.top - 6}
+                width={targetRect.width + 12}
+                height={targetRect.height + 12}
+                rx="12"
+                ry="12"
+                fill="black"
+              />
+            )}
+          </mask>
+        </defs>
+        <rect
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+          fill="rgba(2, 6, 23, 0.55)"
+          mask="url(#tour-spotlight-cutout)"
+        />
+      </svg>
+
+      {/* Backdrop Click Handler to Exit Tour */}
       <div
         onClick={exitTour}
-        className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity duration-300"
+        className="fixed inset-0 z-30 cursor-default"
+        aria-label="Click to exit tour"
       />
 
-      {/* Target Element Spotlight (Cutout Highlight) */}
+      {/* Target Element Spotlight (Border & Subtle Ambient Glow) */}
       {targetRect && (
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: targetRect.top - 6,
             left: targetRect.left - 6,
             width: targetRect.width + 12,
             height: targetRect.height + 12,
           }}
-          className="rounded-xl ring-4 ring-teal-400 ring-offset-4 ring-offset-slate-900 shadow-2xl pointer-events-none transition-all duration-300 animate-pulse-subtle z-50"
+          className="rounded-xl ring-2 ring-teal-400 border border-teal-300/60 shadow-[0_0_25px_rgba(45,212,191,0.35)] pointer-events-none transition-all duration-300 z-40"
         />
       )}
 
@@ -271,7 +309,7 @@ export default function DemoTour() {
           style={
             targetRect
               ? {
-                  position: 'absolute',
+                  position: 'fixed',
                   top: popoverPos.top,
                   left: popoverPos.left,
                   transform: 'none',
