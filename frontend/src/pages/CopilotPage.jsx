@@ -25,7 +25,9 @@ export default function CopilotPage() {
           </p>
         </div>
 
-        <CopilotChat defaultRole={initialRole} initialPrompt={initialPrompt} />
+        <div data-demo="copilot-chat-container">
+          <CopilotChat defaultRole={initialRole} initialPrompt={initialPrompt} />
+        </div>
       </div>
     </Layout>
   );

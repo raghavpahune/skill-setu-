@@ -322,7 +322,7 @@ export default function GovernmentDashboard() {
       </div>
 
       {/* KPI Cards — Dominant Hierarchy */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div data-demo="government-kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {loading ? (
           <>
             <SkeletonKpiCard dominant={true} />
@@ -373,7 +373,7 @@ export default function GovernmentDashboard() {
       </div>
 
       {/* District Map Explorer */}
-      <div className="mb-8">
+      <div data-demo="district-heatmap" className="mb-8">
         <MaharashtraMap
           selectedDistrict={selectedDistrict}
           onSelectDistrict={(name) => setSelectedDistrict(name)}
@@ -451,7 +451,7 @@ export default function GovernmentDashboard() {
         </div>
 
         {/* Right: Critical Skill Gaps */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+        <div data-demo="skill-gaps-table" className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div>
             <SectionHeader
               title="Critical Curriculum Deficits"
@@ -633,7 +633,7 @@ export default function GovernmentDashboard() {
       </div>
 
       {/* Policy What-If Simulator — Spec Section 20 */}
-      <div className="bg-gradient-to-br from-indigo-50 via-white to-slate-50 dark:from-indigo-950/30 dark:via-slate-900 dark:to-slate-900 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800/50 mb-8 relative overflow-hidden">
+      <div data-demo="policy-whatif-simulator" className="bg-gradient-to-br from-indigo-50 via-white to-slate-50 dark:from-indigo-950/30 dark:via-slate-900 dark:to-slate-900 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800/50 mb-8 relative overflow-hidden">
         {/* Subtle decorative accent */}
         <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-100/40 dark:bg-indigo-900/20 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 

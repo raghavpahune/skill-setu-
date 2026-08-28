@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { api } from '../services/api';
+import { useTour } from '../context/TourContext';
 
 export default function Landing() {
+  const { startTour } = useTour();
   const [stats, setStats] = useState({
     jobsCount: 550,
     skillsCount: 55,
@@ -154,7 +156,7 @@ export default function Landing() {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="text-center pt-8 pb-12 sm:pt-14 sm:pb-16 relative">
+      <section data-demo="hero-section" className="text-center pt-8 pb-12 sm:pt-14 sm:pb-16 relative">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 dark:bg-teal-950/70 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300 text-xs font-semibold mb-6 shadow-2xs">
           <span className="w-2 h-2 rounded-full bg-teal-600 dark:bg-teal-400 animate-pulse"></span>
           <span>State-Wide Intelligence System • Maharashtra Focus</span>
@@ -175,19 +177,26 @@ export default function Landing() {
 
         {/* Hero Actions */}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            onClick={startTour}
+            className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer transform hover:-translate-y-0.5"
+          >
+            <span>✨</span>
+            <span>Start SIH Demo Tour (5-min Walkthrough)</span>
+            <span>→</span>
+          </button>
           <Link
             to="/government"
-            className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-sm font-semibold rounded-xl border border-slate-700/80 shadow-sm transition-colors flex items-center justify-center gap-2"
           >
             <span>Explore Government Dashboard</span>
-            <span>→</span>
           </Link>
           <Link
             to="/student/copilot"
-            className="w-full sm:w-auto px-6 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors flex items-center justify-center gap-2"
           >
             <span>Ask AI Copilot</span>
-            <kbd className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">⌘K</kbd>
+            <kbd className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">⌘K</kbd>
           </Link>
         </div>
 

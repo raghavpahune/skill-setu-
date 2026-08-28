@@ -163,7 +163,7 @@ const DEFAULT_RECOMMENDATIONS = [
     future_demand: 'declining',
     trend: 'declining',
     gap_pct: 68,
-    related_signals: ['MSInS Vocational Modernization Directive', 'Administrative Automation Survey'],
+    related_signals: ['State Vocational Modernization Directive', 'Administrative Automation Survey'],
   },
   {
     skill_name: 'Industrial IoT & SCADA Telemetry',
@@ -482,7 +482,7 @@ export default function InstituteDashboard() {
       </div>
 
       {/* Course Health Matrix & Placement Audit Table */}
-      <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
+      <div data-demo="course-health-grid" className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg">

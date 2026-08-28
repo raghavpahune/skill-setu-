@@ -363,7 +363,7 @@ export default function StudentDashboard() {
       {/* Grid: Skill Passport Radar & Competency Comparison */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
         {/* Left: Competency Benchmark Radar (5 cols on lg) */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+        <div data-demo="student-passport-radar" className="lg:col-span-5 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div>
@@ -402,7 +402,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Right: Competency Comparison Flow Matrix (7 cols on lg) */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+        <div data-demo="skill-explainability-trigger" className="lg:col-span-7 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div>
             {/* Matrix Header & Tabs */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -764,7 +764,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Section 19: Personalized Industry & Technology Alerts Feed */}
-      <div className="mb-8">
+      <div data-demo="student-industry-alerts" className="mb-8">
         <StudentAlertsFeed
           studentId={selectedStudentId}
           onOpenExplainability={handleOpenExplainability}

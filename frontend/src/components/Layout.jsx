@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useTour } from '../context/TourContext';
 
 export default function Layout({ children }) {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { startTour } = useTour();
   const [health, setHealth] = useState({ status: 'connecting', demo_mode: true });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -48,20 +50,6 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-white transition-colors duration-200">
-      {/* Top Gov Banner */}
-      <div className="bg-slate-900 dark:bg-slate-950 text-slate-300 dark:text-slate-400 text-xs px-4 py-1.5 border-b border-slate-800 dark:border-slate-800/80 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-teal-400">Maharashtra State Innovation Society (MSInS)</span>
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="hidden sm:inline">Dept. of Skills, Employment, Entrepreneurship & Innovation</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-mono">
-            {health.demo_mode ? 'DEMO DATA ACTIVE' : 'LIVE DB CONNECTED'}
-          </span>
-        </div>
-      </div>
-
       {/* Main Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 shadow-xs transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
@@ -101,6 +89,18 @@ export default function Layout({ children }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-mono font-medium">
+              {health.demo_mode ? 'DEMO DATA ACTIVE' : 'LIVE DB CONNECTED'}
+            </span>
+
+            <button
+              onClick={startTour}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+            >
+              <span>✨</span>
+              <span>SIH Demo Tour</span>
+            </button>
+
             <button
               onClick={toggleTheme}
               aria-label="Toggle Light and Dark Theme"
@@ -112,10 +112,10 @@ export default function Layout({ children }) {
 
             <Link
               to="/student/copilot"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm border border-slate-700/60 transition-colors"
             >
               <span>Ask Copilot</span>
-              <kbd className="bg-teal-800/80 text-teal-200 text-[10px] px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+              <kbd className="bg-slate-800 text-teal-300 text-[10px] px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
             </Link>
 
             {/* Mobile hamburger */}
@@ -137,6 +137,19 @@ export default function Layout({ children }) {
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 animate-fade-in shadow-md">
             <nav className="max-w-7xl mx-auto px-4 py-3 space-y-1">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Pipeline Status</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[10px] font-mono font-semibold">
+                  {health.demo_mode ? 'DEMO DATA ACTIVE' : 'LIVE DB CONNECTED'}
+                </span>
+              </div>
+              <button
+                onClick={() => { setMobileMenuOpen(false); startTour(); }}
+                className="w-full text-left px-3 py-2.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-bold text-sm flex items-center gap-2 border border-teal-200 dark:border-teal-800 mb-2 cursor-pointer"
+              >
+                <span>✨</span>
+                <span>Launch SIH Demo Tour</span>
+              </button>
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
@@ -253,7 +266,7 @@ export default function Layout({ children }) {
                 Governance & Alignment
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-                Aligned with Maharashtra State Innovation Society (MSInS) and Dept. of Skills, Employment, Entrepreneurship & Innovation.
+                Aligned with Dept. of Skills, Employment, Entrepreneurship & Innovation, Government of Maharashtra.
               </p>
               <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
                 <div className="flex justify-between">

@@ -505,7 +505,7 @@ export default function DistrictPlan() {
       </div>
 
       {/* Recommended Government Action Section */}
-      <div className="bg-slate-900 dark:bg-slate-850 p-6 sm:p-7 rounded-xl mb-8 text-white border border-slate-800 shadow-sm">
+      <div data-demo="district-micro-plan" className="bg-slate-900 dark:bg-slate-850 p-6 sm:p-7 rounded-xl mb-8 text-white border border-slate-800 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-3 border-b border-slate-800">
           <div>
             <div className="flex items-center gap-2">

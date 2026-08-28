@@ -279,7 +279,7 @@ const DEFAULT_DIFFICULT_SKILLS = [
     industries: ['Emerging Tech', 'Defence & Aerospace', 'Agriculture'],
     shortage_reason: 'DGCA certification courses are expensive and concentrated in few private aviation academies.',
     hiring_challenge: 'Growing demand for agricultural drone pilots and defense UAV technicians across Vidarbha and Western Maharashtra.',
-    suggested_intervention: 'Sponsor DGCA-approved remote pilot training through Maharashtra State Innovation Society (MSInS).',
+    suggested_intervention: 'Sponsor DGCA-approved remote pilot training through State Vocational Skill Schemes.',
   },
 ];
 
@@ -645,7 +645,7 @@ export default function EmployerDashboard() {
               Human-in-the-Loop Validation
             </span>
             <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-800">
-              MSInS Industry Feedback Loop
+              State Industry Feedback Loop
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -823,7 +823,7 @@ export default function EmployerDashboard() {
 
       {/* TAB 1: AI SIGNAL VALIDATION QUEUE */}
       {activeTab === 'validation' && (
-        <div className="space-y-6">
+        <div data-demo="employer-validation-queue" className="space-y-6">
           {/* Filtering Controls Bar */}
           <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-3">
