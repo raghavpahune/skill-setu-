@@ -163,5 +163,12 @@ export const api = {
   }),
   getDifficultSkills: () => fetchJSON('/employer/difficult-skills'),
   getEmployerSummary: () => fetchJSON('/employer/summary'),
+
+  // Policy What-If Simulator
+  runSimulation: (scenario) => fetchJSON('/simulator/whatif', {
+    method: 'POST',
+    body: JSON.stringify(scenario),
+  }),
+  getSimulatorCategories: () => fetchJSON('/simulator/categories'),
 };
 
