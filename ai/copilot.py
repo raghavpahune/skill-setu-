@@ -36,7 +36,7 @@ def _get_provider() -> LLMProvider:
     return DemoProvider()
 
 
-def _build_context(role: str) -> dict:
+def _build_context(role: str, question: str = "") -> dict:
     """Fetch relevant structured data to ground the response."""
     try:
         from app.db import get_demo
@@ -56,10 +56,46 @@ def _build_context(role: str) -> dict:
         elif role == "government":
             from app.services.district_service import get_all_districts
             context["districts"] = get_all_districts()
+        elif role == "institute":
+            courses = get_demo("courses")
+            context["institutes_summary"] = {
+                "total_courses": len(courses),
+                "sample_institutes": sorted(list(set(c.get("institute", "") for c in courses if c.get("institute"))))[:6],
+            }
         elif role == "employer":
             feedback = get_demo("employer_feedback")
             context["pending_validations"] = len([f for f in feedback if f["status"] == "pending"])
             context["confirmed"] = len([f for f in feedback if f["status"] == "confirmed"])
+
+        # Grounding: extract mentioned district or role
+        if question:
+            q_lower = question.lower()
+            from app.services.district_service import get_all_districts, get_district_plan
+            for d in get_all_districts():
+                dname = d.get("name", "")
+                if dname and dname.lower() in q_lower:
+                    plan = get_district_plan(dname)
+                    context["focused_district"] = {
+                        "district": dname,
+                        "total_jobs": plan.get("total_jobs"),
+                        "total_courses": plan.get("total_courses"),
+                        "total_enrolment": plan.get("total_enrolment"),
+                        "top_roles": plan.get("top_roles", [])[:5],
+                        "top_skills": plan.get("top_skills", [])[:5],
+                        "industry_demand": plan.get("industry_demand", [])[:4],
+                    }
+                    break
+
+            for p in get_demo("student_profiles"):
+                target = p.get("target_role", "")
+                if target and target.lower() in q_lower:
+                    skills_map = {s["id"]: s.get("name", "") for s in get_demo("skills")}
+                    context["focused_career_role"] = {
+                        "role": target,
+                        "required_skills": [skills_map.get(sid, sid) for sid in p.get("required_skills", [])],
+                        "roadmap": [skills_map.get(sid, sid) for sid in p.get("roadmap", [])],
+                    }
+                    break
 
         return context
     except Exception as e:
@@ -70,19 +106,20 @@ def _build_context(role: str) -> dict:
 async def handle_question(question: str, role: str = "student") -> dict:
     """Handle a copilot question end-to-end."""
     provider = _get_provider()
-    context = _build_context(role)
+    context = _build_context(role, question)
     is_live_ai = isinstance(provider, GeminiProvider)
 
     logger.info(f"[Copilot] Query: '{question}' (provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
 
     try:
         answer = await provider.generate(question, context)
+        model_name = getattr(provider, "model", "gemini-2.5-flash") if is_live_ai else "Rule-Based Offline Intelligence"
         return {
             "answer": answer,
             "role": role,
             "demo_mode": not is_live_ai,
             "data_grounded": bool(context),
-            "model": getattr(provider, "model", "gemini-3.6-flash"),
+            "model": model_name,
         }
     except Exception as e:
         err_msg = str(e)

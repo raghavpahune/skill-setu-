@@ -7,8 +7,8 @@ from ai.provider import LLMProvider
 
 logger = logging.getLogger("skillsetu.ai.gemini")
 
-# Primary: gemini-3.6-flash, with automatic failover to currently supported Gemini models
-MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+# Primary: gemini-2.5-flash, with automatic failover to supported Gemini models
+MODELS = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]
 
 
 class GeminiProvider(LLMProvider):
@@ -17,7 +17,7 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         self.api_key = self._resolve_api_key()
         self.client = None
-        self.model = "gemini-3.6-flash"
+        self.model = "gemini-2.5-flash"
         self._sdk = None
 
         if not self.api_key:

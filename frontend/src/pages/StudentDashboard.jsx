@@ -101,12 +101,14 @@ export default function StudentDashboard() {
   const [passport, setPassport] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [signals, setSignals] = useState([]);
+  const [schemes, setSchemes] = useState([]);
+  const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [passportError, setPassportError] = useState(null);
   const [roadmapError, setRoadmapError] = useState(null);
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'acquired' | 'gaps'
 
-  // Load students and signals on mount
+  // Load students, signals, schemes, and opportunities on mount
   useEffect(() => {
     api.getStudents()
       .then((res) => {
@@ -130,6 +132,22 @@ export default function StudentDashboard() {
       .catch((err) => {
         console.warn('Failed to load market signals:', err);
       });
+
+    api.getSchemes({ limit: 4 })
+      .then((res) => {
+        if (Array.isArray(res)) {
+          setSchemes(res);
+        }
+      })
+      .catch(() => {});
+
+    api.getOpportunities({ limit: 4 })
+      .then((res) => {
+        if (Array.isArray(res)) {
+          setOpportunities(res);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Fetch passport and roadmap whenever candidate changes
@@ -741,6 +759,133 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
+
+      {/* Eligible Government Schemes & NAPS Opportunities */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* State Welfare Schemes */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Eligible State Welfare & Scholarship Schemes
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Government funding, fee waivers & tool grants for vocational candidates
+                </p>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">
+                MahaDBT / OGD
+              </span>
+            </div>
+
+            {schemes.length > 0 ? (
+              <div className="space-y-3">
+                {schemes.map((s) => (
+                  <div
+                    key={s.id}
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/80 hover:border-teal-300 dark:hover:border-teal-600 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h4 className="font-bold text-slate-900 dark:text-white text-xs leading-snug">
+                        {s.title}
+                      </h4>
+                      {s.max_amount && (
+                        <span className="text-[11px] font-mono font-bold text-teal-700 dark:text-teal-400 shrink-0">
+                          ₹{s.max_amount.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 mb-2">
+                      {s.benefit_description}
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                      <span className="font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        {s.scheme_type?.replace('_', ' ')}
+                      </span>
+                      {s.application_portal_url && (
+                        <a
+                          href={s.application_portal_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-teal-600 dark:text-teal-400 font-bold hover:underline"
+                        >
+                          Apply on Portal →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 py-4 text-center">Loading welfare schemes...</p>
+            )}
+          </div>
+        </div>
+
+        {/* NAPS & Vocational Opportunities */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Approved Apprenticeships & Trainee Vacancies
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Direct placements aligned with NAPS & PMKVY in Maharashtra
+                </p>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
+                NAPS / PMKVY
+              </span>
+            </div>
+
+            {opportunities.length > 0 ? (
+              <div className="space-y-3">
+                {opportunities.map((opp) => (
+                  <div
+                    key={opp.id}
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/80 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs leading-snug">
+                          {opp.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {opp.company} • <span className="font-semibold text-slate-700 dark:text-slate-300">{opp.district}</span>
+                        </p>
+                      </div>
+                      {opp.stipend_amount && (
+                        <span className="text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400 shrink-0">
+                          ₹{opp.stipend_amount.toLocaleString('en-IN')}/mo
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-2 mt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 uppercase font-mono font-semibold">
+                        {opp.opportunity_type?.replace('_', ' ')}
+                      </span>
+                      {opp.apply_url && (
+                        <a
+                          href={opp.apply_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                        >
+                          View & Apply →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 py-4 text-center">Loading opportunities...</p>
+            )}
+          </div>
+        </div>
+      </div>
     </Layout>
   );
 }

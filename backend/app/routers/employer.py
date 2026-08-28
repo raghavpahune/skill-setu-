@@ -1,7 +1,7 @@
 """Employer Validation API — confirm/correct/reject skill demand."""
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.db import get_demo
+from app.db import get_demo, save_employer_feedback
 
 router = APIRouter()
 
@@ -32,14 +32,13 @@ async def list_validations():
 
 @router.post("/employer/feedback")
 async def submit_feedback(submission: FeedbackSubmission):
-    """Submit employer validation (confirm/correct/reject)."""
-    feedback = get_demo("employer_feedback")
-    for f in feedback:
-        if f["id"] == submission.feedback_id:
-            f["status"] = submission.status
-            if submission.notes:
-                f["notes"] = submission.notes
-            if submission.proficiency_required:
-                f["proficiency_required"] = submission.proficiency_required
-            return {"status": "updated", "feedback": f}
+    """Submit employer validation (confirm/correct/reject) and persist to database."""
+    updated = save_employer_feedback(
+        feedback_id=submission.feedback_id,
+        status=submission.status,
+        notes=submission.notes,
+        proficiency_required=submission.proficiency_required,
+    )
+    if updated:
+        return {"status": "updated", "feedback": updated}
     return {"error": "feedback not found"}

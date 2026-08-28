@@ -10,7 +10,14 @@ import time
 import uuid
 from typing import Any
 
-from app.db import get_demo, set_demo, append_demo
+from app.db import (
+    get_demo,
+    set_demo,
+    append_demo,
+    save_sync_log,
+    persist_schemes_to_supabase,
+    persist_jobs_to_supabase,
+)
 from app.ingestion.datagov_connector import (
     DataGovConnector,
     RESOURCE_SCHOLARSHIP_ALLOCATION,
@@ -48,7 +55,7 @@ class SyncEngine:
             "completed_at": None,
             "duration_ms": 0,
         }
-        append_demo("sync_logs", log_entry)
+        save_sync_log(log_entry)
 
         try:
             total_fetched = 0
@@ -102,6 +109,7 @@ class SyncEngine:
                 "completed_at": completed_at,
                 "duration_ms": duration_ms,
             })
+            save_sync_log(log_entry)
 
             logger.info(
                 "Sync completed successfully in %d ms: fetched=%d, added=%d, updated=%d",
@@ -121,6 +129,7 @@ class SyncEngine:
                 "completed_at": completed_at,
                 "duration_ms": duration_ms,
             })
+            save_sync_log(log_entry)
             return log_entry
 
     def _upsert_schemes(self, incoming_schemes: list[dict]) -> tuple[int, int]:
@@ -153,6 +162,7 @@ class SyncEngine:
                 added += 1
 
         set_demo("schemes", current_schemes)
+        persist_schemes_to_supabase(incoming_schemes)
         return added, updated
 
     def _upsert_opportunities(self, incoming_opps: list[dict]) -> tuple[int, int]:
@@ -184,4 +194,5 @@ class SyncEngine:
                 added += 1
 
         set_demo("jobs", current_jobs)
+        persist_jobs_to_supabase(incoming_opps)
         return added, updated

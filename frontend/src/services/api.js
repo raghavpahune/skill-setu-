@@ -60,6 +60,33 @@ export const api = {
     body: JSON.stringify({ question, role }),
   }),
 
+  // Schemes & Student Welfare
+  getSchemes: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/schemes${query ? `?${query}` : ''}`);
+  },
+  getSchemeCategories: () => fetchJSON('/schemes/categories'),
+  getScheme: (id) => fetchJSON(`/schemes/${id}`),
+
+  // Opportunities (Apprenticeships, Internships, Vocational Training, Jobs)
+  getOpportunities: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/opportunities${query ? `?${query}` : ''}`);
+  },
+  getOpportunitiesSummary: () => fetchJSON('/opportunities/summary'),
+  getOpportunity: (id) => fetchJSON(`/opportunities/${id}`),
+
+  // Data Ingestion & Automated Sync
+  getSyncStatus: () => fetchJSON('/sync/status'),
+  getSyncLogs: (limit = 20, offset = 0) => fetchJSON(`/sync/logs?limit=${limit}&offset=${offset}`),
+  triggerSync: (source = 'data.gov.in', adminKey = '') => fetchJSON(`/sync/trigger?source=${source}`, {
+    method: 'POST',
+    headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+  }),
+
+  // AI Diagnostic
+  getHealthAI: () => fetchJSON('/health/ai'),
+
   // Employer Validation
   getEmployerValidations: () => fetchJSON('/employer/validate'),
   submitEmployerFeedback: (feedbackId, status, notes = null, proficiency = null) => fetchJSON('/employer/feedback', {
