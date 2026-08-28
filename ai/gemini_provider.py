@@ -75,8 +75,9 @@ class GeminiProvider(LLMProvider):
         last_failure = None
         async with httpx.AsyncClient(timeout=15.0) as http_client:
             for model_name in MODELS:
+                clean_model = model_name.replace("models/", "")
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={self.api_key}"
                     payload = {
                         "contents": [{"parts": [{"text": "Reply with 'OK'"}]}]
                     }
@@ -84,12 +85,12 @@ class GeminiProvider(LLMProvider):
                     if res.status_code == 200:
                         res_json = res.json()
                         reply = res_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
-                        self.model = model_name
+                        self.model = clean_model
                         return {
                             "gemini_key_present": True,
                             "key_length": key_len,
                             "provider": "gemini",
-                            "model": model_name,
+                            "model": clean_model,
                             "status": "ok",
                             "http_status": 200,
                             "probe_reply": reply,
@@ -101,20 +102,20 @@ class GeminiProvider(LLMProvider):
                             "gemini_key_present": True,
                             "key_length": key_len,
                             "provider": "gemini",
-                            "model": model_name,
+                            "model": clean_model,
                             "status": "error",
                             "http_status": res.status_code,
                             "error_code": err_json.get("status", f"HTTP_{res.status_code}"),
                             "error_message": err_json.get("message", res.text[:200]),
                             "installed_sdks": installed_sdks,
                         }
-                        logger.warning(f"[Gemini Diagnose] Probe for {model_name} failed ({res.status_code})")
+                        logger.warning(f"[Gemini Diagnose] Probe for {clean_model} failed ({res.status_code})")
                 except Exception as probe_err:
                     last_failure = {
                         "gemini_key_present": True,
                         "key_length": key_len,
                         "provider": "gemini",
-                        "model": model_name,
+                        "model": clean_model,
                         "status": "error",
                         "error_code": "NETWORK_EXCEPTION",
                         "error_message": str(probe_err),
@@ -137,9 +138,13 @@ class GeminiProvider(LLMProvider):
 
         system_instruction = (
             "You are SkillSetu AI Copilot, the official labour-market intelligence and curriculum-alignment assistant for Maharashtra, India. "
-            "You provide evidence-based insights for Government, Institutes, Students, and Employers. "
-            "Ground your answer in the provided data context when applicable. "
-            "Be concise, clear, and actionable."
+            "You provide evidence-based insights for Government, Institutes, Students, and Employers.\n\n"
+            "CRITICAL GROUNDING RULES:\n"
+            "1. For skill-specific questions, base your state-level numbers and claims ONLY on the verified data for that specific skill provided in the context.\n"
+            "2. If 'data_available_for_skill' is false or a skill is not found in the dataset (e.g. Go/Golang, Rust, Ruby), you MUST explicitly state that the current SkillSetu Maharashtra dataset does NOT contain sufficient job records or accredited course data for that technology.\n"
+            "3. NEVER cite overall Maharashtra aggregate statistics (e.g. 562 total jobs, Pune 150 jobs, or Python 26% demand) as evidence or demand numbers for an unindexed or different skill.\n"
+            "4. Clearly distinguish between verified dataset facts (from the provided context), unavailable dataset information, and general technology context.\n"
+            "5. Be concise, professional, clear, and actionable."
         )
 
         data_section = ""
@@ -153,30 +158,32 @@ class GeminiProvider(LLMProvider):
         # Strategy 1: official google-genai SDK (recommended by Google)
         if self._sdk == "google-genai" and self.client:
             for model_name in MODELS:
+                clean_model = model_name.replace("models/", "")
                 try:
                     if hasattr(self.client, "aio") and hasattr(self.client.aio, "models"):
                         response = await self.client.aio.models.generate_content(
-                            model=model_name,
+                            model=clean_model,
                             contents=full_prompt,
                         )
                     else:
                         response = self.client.models.generate_content(
-                            model=model_name,
+                            model=clean_model,
                             contents=full_prompt,
                         )
                     if response and response.text:
-                        self.model = model_name
-                        logger.info(f"[GeminiProvider] Generated response via google-genai SDK (model: {model_name})")
+                        self.model = clean_model
+                        logger.info(f"[GeminiProvider] Generated response via google-genai SDK (model: {clean_model})")
                         return response.text
                 except Exception as e:
-                    logger.warning(f"[GeminiProvider] google-genai SDK {model_name} error: {e}")
+                    logger.warning(f"[GeminiProvider] google-genai SDK {clean_model} error: {e}")
                     last_error = str(e)
 
         # Strategy 2: Direct Async REST Call via httpx
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             for model_name in MODELS:
+                clean_model = model_name.replace("models/", "")
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={self.api_key}"
                     payload = {
                         "contents": [
                             {
@@ -191,16 +198,16 @@ class GeminiProvider(LLMProvider):
                         res_json = response.json()
                         text = res_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         if text:
-                            self.model = model_name
-                            logger.info(f"[GeminiProvider] Generated response via REST (model: {model_name})")
+                            self.model = clean_model
+                            logger.info(f"[GeminiProvider] Generated response via REST (model: {clean_model})")
                             return text
                     else:
                         err_data = response.json().get("error", {}) if "application/json" in response.headers.get("content-type", "") else {}
                         err_msg = err_data.get("message", response.text[:200])
-                        logger.warning(f"[GeminiProvider] REST API model {model_name} HTTP {response.status_code}: {err_msg}")
-                        last_error = f"HTTP {response.status_code} ({model_name}): {err_msg}"
+                        logger.warning(f"[GeminiProvider] REST API model {clean_model} HTTP {response.status_code}: {err_msg}")
+                        last_error = f"HTTP {response.status_code} ({clean_model}): {err_msg}"
                 except Exception as e:
-                    logger.warning(f"[GeminiProvider] REST attempt with {model_name} failed: {e}")
+                    logger.warning(f"[GeminiProvider] REST attempt with {clean_model} failed: {e}")
                     last_error = str(e)
 
-        raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
+        raise RuntimeError(f"Gemini generation failed. Last error: {last_error}")
