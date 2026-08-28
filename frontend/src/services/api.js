@@ -105,6 +105,15 @@ export const api = {
   getStudents: () => fetchJSON('/students'),
   getStudentPassport: (id) => fetchJSON(`/student/${id}/passport`),
   getStudentRoadmap: (id) => fetchJSON(`/student/${id}/roadmap`),
+  getStudentAlertDomains: () => fetchJSON('/student/alert-domains'),
+  getStudentIndustryAlerts: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/student/industry-alerts${query ? `?${query}` : ''}`);
+  },
+  getSkillExplainability: (skill, studentId = null) => {
+    const query = studentId ? `?student_id=${encodeURIComponent(studentId)}` : '';
+    return fetchJSON(`/student/skill-explainability/${encodeURIComponent(skill)}${query}`);
+  },
 
   // AI Copilot
   askCopilot: (question, role = 'student') => fetchJSON('/copilot/ask', {

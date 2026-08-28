@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import PassportRadar from '../components/PassportRadar';
-import SignalCard from '../components/SignalCard';
+import StudentAlertsFeed from '../components/StudentAlertsFeed';
+import SkillExplainabilityModal from '../components/SkillExplainabilityModal';
 import { api } from '../services/api';
 
 const DEFAULT_STUDENTS = [
@@ -100,7 +101,6 @@ export default function StudentDashboard() {
   const [selectedStudentId, setSelectedStudentId] = useState('stu-001');
   const [passport, setPassport] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
-  const [signals, setSignals] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,7 +108,18 @@ export default function StudentDashboard() {
   const [roadmapError, setRoadmapError] = useState(null);
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'acquired' | 'gaps'
 
-  // Load students, signals, schemes, and opportunities on mount
+  // Skill Explainability Modal state (PROJECT_SPEC Section 18)
+  const [explainModalOpen, setExplainModalOpen] = useState(false);
+  const [selectedExplainSkill, setSelectedExplainSkill] = useState('');
+  const [selectedExplainSkillName, setSelectedExplainSkillName] = useState('');
+
+  const handleOpenExplainability = (skillIdOrName, skillName = '') => {
+    setSelectedExplainSkill(skillIdOrName);
+    setSelectedExplainSkillName(skillName || skillIdOrName);
+    setExplainModalOpen(true);
+  };
+
+  // Load students, schemes, and opportunities on mount
   useEffect(() => {
     api.getStudents()
       .then((res) => {
@@ -121,16 +132,6 @@ export default function StudentDashboard() {
       })
       .catch((err) => {
         console.warn('Failed to load candidate list:', err);
-      });
-
-    api.getSignals()
-      .then((res) => {
-        if (Array.isArray(res)) {
-          setSignals(res.slice(0, 2));
-        }
-      })
-      .catch((err) => {
-        console.warn('Failed to load market signals:', err);
       });
 
     api.getSchemes({ limit: 4 })
@@ -521,21 +522,32 @@ export default function StudentDashboard() {
                           </span>
                         </td>
 
-                        {/* Status / Action Badge */}
+                        {/* Status / Action Badge & Explain Trigger */}
                         <td className="p-2.5 text-right">
-                          {item.status === 'proficient' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              <span>✓</span> Proficient
-                            </span>
-                          ) : item.status === 'upskill' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                              <span>↑</span> Upskill Target
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                              <span>⚠️</span> Critical Gap
-                            </span>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {item.status === 'proficient' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                <span>✓</span> Proficient
+                              </span>
+                            ) : item.status === 'upskill' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                <span>↑</span> Upskill Target
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                <span>⚠️</span> Critical Gap
+                              </span>
+                            )}
+                            {item.status !== 'proficient' && (
+                              <button
+                                onClick={() => handleOpenExplainability(item.skill_id, item.skill_name)}
+                                className="px-1.5 py-0.5 text-[10px] font-bold rounded text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
+                                title="View 5-dimension grounded evidence why this skill is needed"
+                              >
+                                Why? ⓘ
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -705,18 +717,29 @@ export default function StudentDashboard() {
                       )}
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                      <strong className="text-teal-800 dark:text-teal-300 font-semibold">
-                        Why learn this?
-                      </strong>{' '}
+                      <button
+                        onClick={() => handleOpenExplainability(step.skill_id, step.skill_name)}
+                        className="text-teal-800 dark:text-teal-300 font-bold hover:underline cursor-pointer inline-flex items-center gap-1 mr-1"
+                        title="Click to open 5-dimension grounded explainability breakdown"
+                      >
+                        <span>Why learn this?</span>
+                        <span className="text-[9px] font-mono px-1 py-0.2 bg-teal-100 dark:bg-teal-900 rounded">5D Evidence ⓘ</span>
+                      </button>{' '}
                       {step.why}
                     </p>
                   </div>
                 </div>
 
-                <div className="shrink-0 self-end sm:self-center">
+                <div className="shrink-0 self-end sm:self-center flex items-center gap-2">
+                  <button
+                    onClick={() => handleOpenExplainability(step.skill_id, step.skill_name)}
+                    className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100 bg-teal-50 dark:bg-teal-950/60 px-3 py-2 rounded-lg border border-teal-200 dark:border-teal-800 shadow-2xs hover:bg-teal-100 dark:hover:bg-teal-900 transition-colors inline-block cursor-pointer"
+                  >
+                    Explain Demand ⓘ
+                  </button>
                   <Link
                     to="/student/copilot"
-                    className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100 bg-white dark:bg-slate-800 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-teal-50 dark:hover:bg-slate-700 transition-colors inline-block cursor-pointer"
+                    className="text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 bg-white dark:bg-slate-800 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors inline-block cursor-pointer"
                   >
                     Curriculum Advice →
                   </Link>
@@ -740,25 +763,13 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {/* Relevant Labour-Market Signals */}
-      {signals && signals.length > 0 && (
-        <div className="space-y-3 mb-8">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-900 dark:text-white text-base">
-              Labour-Market Hiring Intelligence for {passport?.target_role || 'Target Role'}
-            </h3>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              Verified Maharashtra industry demand signals
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {signals.map((sig) => (
-              <SignalCard key={sig.id} signal={sig} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Section 19: Personalized Industry & Technology Alerts Feed */}
+      <div className="mb-8">
+        <StudentAlertsFeed
+          studentId={selectedStudentId}
+          onOpenExplainability={handleOpenExplainability}
+        />
+      </div>
 
       {/* Eligible Government Schemes & NAPS Opportunities */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -886,6 +897,15 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Section 18: "Why Should I Learn This?" 5-Dimension Explainability Modal */}
+      <SkillExplainabilityModal
+        isOpen={explainModalOpen}
+        onClose={() => setExplainModalOpen(false)}
+        skillQuery={selectedExplainSkill}
+        studentId={selectedStudentId}
+        skillNameFallback={selectedExplainSkillName}
+      />
     </Layout>
   );
 }

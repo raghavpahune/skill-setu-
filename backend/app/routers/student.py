@@ -1,8 +1,37 @@
-"""Student API — Skill Passport and learning roadmap."""
-from fastapi import APIRouter
+"""Student API — Skill Passport, learning roadmap, personalized industry alerts, and skill explainability."""
+from fastapi import APIRouter, Query
 from app.db import get_demo
+from app.services.student_service import (
+    list_alert_domains,
+    get_personalized_industry_alerts,
+    get_skill_explainability,
+)
 
 router = APIRouter()
+
+
+@router.get("/student/alert-domains")
+async def alert_domains():
+    """Return all supported industry alert domains for student interest filtering."""
+    return {"domains": list_alert_domains()}
+
+
+@router.get("/student/industry-alerts")
+async def student_industry_alerts(
+    domain: str | None = Query(None, description="Domain key (ai_ml, cloud, ev, etc.) or 'all'"),
+    student_id: str | None = Query(None, description="Optional student user ID for personalized skill strengthening suggestions"),
+):
+    """Retrieve personalized technology and labour-market signals for selected domain."""
+    return get_personalized_industry_alerts(domain_id=domain, student_id=student_id)
+
+
+@router.get("/student/skill-explainability/{skill}")
+async def skill_explainability(
+    skill: str,
+    student_id: str | None = Query(None, description="Optional student user ID for target career alignment"),
+):
+    """Return transparent 5-dimension evidence-based explainability breakdown for a skill."""
+    return get_skill_explainability(skill_query=skill, student_id=student_id)
 
 
 @router.get("/student/{student_id}/passport")
@@ -97,3 +126,4 @@ async def list_students():
          "skill_match_pct": p["skill_match_pct"]}
         for p in profiles
     ]
+
