@@ -1,0 +1,80 @@
+[
+  {
+    "skill_id": "sk-006",
+    "skill_name": "RAG (Retrieval Augmented Generation)",
+    "category": "AI/ML",
+    "nsqf_level": 7,
+    "deficit_score": 88,
+    "avg_days_to_fill": 64,
+    "top_districts": ["Pune", "Mumbai"],
+    "industries": ["IT/ITES", "Emerging Tech", "Finance"],
+    "shortage_reason": "Curricula teach basic NLP; enterprise production needs vector indexing, embedding tuning, and guardrails.",
+    "hiring_challenge": "Extremely low candidate supply with verifiable end-to-end RAG deployment experience.",
+    "suggested_intervention": "Introduce 40-hour hands-on Vector DB and LangChain/LlamaIndex capstone in B.Tech IT & MCA syllabi."
+  },
+  {
+    "skill_id": "sk-018",
+    "skill_name": "EV Battery Management Systems (BMS)",
+    "category": "Electric Vehicles",
+    "nsqf_level": 6,
+    "deficit_score": 84,
+    "avg_days_to_fill": 58,
+    "top_districts": ["Pune", "Chhatrapati Sambhajinagar", "Nashik"],
+    "industries": ["Electric Vehicles", "Manufacturing"],
+    "shortage_reason": "High-voltage battery diagnostics requires specialized lab equipment not available in 85% of state ITIs.",
+    "hiring_challenge": "Automotive OEMs expanding fast in Chakan cluster; local talent lacks safety-critical battery cell balancing skills.",
+    "suggested_intervention": "Establish 5 regional EV Excellence Centres in Pune, Nashik, and Sambhajinagar with real BMS test benches."
+  },
+  {
+    "skill_id": "sk-029",
+    "skill_name": "Kubernetes & Multi-Cloud Infrastructure",
+    "category": "Cloud",
+    "nsqf_level": 7,
+    "deficit_score": 79,
+    "avg_days_to_fill": 52,
+    "top_districts": ["Pune", "Mumbai", "Nagpur"],
+    "industries": ["IT/ITES", "Cloud Infrastructure"],
+    "shortage_reason": "Institutes teach static virtualization and basic AWS EC2; employers require production Helm, K8s operators, and Istio.",
+    "hiring_challenge": "Senior roles unfilled for 50+ days; junior applicants fail real-world cluster debugging assessments.",
+    "suggested_intervention": "Integrate CKA/CKAD certified micro-credentials into Final Year Computer Engineering curricula."
+  },
+  {
+    "skill_id": "sk-017",
+    "skill_name": "PLC Programming & SCADA Telemetry",
+    "category": "Manufacturing",
+    "nsqf_level": 5,
+    "deficit_score": 76,
+    "avg_days_to_fill": 47,
+    "top_districts": ["Pune", "Nashik", "Nagpur", "Chhatrapati Sambhajinagar"],
+    "industries": ["Manufacturing", "Advanced Manufacturing"],
+    "shortage_reason": "Legacy relay logic is taught instead of modern Siemens TIA Portal, Beckhoff EtherCAT, and OPC-UA smart factory stacks.",
+    "hiring_challenge": "Industry 4.0 modernization across automotive and engineering ancillaries stalled by lack of controls engineers.",
+    "suggested_intervention": "Modernize polytechnic electrical labs with Siemens/Rockwell PLC simulation software and hardware rigs."
+  },
+  {
+    "skill_id": "sk-011",
+    "skill_name": "Cybersecurity & Cloud Threat Intelligence",
+    "category": "Security",
+    "nsqf_level": 6,
+    "deficit_score": 74,
+    "avg_days_to_fill": 49,
+    "top_districts": ["Pune", "Mumbai"],
+    "industries": ["IT/ITES", "Security", "Finance"],
+    "shortage_reason": "Heavy reliance on theoretical network models rather than hands-on SOC incident response, SIEM, and vulnerability analysis.",
+    "hiring_challenge": "BFSI and cybersecurity vendors in BKC and Hinjawadi face 40%+ talent shortfall for junior SOC analysts.",
+    "suggested_intervention": "Roll out standardized cyber range lab simulations across all MSBTE engineering polytechnics."
+  },
+  {
+    "skill_id": "sk-033",
+    "skill_name": "Drone Technology & Avionics Assembly",
+    "category": "Emerging Tech",
+    "nsqf_level": 5,
+    "deficit_score": 71,
+    "avg_days_to_fill": 44,
+    "top_districts": ["Mumbai", "Pune", "Nagpur"],
+    "industries": ["Emerging Tech", "Defence & Aerospace", "Agriculture"],
+    "shortage_reason": "DGCA certification courses are expensive and concentrated in few private aviation academies.",
+    "hiring_challenge": "Growing demand for agricultural drone pilots and defense UAV technicians across Vidarbha and Western Maharashtra.",
+    "suggested_intervention": "Sponsor DGCA-approved remote pilot training through Maharashtra State Innovation Society (MSInS)."
+  }
+]

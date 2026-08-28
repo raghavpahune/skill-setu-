@@ -139,8 +139,11 @@ export const api = {
   // AI Diagnostic
   getHealthAI: () => fetchJSON('/health/ai'),
 
-  // Employer Validation
-  getEmployerValidations: () => fetchJSON('/employer/validate'),
+  // Employer Validation & Demand Hub
+  getEmployerValidations: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/employer/validate${query ? `?${query}` : ''}`);
+  },
   submitEmployerFeedback: (feedbackId, status, notes = null, proficiency = null) => fetchJSON('/employer/feedback', {
     method: 'POST',
     body: JSON.stringify({
@@ -150,4 +153,15 @@ export const api = {
       proficiency_required: proficiency,
     }),
   }),
+  getEmployerDemands: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/employer/demands${query ? `?${query}` : ''}`);
+  },
+  submitEmployerDemand: (demandData) => fetchJSON('/employer/demand', {
+    method: 'POST',
+    body: JSON.stringify(demandData),
+  }),
+  getDifficultSkills: () => fetchJSON('/employer/difficult-skills'),
+  getEmployerSummary: () => fetchJSON('/employer/summary'),
 };
+

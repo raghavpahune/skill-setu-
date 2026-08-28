@@ -94,7 +94,8 @@ def init_db():
         tables = [
             "skills", "jobs", "job_skills", "courses", "course_skills",
             "placements", "employers", "employer_feedback", "industry_signals",
-            "skill_forecasts", "student_profiles", "schemes", "sync_logs"
+            "skill_forecasts", "student_profiles", "schemes", "sync_logs",
+            "employer_demands", "difficult_skills"
         ]
         for tbl in tables:
             try:
@@ -162,6 +163,25 @@ def save_employer_feedback(
             logger.warning("[DB] Failed persisting employer feedback to Supabase: %s", e)
 
     return matched_record
+
+
+def save_employer_demand(demand_data: dict) -> dict:
+    """Save new employer-submitted skill demand requirement to cache and Supabase if connected."""
+    if not _cache:
+        load_demo_data()
+    demands = _cache.setdefault("employer_demands", [])
+    demands.insert(0, demand_data)
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("employer_demands").upsert(demand_data).execute()
+            logger.info("[DB] Persisted employer demand '%s' to Supabase.", demand_data.get("id"))
+        except Exception as e:
+            logger.warning("[DB] Failed persisting employer demand to Supabase: %s", e)
+
+    return demand_data
+
 
 
 def save_sync_log(log_entry: dict) -> bool:
