@@ -8,11 +8,12 @@ router = APIRouter()
 class CopilotQuery(BaseModel):
     question: str
     role: str = "student"  # government, institute, student, employer
+    district: str | None = None
 
 
 @router.post("/copilot/ask")
 async def ask_copilot(query: CopilotQuery):
     # ponytail: import here to avoid circular deps and keep startup fast
     from ai.copilot import handle_question
-    answer = await handle_question(query.question, query.role)
+    answer = await handle_question(query.question, query.role, query.district)
     return answer

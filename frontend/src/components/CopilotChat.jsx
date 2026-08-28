@@ -62,8 +62,13 @@ const CONTEXTUAL_PROMPTS = {
   ],
 };
 
-export default function CopilotChat({ defaultRole = 'government', initialPrompt = '' }) {
+export default function CopilotChat({
+  defaultRole = 'government',
+  initialPrompt = '',
+  initialDistrict = '',
+}) {
   const [role, setRole] = useState(defaultRole);
+  const [district, setDistrict] = useState(initialDistrict);
   const [question, setQuestion] = useState(initialPrompt);
   const [loading, setLoading] = useState(false);
   const [errorState, setErrorState] = useState(null);
@@ -111,6 +116,24 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     }
   }, [defaultRole]);
 
+  // If initialDistrict provided, update district state and welcome message
+  useEffect(() => {
+    if (initialDistrict) {
+      setDistrict(initialDistrict);
+      setMessages([
+        {
+          id: `welcome-district-${initialDistrict}`,
+          sender: 'copilot',
+          text: `### 📍 District Workforce Intelligence Context: **${initialDistrict}**\n\nI am configured with verified district-level telemetry for **${initialDistrict}** (industrial clusters, active job openings, local ITI/polytechnic capacity, and skill gap deficits).\n\nAsk any question regarding **${initialDistrict}**'s labour market, seat allocations, or training priorities below.`,
+          isGrounded: true,
+          model: 'SkillSetu Intelligence / RAG Grounded',
+          demoMode: false,
+          time: 'Just now',
+        },
+      ]);
+    }
+  }, [initialDistrict]);
+
   // If initialPrompt provided, auto-populate
   useEffect(() => {
     if (initialPrompt) {
@@ -148,6 +171,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
       sender: 'user',
       text: trimmed,
       role: role,
+      district: district || undefined,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -159,7 +183,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     setLoading(true);
 
     try {
-      const res = await api.askCopilot(trimmed, role);
+      const res = await api.askCopilot(trimmed, role, district || undefined);
       setErrorState(null);
       setMessages((prev) => [
         ...prev,
@@ -177,7 +201,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
       console.warn('[Copilot] Live API call failed, generating grounded client fallback:', err);
       setErrorState(null); // Clear blocking red banner since we provide grounded offline fallback
       
-      const fallback = generateClientFallback(trimmed, role);
+      const fallback = generateClientFallback(trimmed, role, district || undefined);
       setMessages((prev) => [
         ...prev,
         {
@@ -282,13 +306,51 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
         </div>
       </div>
 
+      {/* District Context Active Banner */}
+      {district && (
+        <div className="bg-teal-500/10 dark:bg-teal-950/50 px-4 py-2 border-b border-teal-500/20 flex items-center justify-between gap-2 text-xs shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-teal-800 dark:text-teal-300 font-bold flex items-center gap-1.5">
+              <span>📍</span>
+              <span>District Context: <strong>{district}</strong></span>
+            </span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+              (Queries automatically ground to {district} labour-market telemetry)
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setDistrict('');
+              const params = new URLSearchParams(window.location.search);
+              params.delete('district');
+              params.delete('q');
+              const newSearch = params.toString() ? `?${params.toString()}` : '';
+              window.history.replaceState({}, '', `${window.location.pathname}${newSearch}`);
+            }}
+            className="px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60 hover:bg-teal-200 dark:hover:bg-teal-800 text-teal-800 dark:text-teal-200 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+            title="Clear District Context"
+          >
+            <span>Clear Context</span>
+            <span>✕</span>
+          </button>
+        </div>
+      )}
+
       {/* Role Context & Suggested Inquiries Bar */}
       <div className="bg-slate-50 dark:bg-slate-950/80 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden text-xs shrink-0">
         <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0 text-[11px] uppercase tracking-wider flex items-center gap-1">
-          <span>💡</span> Suggested Inquiries:
+          <span>💡</span> {district ? `${district} Inquiries:` : 'Suggested Inquiries:'}
         </span>
         <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
-          {(CONTEXTUAL_PROMPTS[role] || []).map((promptText, idx) => (
+          {(district
+            ? [
+                `Give me a detailed workforce intelligence briefing for ${district}.`,
+                `What are the critical skill gaps in ${district}?`,
+                `What is the accredited training capacity in ${district}?`,
+                `Which industry sectors are hiring the most in ${district}?`,
+              ]
+            : CONTEXTUAL_PROMPTS[role] || []
+          ).map((promptText, idx) => (
             <button
               key={idx}
               onClick={() => handleSend(promptText)}

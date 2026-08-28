@@ -9,6 +9,7 @@ export default function CopilotPage() {
   const validRoles = ['government', 'institute', 'student', 'employer'];
   const initialRole = validRoles.includes(urlRole) ? urlRole : 'government';
   const initialPrompt = searchParams.get('q') || '';
+  const urlDistrict = searchParams.get('district') || '';
 
   return (
     <Layout>
@@ -26,7 +27,11 @@ export default function CopilotPage() {
         </div>
 
         <div data-demo="copilot-chat-container">
-          <CopilotChat defaultRole={initialRole} initialPrompt={initialPrompt} />
+          <CopilotChat
+            defaultRole={initialRole}
+            initialPrompt={initialPrompt}
+            initialDistrict={urlDistrict}
+          />
         </div>
       </div>
     </Layout>

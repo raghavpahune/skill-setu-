@@ -116,9 +116,9 @@ export const api = {
   },
 
   // AI Copilot
-  askCopilot: (question, role = 'student') => fetchJSON('/copilot/ask', {
+  askCopilot: (question, role = 'student', district = null) => fetchJSON('/copilot/ask', {
     method: 'POST',
-    body: JSON.stringify({ question, role }),
+    body: JSON.stringify({ question, role, district }),
   }),
 
   // Schemes & Student Welfare

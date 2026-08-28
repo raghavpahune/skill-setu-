@@ -231,10 +231,11 @@ export default function DistrictPlan() {
             </div>
 
             <Link
-              to="/student/copilot"
-              className="px-3 py-1.5 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold hover:bg-teal-100 dark:hover:bg-teal-900 transition-colors shadow-2xs"
+              to={`/student/copilot?district=${encodeURIComponent(districtName)}&q=${encodeURIComponent(`Give me a detailed workforce intelligence briefing for ${districtName}.`)}&role=government`}
+              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              Ask Copilot about {districtName} →
+              <span>✨</span>
+              <span>Ask AI Copilot about {districtName}</span>
             </Link>
           </div>
         </div>
@@ -520,9 +521,19 @@ export default function DistrictPlan() {
               Concrete policy, seat quota, and curriculum intervention directives derived from {districtName} skill-gap telemetry
             </p>
           </div>
-          <span className="text-[11px] font-semibold px-2.5 py-1 bg-teal-500/20 text-teal-300 rounded-full border border-teal-500/30 self-start sm:self-auto">
-            AI Policy Engine
-          </span>
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <span className="text-[11px] font-semibold px-2.5 py-1 bg-teal-500/20 text-teal-300 rounded-full border border-teal-500/30">
+              AI Policy Engine
+            </span>
+            <Link
+              to={`/student/copilot?district=${encodeURIComponent(districtName)}&q=${encodeURIComponent(`Give me a detailed workforce intelligence briefing for ${districtName}.`)}&role=government`}
+              className="px-2.5 py-1 rounded-lg bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>✨</span>
+              <span>Ask Copilot for Deep Briefing</span>
+              <span>→</span>
+            </Link>
+          </div>
         </div>
 
         {loading ? (

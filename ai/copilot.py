@@ -121,11 +121,12 @@ def extract_queried_skill(question: str, skills_list: list[dict]) -> dict | None
     return None
 
 
-def _build_context(role: str, question: str = "") -> dict:
+def _build_context(role: str, question: str = "", district: str | None = None) -> dict:
     """Fetch relevant structured data to ground the response accurately without polluting query context."""
     try:
         from app.db import get_demo
         from app.services.gap_engine import compute_gaps
+        from app.services.district_service import get_all_districts, get_district_plan
 
         skills = get_demo("skills")
         jobs = get_demo("jobs")
@@ -133,25 +134,33 @@ def _build_context(role: str, question: str = "") -> dict:
         courses = get_demo("courses")
         course_skills = get_demo("course_skills")
 
-        # Check for district mentions
+        # Check for district mentions or explicit district parameter
         q_lower = question.lower() if question else ""
         focused_district = None
-        if question:
-            from app.services.district_service import get_all_districts, get_district_plan
+        target_district_name = None
+
+        if district and district.strip():
+            target_district_name = district.strip()
+        elif question:
             for d in get_all_districts():
                 dname = d.get("name", "")
                 if dname and dname.lower() in q_lower:
-                    plan = get_district_plan(dname)
-                    focused_district = {
-                        "district": dname,
-                        "total_jobs": plan.get("total_jobs"),
-                        "total_courses": plan.get("total_courses"),
-                        "total_enrolment": plan.get("total_enrolment"),
-                        "top_roles": plan.get("top_roles", [])[:5],
-                        "top_skills": plan.get("top_skills", [])[:5],
-                        "industry_demand": plan.get("industry_demand", [])[:4],
-                    }
+                    target_district_name = dname
                     break
+
+        if target_district_name:
+            plan = get_district_plan(target_district_name)
+            focused_district = {
+                "district": target_district_name,
+                "total_jobs": plan.get("total_jobs", 0),
+                "total_courses": plan.get("total_courses", 0),
+                "total_enrolment": plan.get("total_enrolment", 0),
+                "top_roles": plan.get("top_roles", [])[:5],
+                "top_skills": plan.get("top_skills", [])[:5],
+                "skill_gaps": plan.get("skill_gaps", [])[:5],
+                "local_courses": plan.get("local_courses", [])[:5],
+                "industry_demand": plan.get("industry_demand", [])[:4],
+            }
 
         # Check if query targets a specific skill
         queried_skill_info = extract_queried_skill(question, skills)
@@ -273,13 +282,13 @@ def _build_context(role: str, question: str = "") -> dict:
         return {}
 
 
-async def handle_question(question: str, role: str = "student") -> dict:
+async def handle_question(question: str, role: str = "student", district: str | None = None) -> dict:
     """Handle a copilot question end-to-end with live inference and resilient offline fallback."""
     provider = _get_provider()
-    context = _build_context(role, question)
+    context = _build_context(role, question, district)
     is_live_ai = isinstance(provider, GeminiProvider)
 
-    logger.info(f"[Copilot] Query: '{question}' (provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
+    logger.info(f"[Copilot] Query: '{question}' (district={district}, provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
 
     if is_live_ai:
         try:

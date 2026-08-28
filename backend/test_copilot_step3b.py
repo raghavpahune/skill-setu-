@@ -126,6 +126,34 @@ def test_health_ai_endpoint():
     assert "api_key" not in diag
 
 
+def test_copilot_district_context_explicit_parameter():
+    """Verify that passing explicit district parameter grounds response to that district."""
+    for dist in ["Amravati", "Pune", "Thane", "Nagpur"]:
+        res = client.post("/api/copilot/ask", json={
+            "question": f"Give me a detailed workforce intelligence briefing for {dist}.",
+            "role": "government",
+            "district": dist
+        })
+        assert res.status_code == 200
+        data = res.json()
+        assert data["data_grounded"] is True
+        assert dist in data["answer"]
+        assert "Labour & Industrial Demand" in data["answer"] or "Intelligence" in data["answer"]
+
+
+def test_copilot_district_context_empty_or_unknown():
+    """Verify graceful handling when district context is empty or unindexed."""
+    res = client.post("/api/copilot/ask", json={
+        "question": "What are the priority training areas?",
+        "role": "government",
+        "district": None
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["data_grounded"] is True
+    assert len(data["answer"]) > 10
+
+
 if __name__ == "__main__":
     test_gemini_provider_models_configuration()
     test_copilot_offline_fallback_behavior()
@@ -133,4 +161,6 @@ if __name__ == "__main__":
     test_copilot_live_error_graceful_fallback()
     test_copilot_roles_and_grounding()
     test_health_ai_endpoint()
+    test_copilot_district_context_explicit_parameter()
+    test_copilot_district_context_empty_or_unknown()
     print("\nALL COPILOT & GEMINI 3.6 FLASH TESTS PASSED SUCCESSFULLY!")

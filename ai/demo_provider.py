@@ -60,17 +60,56 @@ class DemoProvider(LLMProvider):
             dname = fd.get("district", "Maharashtra District")
             roles_list = [r.get("role", str(r)) if isinstance(r, dict) else str(r) for r in fd.get("top_roles", [])[:5]]
             skills_list = [s.get("skill_name", str(s)) if isinstance(s, dict) else str(s) for s in fd.get("top_skills", [])[:5]]
-            roles_str = ", ".join(roles_list) if roles_list else "Technical and vocational trades"
-            skills_str = ", ".join(skills_list) if skills_list else "Engineering and automation skills"
+            ind_list = [f"{i.get('industry', str(i))} ({i.get('count', 0)} jobs)" if isinstance(i, dict) else str(i) for i in fd.get("industry_demand", [])[:4]]
+            gaps_list = fd.get("skill_gaps", [])[:4]
+            courses_list = fd.get("local_courses", [])[:4]
+
+            roles_str = ", ".join(roles_list) if roles_list else "Data unavailable in current index"
+            skills_str = ", ".join(skills_list) if skills_list else "Data unavailable in current index"
+            ind_str = ", ".join(ind_list) if ind_list else "General Industrial & Services"
+
+            # Skill Gaps Table / Summary
+            if gaps_list:
+                gaps_md = "\n".join([
+                    f"* **{g.get('skill_name', 'Skill')}:** {g.get('gap_pct', 0)}% deficit ({g.get('priority', 'MEDIUM')} Priority • {g.get('demand_count', 0)} job requirements)"
+                    for g in gaps_list
+                ])
+            else:
+                gaps_md = "* No severe curriculum deficits flagged; local output aligns with baseline demand."
+
+            # Courses Summary
+            if courses_list:
+                courses_md = "\n".join([
+                    f"* **{c.get('name', 'Course')}** at {c.get('institute', 'State Technical Institute')} (Enrolment: {c.get('enrolment', 0)}, Placement Rate: {c.get('placement_rate', 0)}%)"
+                    for c in courses_list
+                ])
+            else:
+                courses_md = "* Registered vocational courses and ITI programs across district."
+
+            total_jobs = fd.get('total_jobs', 0)
+            total_courses = fd.get('total_courses', 0)
+            total_enrolment = fd.get('total_enrolment', 0)
+
+            jobs_display = f"**{total_jobs}** verified postings" if total_jobs > 0 else "0 active postings tracked (Data unavailable in current index)"
+            courses_display = f"**{total_courses}** registered courses (**{total_enrolment}** annual seats)" if total_courses > 0 else "Data unavailable in current index"
+
             return (
-                f"### {dname} District Labour-Market Intelligence\n\n"
-                f"Analysis of industrial corridors in {dname}:\n\n"
-                f"* **Active Job Openings:** **{fd.get('total_jobs', 0)}** active postings tracked.\n"
-                f"* **Accredited Training Capacity:** **{fd.get('total_courses', 0)}** registered courses offering **{fd.get('total_enrolment', 0)}** annual enrollment seats.\n"
+                f"### {dname} District Workforce Intelligence Briefing\n\n"
+                f"Here is the current SkillSetu intelligence briefing for **{dname}**, grounded in verified state labour-market records:\n\n"
+                f"#### 1. Labour & Industrial Demand:\n"
+                f"* **Active Job Openings:** {jobs_display}.\n"
+                f"* **Primary Industry Clusters:** {ind_str}.\n"
                 f"* **Top In-Demand Roles:** {roles_str}.\n"
-                f"* **Top In-Demand Skills:** {skills_str}.\n\n"
-                f"#### Recommended Policy Action:\n"
-                f"Align local ITI and polytechnic batch sizes in {dname} with local industrial cluster expansion."
+                f"* **Core Required Competencies:** {skills_str}.\n\n"
+                f"#### 2. Critical Skill Deficits & Gaps:\n"
+                f"{gaps_md}\n\n"
+                f"#### 3. Institutional Training Capacity:\n"
+                f"* **Accredited Training Infrastructure:** {courses_display}.\n"
+                f"{courses_md}\n\n"
+                f"#### 4. Recommended Policy Interventions:\n"
+                f"1. **Expand ITI Quotas:** Increase intake in high-deficit trades across {dname} technical institutes.\n"
+                f"2. **Industry Apprenticeships:** Link local manufacturing units with NAPS apprenticeship stipends.\n"
+                f"3. **Modernize Syllabi:** Refresh legacy modules with modern hands-on automation and technical standards."
             )
 
         # 4. Gaps / Deficit query
