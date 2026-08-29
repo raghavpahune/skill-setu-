@@ -260,25 +260,50 @@ export default function StudentDashboard() {
           </p>
         </div>
 
-        {/* Candidate Profile Selector (relevant when on Passport or Recommendations tab) */}
+        {/* Candidate Profile Selector & Quick Switch Pills (relevant when on Passport or Recommendations tab) */}
         {(mainTab === 'passport' || mainTab === 'recommendations') && (
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs self-start md:self-auto">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Benchmark Profile:</span>
-            <select
-              value={selectedStudentId}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-              disabled={loading}
-              className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
-            >
-              {students.map((s) => (
-                <option key={s.user_id} value={s.user_id}>
-                  {s.name} ({s.target_role})
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Candidate:</span>
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                disabled={loading}
+                className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
+              >
+                {students.map((s) => (
+                  <option key={s.user_id} value={s.user_id}>
+                    {s.name} ({s.target_role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick Persona Pills for Live Pitch */}
+            <div className="hidden lg:flex items-center gap-1">
+              {students.slice(0, 4).map((s) => {
+                const isSelected = selectedStudentId === s.user_id;
+                const roleIcon = s.target_role.includes('AI') ? '🤖' : s.target_role.includes('Cloud') ? '☁️' : s.target_role.includes('EV') ? '⚡' : '📊';
+                return (
+                  <button
+                    key={s.user_id}
+                    onClick={() => setSelectedStudentId(s.user_id)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-teal-600 text-white shadow-2xs ring-1 ring-teal-500'
+                        : 'bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <span>{roleIcon}</span>
+                    <span>{s.name.split(' ')[0]}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
+
 
       {/* Top Main Section Switcher Tabs */}
       <div className="flex items-center gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap">

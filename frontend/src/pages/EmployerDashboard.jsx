@@ -690,17 +690,25 @@ export default function EmployerDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start lg:self-center">
+        <div className="flex items-center gap-2.5 self-start lg:self-center flex-wrap">
           <button
             onClick={() => setActiveTab('demand')}
-            className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white font-bold rounded-lg text-xs shadow-xs transition-colors flex items-center gap-1.5"
+            className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white font-bold rounded-lg text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <span>🚀</span>
             <span>Submit Live Demand</span>
           </button>
+          <Link
+            to="/admin"
+            className="px-3.5 py-2 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/80 text-purple-800 dark:text-purple-300 font-bold rounded-lg text-xs border border-purple-200 dark:border-purple-800 transition-colors flex items-center gap-1.5"
+            title="Open Admin Validation Registry"
+          >
+            <span>🛡️</span>
+            <span>Admin Validation Gate →</span>
+          </Link>
           <button
             onClick={exportValidationsJSON}
-            className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Export full validation audit trail"
           >
             <span>📥</span>
@@ -708,6 +716,7 @@ export default function EmployerDashboard() {
           </button>
         </div>
       </div>
+
 
       {/* Ground-Truth Pipeline Stepper */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-xl p-4 sm:p-5 mb-6 text-white border border-slate-800 shadow-sm">
