@@ -41,9 +41,8 @@ export default function DemoTour() {
         // Position popover
         const popoverWidth = Math.min(460, window.innerWidth - 32);
         const popoverHeight = 320;
-        const padding = 16;
+        const padding = 12;
 
-        let top = rect.bottom + padding;
         let left = Math.max(
           16,
           Math.min(
@@ -51,15 +50,30 @@ export default function DemoTour() {
             window.innerWidth - popoverWidth - 16
           )
         );
+
+        let top;
         let placement = 'bottom';
 
-        // If popover goes off the bottom of viewport, place above
-        if (rect.bottom + popoverHeight + padding > window.innerHeight && rect.top > popoverHeight + padding) {
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        // 1. If enough space below the element, place below
+        if (spaceBelow >= popoverHeight + padding) {
+          top = rect.bottom + padding;
+          placement = 'bottom';
+        }
+        // 2. If enough space above the element, place above
+        else if (spaceAbove >= popoverHeight + padding) {
+          top = rect.top - popoverHeight - padding;
+          placement = 'top';
+        }
+        // 3. For tall elements occupying large vertical space, anchor to the side with more room
+        else if (spaceAbove > spaceBelow) {
           top = Math.max(16, rect.top - popoverHeight - padding);
           placement = 'top';
-        } else if (rect.bottom + popoverHeight + padding > window.innerHeight) {
-          // If neither above nor below fits completely, constrain to viewport
-          top = Math.max(16, window.innerHeight - popoverHeight - 16);
+        } else {
+          top = Math.max(16, Math.min(rect.bottom + padding, window.innerHeight - popoverHeight - 16));
+          placement = 'bottom';
         }
 
         setPopoverPos({ top, left, placement });
@@ -92,7 +106,14 @@ export default function DemoTour() {
       const el = document.querySelector(currentStep.targetSelector);
       if (el) {
         if (!scrolled) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+          const rect = el.getBoundingClientRect();
+          // If element is tall (> 50% viewport), scroll to top of element with navbar margin
+          if (rect.height > window.innerHeight * 0.5) {
+            const targetY = el.getBoundingClientRect().top + window.pageYOffset - 80;
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+          } else {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+          }
           scrolled = true;
         }
         updatePosition();
