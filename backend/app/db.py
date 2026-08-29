@@ -95,7 +95,7 @@ def init_db():
             "skills", "jobs", "job_skills", "courses", "course_skills",
             "placements", "employers", "employer_feedback", "industry_signals",
             "skill_forecasts", "student_profiles", "schemes", "sync_logs",
-            "employer_demands", "difficult_skills"
+            "employer_demands", "difficult_skills", "student_assessments"
         ]
         for tbl in tables:
             try:
@@ -183,6 +183,66 @@ def save_employer_demand(demand_data: dict) -> dict:
     return demand_data
 
 
+def update_employer_demand_status(
+    demand_id: str,
+    new_status: str,
+    admin_notes: str | None = None,
+    validated_by: str | None = None,
+) -> dict | None:
+    """Update validation status of an employer demand record."""
+    if not _cache:
+        load_demo_data()
+    demands = _cache.get("employer_demands", [])
+    matched = None
+    for d in demands:
+        if d.get("id") == demand_id:
+            d["validation_status"] = new_status
+            if admin_notes is not None:
+                d["admin_notes"] = admin_notes
+            if validated_by is not None:
+                d["validated_by"] = validated_by
+            matched = d
+            break
+
+    if matched:
+        client = get_supabase_client()
+        if client:
+            try:
+                payload: dict[str, Any] = {"validation_status": new_status}
+                if admin_notes is not None:
+                    payload["admin_notes"] = admin_notes
+                if validated_by is not None:
+                    payload["validated_by"] = validated_by
+                client.table("employer_demands").update(payload).eq("id", demand_id).execute()
+                logger.info("[DB] Updated employer demand '%s' status to %s in Supabase.", demand_id, new_status)
+            except Exception as e:
+                logger.warning("[DB] Failed updating employer demand in Supabase: %s", e)
+
+    return matched
+
+
+def delete_employer_demand(demand_id: str) -> bool:
+    """Delete employer demand record from in-memory cache and Supabase."""
+    if not _cache:
+        load_demo_data()
+    demands = _cache.get("employer_demands", [])
+    initial_len = len(demands)
+    _cache["employer_demands"] = [d for d in demands if d.get("id") != demand_id]
+    deleted = len(_cache["employer_demands"]) < initial_len
+
+    if deleted:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("employer_demands").delete().eq("id", demand_id).execute()
+                logger.info("[DB] Deleted employer demand '%s' from Supabase.", demand_id)
+            except Exception as e:
+                logger.warning("[DB] Failed deleting employer demand from Supabase: %s", e)
+
+    return deleted
+
+
+
 
 def save_sync_log(log_entry: dict) -> bool:
     """Save or update sync audit log in memory and Supabase."""
@@ -232,4 +292,108 @@ def persist_jobs_to_supabase(jobs: list[dict]):
             client.table("jobs").upsert(j, on_conflict="source,external_id").execute()
         except Exception as e:
             logger.warning("[DB] Failed persisting job/opp '%s' to Supabase: %s", j.get("id"), e)
+
+
+def save_student_assessment(assessment_data: dict) -> dict:
+    """Save new student-submitted self-assessment record to memory cache and write-through to Supabase if connected."""
+    if not _cache:
+        load_demo_data()
+    assessments = _cache.setdefault("student_assessments", [])
+    assessments.insert(0, assessment_data)
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("student_assessments").upsert(assessment_data).execute()
+            logger.info("[DB] Persisted student assessment '%s' to Supabase.", assessment_data.get("id"))
+        except Exception as e:
+            logger.warning("[DB] Failed persisting student assessment to Supabase: %s", e)
+
+    return assessment_data
+
+
+def delete_student_assessment(assessment_id: str) -> bool:
+    """Delete student assessment from in-memory cache and Supabase if connected."""
+    if not _cache:
+        load_demo_data()
+    assessments = _cache.get("student_assessments", [])
+    initial_len = len(assessments)
+    _cache["student_assessments"] = [a for a in assessments if a.get("id") != assessment_id]
+    deleted = len(_cache["student_assessments"]) < initial_len
+
+    if deleted:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("student_assessments").delete().eq("id", assessment_id).execute()
+                logger.info("[DB] Deleted student assessment '%s' from Supabase.", assessment_id)
+            except Exception as e:
+                logger.warning("[DB] Failed deleting student assessment from Supabase: %s", e)
+
+    return deleted
+
+
+def save_gov_opportunity(data: dict) -> dict:
+    """Save new government opportunity record to cache and Supabase if connected."""
+    if not _cache:
+        load_demo_data()
+    records = _cache.setdefault("gov_opportunities", [])
+    records.insert(0, data)
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("gov_opportunities").upsert(data).execute()
+            logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
+        except Exception as e:
+            logger.warning("[DB] Failed persisting gov opportunity to Supabase: %s", e)
+
+    return data
+
+
+def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
+    """Update fields on a government opportunity record."""
+    if not _cache:
+        load_demo_data()
+    records = _cache.get("gov_opportunities", [])
+    matched = None
+    for r in records:
+        if r.get("id") == opp_id:
+            r.update(updates)
+            matched = r
+            break
+
+    if matched:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("gov_opportunities").update(updates).eq("id", opp_id).execute()
+                logger.info("[DB] Updated gov opportunity '%s' in Supabase.", opp_id)
+            except Exception as e:
+                logger.warning("[DB] Failed updating gov opportunity in Supabase: %s", e)
+
+    return matched
+
+
+def delete_gov_opportunity(opp_id: str) -> bool:
+    """Delete government opportunity record from cache and Supabase."""
+    if not _cache:
+        load_demo_data()
+    records = _cache.get("gov_opportunities", [])
+    initial_len = len(records)
+    _cache["gov_opportunities"] = [r for r in records if r.get("id") != opp_id]
+    deleted = len(_cache["gov_opportunities"]) < initial_len
+
+    if deleted:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("gov_opportunities").delete().eq("id", opp_id).execute()
+                logger.info("[DB] Deleted gov opportunity '%s' from Supabase.", opp_id)
+            except Exception as e:
+                logger.warning("[DB] Failed deleting gov opportunity from Supabase: %s", e)
+
+    return deleted
+
+
 

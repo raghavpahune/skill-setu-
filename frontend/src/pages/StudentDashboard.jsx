@@ -5,6 +5,8 @@ import StatCard from '../components/StatCard';
 import PassportRadar from '../components/PassportRadar';
 import StudentAlertsFeed from '../components/StudentAlertsFeed';
 import SkillExplainabilityModal from '../components/SkillExplainabilityModal';
+import StudentAssessmentForm from '../components/StudentAssessmentForm';
+import CareerRecommendationsView from '../components/CareerRecommendationsView';
 import { api } from '../services/api';
 
 const DEFAULT_STUDENTS = [
@@ -71,16 +73,6 @@ function SkeletonKpiCard() {
   );
 }
 
-function SkeletonCard() {
-  return (
-    <div className="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 animate-pulse space-y-4">
-      <div className="h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded"></div>
-      <div className="h-3 w-64 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
-      <div className="h-48 bg-slate-100 dark:bg-slate-800/40 rounded-lg"></div>
-    </div>
-  );
-}
-
 function SkeletonRoadmapStep() {
   return (
     <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 animate-pulse flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
@@ -97,6 +89,7 @@ function SkeletonRoadmapStep() {
 }
 
 export default function StudentDashboard() {
+  const [mainTab, setMainTab] = useState('recommendations'); // 'recommendations' | 'passport' | 'assessment'
   const [students, setStudents] = useState(DEFAULT_STUDENTS);
   const [selectedStudentId, setSelectedStudentId] = useState('stu-001');
   const [passport, setPassport] = useState(null);
@@ -119,7 +112,7 @@ export default function StudentDashboard() {
     setExplainModalOpen(true);
   };
 
-  // Load students, schemes, and opportunities on mount
+  // Load students on mount
   useEffect(() => {
     api.getStudents()
       .then((res) => {
@@ -133,23 +126,38 @@ export default function StudentDashboard() {
       .catch((err) => {
         console.warn('Failed to load candidate list:', err);
       });
-
-    api.getSchemes({ limit: 4 })
-      .then((res) => {
-        if (Array.isArray(res)) {
-          setSchemes(res);
-        }
-      })
-      .catch(() => {});
-
-    api.getOpportunities({ limit: 4 })
-      .then((res) => {
-        if (Array.isArray(res)) {
-          setOpportunities(res);
-        }
-      })
-      .catch(() => {});
   }, []);
+
+  // Load personalized recommendations when student changes (Phase 15)
+  useEffect(() => {
+    if (!selectedStudentId) return;
+
+    api.getRecommendedSchemes(selectedStudentId)
+      .then((res) => {
+        if (res && Array.isArray(res.schemes)) {
+          setSchemes(res.schemes.slice(0, 4));
+        }
+      })
+      .catch(() => {
+        // Fallback: load all schemes (non-personalized)
+        api.getSchemes({ limit: 4 })
+          .then((res) => { if (Array.isArray(res)) setSchemes(res); })
+          .catch(() => {});
+      });
+
+    api.getRecommendedGovOpportunities(selectedStudentId)
+      .then((res) => {
+        if (res && Array.isArray(res.opportunities)) {
+          setOpportunities(res.opportunities.slice(0, 4));
+        }
+      })
+      .catch(() => {
+        // Fallback: load generic opportunities
+        api.getOpportunities({ limit: 4 })
+          .then((res) => { if (Array.isArray(res)) setOpportunities(res); })
+          .catch(() => {});
+      });
+  }, [selectedStudentId]);
 
   // Fetch passport and roadmap whenever candidate changes
   const fetchStudentData = () => {
@@ -236,81 +244,141 @@ export default function StudentDashboard() {
 
   return (
     <Layout>
-      {/* Header & Candidate Profile Switcher */}
+      {/* Header & Main Navigation Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Student Dynamic Skill Passport
+              Student Dynamic Skill Passport & Profiler
             </h1>
             <span className="text-[11px] font-mono px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-semibold rounded border border-teal-200 dark:border-teal-800">
               NSQF Aligned
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Personalized competency verification, labour-market benchmark alignment, and validated learning roadmap
+            Personalized competency verification, self-assessment diagnostic quiz, labour benchmark alignment, and validated roadmaps
           </p>
         </div>
 
-        {/* Candidate Profile Selector */}
-        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs self-start md:self-auto">
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Candidate Profile:</span>
-          <select
-            value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
-            disabled={loading}
-            className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
-          >
-            {students.map((s) => (
-              <option key={s.user_id} value={s.user_id}>
-                {s.name} ({s.target_role})
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Candidate Profile Selector (relevant when on Passport or Recommendations tab) */}
+        {(mainTab === 'passport' || mainTab === 'recommendations') && (
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs self-start md:self-auto">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Benchmark Profile:</span>
+            <select
+              value={selectedStudentId}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+              disabled={loading}
+              className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
+            >
+              {students.map((s) => (
+                <option key={s.user_id} value={s.user_id}>
+                  {s.name} ({s.target_role})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Global Error Banner */}
-      {passportError && (
-        <ErrorBanner
-          message={`Failed to retrieve skill passport data for candidate (${passportError}).`}
-          onRetry={fetchStudentData}
-        />
-      )}
-
-      {/* Dynamic Alignment Workflow Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:via-teal-950/40 dark:to-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 mb-6 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[11px] text-teal-400 font-semibold uppercase tracking-wider font-mono">
-            <span>Career Pathway Sequence</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium">
-            <span className="bg-slate-800/90 border border-slate-700 px-2.5 py-1 rounded text-slate-200">
-              1. Current Competencies
-            </span>
-            <span className="text-teal-400 font-bold">→</span>
-            <span className="bg-rose-950/80 border border-rose-800 px-2.5 py-1 rounded text-rose-300">
-              2. Priority Skill Gaps
-            </span>
-            <span className="text-teal-400 font-bold">→</span>
-            <span className="bg-teal-950/80 border border-teal-800 px-2.5 py-1 rounded text-teal-300">
-              3. Recommended Pathway
-            </span>
-            <span className="text-teal-400 font-bold">→</span>
-            <span className="bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded text-emerald-300">
-              4. Industry Placement
-            </span>
-          </div>
-        </div>
-
-        <Link
-          to="/student/copilot"
-          className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+      {/* Top Main Section Switcher Tabs */}
+      <div className="flex items-center gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap">
+        <button
+          onClick={() => setMainTab('recommendations')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            mainTab === 'recommendations'
+              ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
         >
-          <span>Consult Career Copilot</span>
-          <span>→</span>
-        </Link>
+          <span>🎯</span>
+          <span>Career Recommendations & Skill Gaps</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300">
+            Phase 16
+          </span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('passport')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            mainTab === 'passport'
+              ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <span>🎓</span>
+          <span>Skill Passport & Learning Roadmap</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('assessment')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            mainTab === 'assessment'
+              ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <span>📝</span>
+          <span>Student Self-Assessment & Quiz</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+            Phase 12
+          </span>
+        </button>
       </div>
+
+      {/* VIEW 1: DYNAMIC SKILL PASSPORT & ROADMAP */}
+      {mainTab === 'passport' && (
+        <>
+          {/* Global Error Banner */}
+          {passportError && (
+            <ErrorBanner
+              message={`Failed to retrieve skill passport data for candidate (${passportError}).`}
+              onRetry={fetchStudentData}
+            />
+          )}
+
+          {/* Dynamic Alignment Workflow Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:via-teal-950/40 dark:to-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 mb-6 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-[11px] text-teal-400 font-semibold uppercase tracking-wider font-mono">
+                <span>Career Pathway Sequence</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium">
+                <span className="bg-slate-800/90 border border-slate-700 px-2.5 py-1 rounded text-slate-200">
+                  1. Current Competencies
+                </span>
+                <span className="text-teal-400 font-bold">→</span>
+                <span className="bg-rose-950/80 border border-rose-800 px-2.5 py-1 rounded text-rose-300">
+                  2. Priority Skill Gaps
+                </span>
+                <span className="text-teal-400 font-bold">→</span>
+                <span className="bg-teal-950/80 border border-teal-800 px-2.5 py-1 rounded text-teal-300">
+                  3. Recommended Pathway
+                </span>
+                <span className="text-teal-400 font-bold">→</span>
+                <span className="bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded text-emerald-300">
+                  4. Industry Placement
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setMainTab('assessment')}
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Take Diagnostic Quiz</span>
+                <span>📝</span>
+              </button>
+              <Link
+                to="/student/copilot"
+                className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Consult Copilot</span>
+                <span>→</span>
+              </Link>
+            </div>
+          </div>
+
 
       {/* Top KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
@@ -771,18 +839,18 @@ export default function StudentDashboard() {
         />
       </div>
 
-      {/* Eligible Government Schemes & NAPS Opportunities */}
+      {/* Eligible Government Schemes & Opportunities (Phase 15 — Personalized) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* State Welfare Schemes */}
+        {/* State Welfare Schemes — Personalized */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                  Eligible State Welfare & Scholarship Schemes
+                  Recommended Welfare & Scholarship Schemes
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Government funding, fee waivers & tool grants for vocational candidates
+                  Matched to your profile — verify eligibility on official portals
                 </p>
               </div>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">
@@ -801,7 +869,7 @@ export default function StudentDashboard() {
                       <h4 className="font-bold text-slate-900 dark:text-white text-xs leading-snug">
                         {s.title}
                       </h4>
-                      {s.max_amount && (
+                      {s.max_amount > 0 && (
                         <span className="text-[11px] font-mono font-bold text-teal-700 dark:text-teal-400 shrink-0">
                           ₹{s.max_amount.toLocaleString('en-IN')}
                         </span>
@@ -810,10 +878,30 @@ export default function StudentDashboard() {
                     <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 mb-2">
                       {s.benefit_description}
                     </p>
+                    {/* Match Reasons (Phase 15) */}
+                    {s.match_reasons && s.match_reasons.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {s.match_reasons.map((reason, idx) => (
+                          <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-medium">
+                            ✓ {reason}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                      <span className="font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                        {s.scheme_type?.replace('_', ' ')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                          {s.scheme_type?.replace('_', ' ')}
+                        </span>
+                        <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          {s.source || 'DEMO_SYNTHETIC'}
+                        </span>
+                        {s.last_updated && (
+                          <span className="text-[9px] text-slate-400">
+                            Updated: {s.last_updated}
+                          </span>
+                        )}
+                      </div>
                       {s.application_portal_url && (
                         <a
                           href={s.application_portal_url}
@@ -821,7 +909,7 @@ export default function StudentDashboard() {
                           rel="noopener noreferrer"
                           className="text-teal-600 dark:text-teal-400 font-bold hover:underline"
                         >
-                          Apply on Portal →
+                          View on Portal →
                         </a>
                       )}
                     </div>
@@ -834,20 +922,20 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* NAPS & Vocational Opportunities */}
+        {/* Government Opportunities — Personalized (Phase 15) */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                  Approved Apprenticeships & Trainee Vacancies
+                  Recommended Apprenticeships & Training Programs
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Direct placements aligned with NAPS & PMKVY in Maharashtra
+                  Government opportunities matched to your skills & district
                 </p>
               </div>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
-                NAPS / PMKVY
+                NAPS / DVET / MSSDS
               </span>
             </div>
 
@@ -861,25 +949,45 @@ export default function StudentDashboard() {
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div>
                         <h4 className="font-bold text-slate-900 dark:text-white text-xs leading-snug">
-                          {opp.title}
+                          {opp.name || opp.title}
                         </h4>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {opp.company} • <span className="font-semibold text-slate-700 dark:text-slate-300">{opp.district}</span>
+                          {opp.department || opp.company} • <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {typeof opp.district_coverage === 'object' ? (opp.district_coverage || []).join(', ') : (opp.district_coverage || opp.district || '')}
+                          </span>
                         </p>
                       </div>
-                      {opp.stipend_amount && (
-                        <span className="text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400 shrink-0">
-                          ₹{opp.stipend_amount.toLocaleString('en-IN')}/mo
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-2 mt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                      <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 uppercase font-mono font-semibold">
-                        {opp.opportunity_type?.replace('_', ' ')}
+                      <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 uppercase text-[9px] font-mono font-semibold shrink-0">
+                        {(opp.opportunity_type || 'opportunity').replace('_', ' ')}
                       </span>
-                      {opp.apply_url && (
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 mb-2">
+                      {opp.description || ''}
+                    </p>
+                    {/* Match Reasons (Phase 15) */}
+                    {opp.match_reasons && opp.match_reasons.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {opp.match_reasons.map((reason, idx) => (
+                          <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-medium">
+                            ✓ {reason}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-2 mt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          {opp.source || 'DEMO_SYNTHETIC'}
+                        </span>
+                        {opp.last_updated && (
+                          <span className="text-[9px] text-slate-400">
+                            Updated: {opp.last_updated}
+                          </span>
+                        )}
+                      </div>
+                      {(opp.application_url || opp.apply_url) && (
                         <a
-                          href={opp.apply_url}
+                          href={opp.application_url || opp.apply_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
@@ -897,6 +1005,26 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+      </>
+      )}
+
+      {/* VIEW 1: PHASE 16 AI CAREER RECOMMENDATIONS */}
+      {mainTab === 'recommendations' && (
+        <div data-demo="career-recommendations-section">
+          <CareerRecommendationsView
+            studentId={selectedStudentId}
+            onOpenExplainability={handleOpenExplainability}
+          />
+        </div>
+      )}
+
+      {/* VIEW 2: PHASE 12 STUDENT ASSESSMENT & QUIZ */}
+      {mainTab === 'assessment' && (
+        <div data-demo="student-assessment-section">
+          <StudentAssessmentForm onOpenExplainability={handleOpenExplainability} />
+        </div>
+      )}
+
 
       {/* Section 18: "Why Should I Learn This?" 5-Dimension Explainability Modal */}
       <SkillExplainabilityModal
@@ -909,3 +1037,4 @@ export default function StudentDashboard() {
     </Layout>
   );
 }
+

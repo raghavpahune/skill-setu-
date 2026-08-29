@@ -10,6 +10,7 @@ import InstituteDashboard from './pages/InstituteDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import CopilotPage from './pages/CopilotPage';
 import EmployerDashboard from './pages/EmployerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import Layout from './components/Layout';
 
 function NotFound() {
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/student" element={<StudentDashboard />} />
             <Route path="/student/copilot" element={<CopilotPage />} />
             <Route path="/employer" element={<EmployerDashboard />} />
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TourProvider>
@@ -48,3 +50,4 @@ export default function App() {
     </ThemeProvider>
   );
 }
+

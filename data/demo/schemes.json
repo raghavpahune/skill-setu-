@@ -14,7 +14,11 @@
     "deadline_date": "2027-01-31",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHADBT-SC-001"
+    "external_id": "MAHADBT-SC-001",
+    "target_skills": ["Electrical", "Mechanical", "IT", "Healthcare"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "SC category students in post-matric courses with family income ≤ ₹2.5 lakh/year",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-002",
@@ -31,7 +35,11 @@
     "deadline_date": "2027-01-31",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHADBT-OBC-001"
+    "external_id": "MAHADBT-OBC-001",
+    "target_skills": ["Electrical", "Mechanical", "IT", "Manufacturing"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "OBC category students in post-matric courses with family income ≤ ₹1.5 lakh/year",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-003",
@@ -48,7 +56,11 @@
     "deadline_date": "2027-03-31",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHADBT-HOSTEL-001"
+    "external_id": "MAHADBT-HOSTEL-001",
+    "target_skills": ["Electrical", "Mechanical", "IT", "Manufacturing"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "SC/VJ-NT/OBC/SBC students in recognized hostels with family income ≤ ₹2.5 lakh/year",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-004",
@@ -65,7 +77,11 @@
     "deadline_date": "2027-01-31",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHADBT-FEE-001"
+    "external_id": "MAHADBT-FEE-001",
+    "target_skills": ["Engineering", "IT", "Manufacturing"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "EWS/Open category students in professional courses with family income ≤ ₹8 lakh/year",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-005",
@@ -82,7 +98,11 @@
     "deadline_date": null,
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "PMKVY4-MH-001"
+    "external_id": "PMKVY4-MH-001",
+    "target_skills": ["IT", "Electrical", "Automotive", "Healthcare", "Retail", "BFSI"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "All categories; no income ceiling; candidates seeking NSQF-aligned short-term skill certification",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-006",
@@ -99,7 +119,11 @@
     "deadline_date": null,
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "NAPS-MH-001"
+    "external_id": "NAPS-MH-001",
+    "target_skills": ["Mechanical", "Electrical", "IT", "Automotive", "Manufacturing"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "ITI/Polytechnic/Graduate apprentices enrolled under Apprentices Act; no income ceiling",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-007",
@@ -116,7 +140,11 @@
     "deadline_date": "2027-06-30",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHAJYOTI-001"
+    "external_id": "MAHAJYOTI-001",
+    "target_skills": ["Engineering", "IT", "Banking", "Public Administration"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "ST/VJ-NT/OBC/SBC students; family income ≤ ₹8 lakh/year; pursuing competitive exam preparation",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-008",
@@ -133,7 +161,11 @@
     "deadline_date": "2027-01-31",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHADBT-ST-001"
+    "external_id": "MAHADBT-ST-001",
+    "target_skills": ["Electrical", "Mechanical", "IT", "Healthcare"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "ST category students in post-matric courses with family income ≤ ₹2.5 lakh/year",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-009",
@@ -150,7 +182,11 @@
     "deadline_date": null,
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "PMKVY-STATE-001"
+    "external_id": "PMKVY-STATE-001",
+    "target_skills": ["Electrical", "Mechanical", "Welding", "Plumbing", "Automotive"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "All categories; ITI candidates or short-term skill training seekers; no income ceiling",
+    "last_updated": "2026-08-01"
   },
   {
     "id": "sch-010",
@@ -167,6 +203,10 @@
     "deadline_date": "2027-03-31",
     "status": "active",
     "source": "DEMO_SYNTHETIC",
-    "external_id": "MAHADBT-TOOL-001"
+    "external_id": "MAHADBT-TOOL-001",
+    "target_skills": ["Mechanical", "Electrical", "Welding", "Plumbing"],
+    "district_coverage": "State-wide (Maharashtra)",
+    "eligibility_summary": "SC category; ITI pass-out; family income ≤ ₹2.5 lakh/year",
+    "last_updated": "2026-08-01"
   }
 ]

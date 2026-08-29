@@ -1,0 +1,89 @@
+[
+  {
+    "id": "ast-demo-001",
+    "user_id": "stu-001",
+    "name": "Aarav Patil",
+    "education": "B.Tech Computer Science & Engineering (Final Year)",
+    "district": "Pune",
+    "career_goal": "AI Engineer",
+    "interests": ["AI / ML", "Data Science"],
+    "current_skills": [
+      {"skill_name": "Python", "proficiency": "advanced"},
+      {"skill_name": "SQL", "proficiency": "intermediate"},
+      {"skill_name": "Machine Learning", "proficiency": "intermediate"},
+      {"skill_name": "Deep Learning", "proficiency": "beginner"},
+      {"skill_name": "Data Analysis", "proficiency": "intermediate"}
+    ],
+    "quiz_answers": {
+      "q1": "b",
+      "q2": "c",
+      "q3": "a",
+      "q4": "c",
+      "q5": "b"
+    },
+    "quiz_score_pct": 80,
+    "skill_match_pct": 52,
+    "evaluation_summary": {
+      "readiness_level": "INTERMEDIATE_READY",
+      "target_role": "AI Engineer",
+      "total_target_skills": 6,
+      "acquired_count": 3,
+      "missing_count": 3,
+      "missing_skills": [
+        {"skill_id": "sk-004", "name": "Generative AI", "category": "AI/ML", "priority": "HIGH"},
+        {"skill_id": "sk-005", "name": "AI Agents", "category": "AI/ML", "priority": "HIGH"},
+        {"skill_id": "sk-006", "name": "RAG", "category": "AI/ML", "priority": "CRITICAL"}
+      ],
+      "recommended_next_steps": [
+        "Complete hands-on RAG architectures and vector indexing practicals",
+        "Implement autonomous multi-agent reasoning workflows using modern frameworks",
+        "Target AI Engineer internships and apprenticeships in Pune IT corridor"
+      ]
+    },
+    "submitted_at": "2026-08-15T10:30:00Z",
+    "source": "DEMO_SYNTHETIC",
+    "is_demo": true
+  },
+  {
+    "id": "ast-demo-002",
+    "user_id": "stu-003",
+    "name": "Rohan Kulkarni",
+    "education": "Diploma in Electrical Engineering",
+    "district": "Amravati",
+    "career_goal": "EV Technician",
+    "interests": ["Electric Vehicles", "Robotics & Automation"],
+    "current_skills": [
+      {"skill_name": "Electrical Maintenance", "proficiency": "intermediate"},
+      {"skill_name": "Fitter", "proficiency": "advanced"}
+    ],
+    "quiz_answers": {
+      "q1": "a",
+      "q2": "b",
+      "q3": "b",
+      "q4": "b",
+      "q5": "a"
+    },
+    "quiz_score_pct": 60,
+    "skill_match_pct": 30,
+    "evaluation_summary": {
+      "readiness_level": "FOUNDATIONAL",
+      "target_role": "EV Technician",
+      "total_target_skills": 4,
+      "acquired_count": 1,
+      "missing_count": 3,
+      "missing_skills": [
+        {"skill_id": "sk-018", "name": "EV Battery Technology", "category": "Electric Vehicles", "priority": "CRITICAL"},
+        {"skill_id": "sk-019", "name": "EV Motor Design", "category": "Electric Vehicles", "priority": "HIGH"},
+        {"skill_id": "sk-045", "name": "Embedded Systems", "category": "Electronics", "priority": "MEDIUM"}
+      ],
+      "recommended_next_steps": [
+        "Enroll in Battery Management System (BMS) diagnostics laboratory module",
+        "Master high-voltage safety and DC fast-charging network maintenance",
+        "Explore Chakan EV manufacturing cluster apprentice openings"
+      ]
+    },
+    "submitted_at": "2026-08-18T14:15:00Z",
+    "source": "DEMO_SYNTHETIC",
+    "is_demo": true
+  }
+]

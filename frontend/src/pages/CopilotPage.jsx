@@ -10,6 +10,7 @@ export default function CopilotPage() {
   const initialRole = validRoles.includes(urlRole) ? urlRole : 'government';
   const initialPrompt = searchParams.get('q') || '';
   const urlDistrict = searchParams.get('district') || '';
+  const urlStudentId = searchParams.get('student_id') || searchParams.get('student') || '';
 
   return (
     <Layout>
@@ -31,9 +32,11 @@ export default function CopilotPage() {
             defaultRole={initialRole}
             initialPrompt={initialPrompt}
             initialDistrict={urlDistrict}
+            initialStudentId={urlStudentId}
           />
         </div>
       </div>
     </Layout>
   );
+
 }

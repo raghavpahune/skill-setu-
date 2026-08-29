@@ -61,7 +61,7 @@ app.add_middleware(
 from app.routers import (
     skills, jobs, gaps, courses, signals, forecast,
     districts, student, copilot, employer, schemes, opportunities, sync,
-    simulator,
+    simulator, admin, gov_opportunities,
 )
 
 app.include_router(skills.router, prefix="/api", tags=["Skills"])
@@ -78,6 +78,8 @@ app.include_router(schemes.router, prefix="/api", tags=["Schemes"])
 app.include_router(opportunities.router, prefix="/api", tags=["Opportunities"])
 app.include_router(sync.router, prefix="/api", tags=["Data Ingestion & Sync"])
 app.include_router(simulator.router, prefix="/api", tags=["Policy Simulator"])
+app.include_router(admin.router, prefix="/api", tags=["Admin Data Management"])
+app.include_router(gov_opportunities.router, prefix="/api", tags=["Government Opportunities"])
 
 
 @app.get("/api/health")

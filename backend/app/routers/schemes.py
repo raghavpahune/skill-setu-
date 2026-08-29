@@ -93,6 +93,102 @@ async def get_scheme_metadata():
     }
 
 
+@router.get("/schemes/recommended/{student_id}")
+async def recommended_schemes(
+    student_id: str,
+    limit: int = Query(10, ge=1, le=50),
+):
+    """Return schemes ranked by relevance to a student profile or assessment record."""
+    # Try student profiles first, then assessments
+    profiles = get_demo("student_profiles")
+    profile = None
+    for p in profiles:
+        if p.get("user_id") == student_id:
+            profile = p
+            break
+
+    if not profile:
+        assessments = get_demo("student_assessments")
+        for a in assessments:
+            if a.get("id") == student_id:
+                profile = a
+                break
+
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Student profile '{student_id}' not found.")
+
+    student_skills = set()
+    for s in profile.get("skills", []) + profile.get("current_skills", []):
+        if isinstance(s, dict):
+            sname = s.get("skill_name") or s.get("name")
+            if sname:
+                student_skills.add(str(sname).lower())
+            sid = s.get("skill_id")
+            if sid:
+                student_skills.add(str(sid).lower())
+        elif s:
+            student_skills.add(str(s).lower())
+
+
+    student_district = (profile.get("district") or "").lower()
+    student_education = (profile.get("education") or "").lower()
+
+    schemes = get_demo("schemes")
+    scored = []
+    for s in schemes:
+        if s.get("status", "active").lower() != "active":
+            continue
+
+        score = 0
+        reasons = []
+
+        # Skill/domain match
+        scheme_skills = {sk.lower() for sk in (s.get("target_skills") or [])}
+        matched = student_skills & scheme_skills
+        if matched:
+            score += len(matched) * 3
+            reasons.append(f"Matches skills: {', '.join(sorted(matched)[:3])}")
+
+        # Course type match against education
+        if student_education:
+            for ct in s.get("eligible_course_types", []):
+                if ct.lower() in student_education:
+                    score += 2
+                    reasons.append(f"Eligible for {ct} students")
+                    break
+
+        # District availability (state-wide schemes always match)
+        coverage = s.get("district_coverage", "State-wide (Maharashtra)")
+        if "state-wide" in coverage.lower():
+            score += 1
+            reasons.append("Available state-wide")
+        elif student_district and student_district in coverage.lower():
+            score += 3
+            reasons.append(f"Available in {student_district.title()}")
+
+        # Open category matches all students
+        cats = [c.lower() for c in s.get("beneficiary_category", [])]
+        if "open" in cats:
+            score += 1
+            reasons.append("Open to all categories")
+
+        if score > 0:
+            scored.append({
+                **s,
+                "relevance_score": score,
+                "match_reasons": reasons,
+            })
+
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+    return {
+        "student_id": student_id,
+        "total_matches": len(scored),
+        "schemes": scored[:limit],
+        "provenance_note": "Recommendations based on skill/education/district overlap with demo dataset. Verify eligibility on official portals before applying.",
+    }
+
+
 @router.get("/schemes/{scheme_id}")
 async def get_scheme(scheme_id: str):
     """Get single scheme details by ID or scheme code."""
@@ -102,3 +198,4 @@ async def get_scheme(scheme_id: str):
             return s
 
     raise HTTPException(status_code=404, detail="Scheme not found")
+

@@ -501,3 +501,305 @@ def get_skill_explainability(
         "student_alignment": student_alignment,
         "data_provenance": "SKILLSETU_GROUNDED_INTELLIGENCE",
     }
+
+
+# ---------------------------------------------------------------------------
+# Feature 3: Phase 12 Student Data Collection & Diagnostic Assessment
+# ---------------------------------------------------------------------------
+
+DIAGNOSTIC_QUIZ_QUESTIONS = [
+    {
+        "id": "q1",
+        "category": "Problem Solving & Logic",
+        "question": "When approaching a complex technical challenge or system bottleneck, what is your standard initial approach?",
+        "options": [
+            {"key": "a", "text": "Jump straight into implementation with trial-and-error iterations.", "points": 10},
+            {"key": "b", "text": "Decompose the problem into modular specifications, verify requirements, and map logical steps.", "points": 20},
+            {"key": "c", "text": "Search for pre-built snippets and copy without inspecting underlying mechanics.", "points": 10},
+            {"key": "d", "text": "Wait for external guidance before initiating preliminary troubleshooting.", "points": 5},
+        ],
+        "rationale": "Systematic problem decomposition and requirement verification reflect engineering maturity.",
+    },
+    {
+        "id": "q2",
+        "category": "Applied Tooling & Standards",
+        "question": "How do you ensure reliability, version safety, and quality in your projects or coursework?",
+        "options": [
+            {"key": "a", "text": "Save occasional local backup copies with date-stamped file names.", "points": 5},
+            {"key": "b", "text": "Rely exclusively on final manual inspection right before deadline submission.", "points": 10},
+            {"key": "c", "text": "Utilize standardized version control (Git), automated validation/tests, and structured documentation.", "points": 20},
+            {"key": "d", "text": "Only inspect quality if an instructor or supervisor flags an error.", "points": 5},
+        ],
+        "rationale": "Git version control and automated validation are foundational industry standards.",
+    },
+    {
+        "id": "q3",
+        "category": "Emerging Technologies",
+        "question": "In modern AI & data architectures, what differentiates production Agentic/RAG pipelines from simple static chatbots?",
+        "options": [
+            {"key": "a", "text": "Dynamic tool execution, persistent vector memory retrieval, and deterministic verification.", "points": 20},
+            {"key": "b", "text": "Larger font styling and longer text prompts without data connection.", "points": 5},
+            {"key": "c", "text": "Running basic offline spelling and grammar correction filters.", "points": 10},
+            {"key": "d", "text": "Replacing all relational databases with flat spreadsheet files.", "points": 5},
+        ],
+        "rationale": "Agentic workflows combine grounded domain retrieval with active tool calling.",
+    },
+    {
+        "id": "q4",
+        "category": "Data & Quality Assurance",
+        "question": "When preparing dataset inputs or telemetry streams for model training or industrial monitoring, what is essential?",
+        "options": [
+            {"key": "a", "text": "Ignoring null values and feeding raw unfiltered records directly.", "points": 5},
+            {"key": "b", "text": "Data profiling, schema validation, outlier handling, and consistency checks.", "points": 20},
+            {"key": "c", "text": "Duplicating existing rows until the dataset volume looks impressive.", "points": 5},
+            {"key": "d", "text": "Manually fabricating missing sensor metrics.", "points": 5},
+        ],
+        "rationale": "Rigorous data sanitation prevents cascading errors in downstream intelligence.",
+    },
+    {
+        "id": "q5",
+        "category": "Continuous Upskilling",
+        "question": "How do you align your technical capabilities with shifting Maharashtra industry demand?",
+        "options": [
+            {"key": "a", "text": "Rely strictly on outdated academic syllabi without exploring modern frameworks.", "points": 5},
+            {"key": "b", "text": "Audit skill gaps against live market signals, build practical capstones, and target NSQF credentials.", "points": 20},
+            {"key": "c", "text": "Postpone learning industry skills until after joining a corporate workplace.", "points": 10},
+            {"key": "d", "text": "Avoid emerging technologies until they become mandatory requisites.", "points": 5},
+        ],
+        "rationale": "Proactive self-assessment against live labour signals accelerates career placement.",
+    },
+]
+
+
+def get_diagnostic_quiz_questions() -> list[dict[str, Any]]:
+    """Return sanitized quiz questions for frontend rendering."""
+    return [
+        {
+            "id": q["id"],
+            "category": q["category"],
+            "question": q["question"],
+            "options": [{"key": opt["key"], "text": opt["text"]} for opt in q["options"]],
+        }
+        for q in DIAGNOSTIC_QUIZ_QUESTIONS
+    ]
+
+
+# Standard role requirement mapping grounded in SkillSetu labour-market database
+ROLE_REQUIREMENTS_MAP = {
+    "ai engineer": ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"],
+    "data analyst": ["sk-001", "sk-007", "sk-008", "sk-030"],
+    "data scientist": ["sk-001", "sk-002", "sk-007", "sk-008", "sk-047"],
+    "ev technician": ["sk-018", "sk-019", "sk-023", "sk-045"],
+    "ev engineer": ["sk-018", "sk-019", "sk-023", "sk-045", "sk-042"],
+    "cybersecurity analyst": ["sk-011", "sk-012", "sk-052", "sk-001"],
+    "cloud architect": ["sk-009", "sk-010", "sk-028", "sk-029"],
+    "devops engineer": ["sk-009", "sk-010", "sk-028", "sk-029", "sk-001"],
+    "robotics engineer": ["sk-021", "sk-017", "sk-053", "sk-054"],
+    "full stack developer": ["sk-001", "sk-013", "sk-014", "sk-008", "sk-039"],
+    "iot engineer": ["sk-020", "sk-045", "sk-036", "sk-033"],
+    "smart manufacturing engineer": ["sk-016", "sk-017", "sk-053", "sk-054", "sk-049"],
+}
+
+
+def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate candidate submitted profile, quiz answers, and skill match against grounded dataset."""
+    import datetime
+    import uuid
+
+    skills_list = get_demo("skills")
+    skills_map = {s["id"]: s for s in skills_list}
+    skills_name_map = {s["name"].lower(): s for s in skills_list}
+    courses = get_demo("courses")
+    course_skills = get_demo("course_skills")
+    gaps_list = compute_gaps()
+    gaps_map = {g["skill_id"]: g for g in gaps_list}
+
+    # Add synonym lookups
+    for s in skills_list:
+        for syn in s.get("synonyms", []):
+            skills_name_map[syn.lower()] = s
+
+    # 1. Calculate Diagnostic Quiz Score
+    quiz_answers = submission_data.get("quiz_answers", {})
+    total_quiz_points = 0
+    max_quiz_points = len(DIAGNOSTIC_QUIZ_QUESTIONS) * 20
+
+    question_point_map = {}
+    for q in DIAGNOSTIC_QUIZ_QUESTIONS:
+        question_point_map[q["id"]] = {opt["key"]: opt["points"] for opt in q["options"]}
+
+    for q_id, opt_key in quiz_answers.items():
+        if q_id in question_point_map:
+            pts = question_point_map[q_id].get(opt_key.lower(), 5)
+            total_quiz_points += pts
+
+    quiz_score_pct = min(100, max(0, round((total_quiz_points / max(1, max_quiz_points)) * 100)))
+
+    # 2. Parse and resolve student's current skills
+    current_skills_input = submission_data.get("current_skills", [])
+    resolved_current_skills = []
+    acquired_skill_ids = set()
+
+    for item in current_skills_input:
+        s_name = item.get("skill_name", "").strip() if isinstance(item, dict) else str(item).strip()
+        prof = item.get("proficiency", "intermediate").lower() if isinstance(item, dict) else "intermediate"
+        if not s_name:
+            continue
+
+        matched_skill = skills_name_map.get(s_name.lower())
+        if matched_skill:
+            sid = matched_skill["id"]
+            acquired_skill_ids.add(sid)
+            resolved_current_skills.append({
+                "skill_id": sid,
+                "skill_name": matched_skill["name"],
+                "category": matched_skill.get("category", "General"),
+                "nsqf_level": matched_skill.get("nsqf_level", 5),
+                "proficiency": prof,
+            })
+        else:
+            # Custom / User-entered skill
+            resolved_current_skills.append({
+                "skill_id": None,
+                "skill_name": s_name,
+                "category": "Self-Reported",
+                "nsqf_level": None,
+                "proficiency": prof,
+            })
+
+    # 3. Determine target role required skills
+    career_goal = submission_data.get("career_goal", "").strip()
+    target_role_clean = career_goal.lower()
+
+    # Look up in standard role map or search closest match
+    required_skill_ids = ROLE_REQUIREMENTS_MAP.get(target_role_clean)
+    if not required_skill_ids:
+        # Search substring match
+        for role_key, sids in ROLE_REQUIREMENTS_MAP.items():
+            if role_key in target_role_clean or target_role_clean in role_key:
+                required_skill_ids = sids
+                break
+
+    if not required_skill_ids:
+        # Default fallback to 4 prevalent foundational skills
+        required_skill_ids = ["sk-001", "sk-007", "sk-008", "sk-050"]
+
+    # 4. Calculate Skill Match Percentage and Identify Gaps
+    required_skills_data = []
+    missing_skills_data = []
+    acquired_target_count = 0
+    weighted_score = 0.0
+
+    prof_weights = {"beginner": 0.4, "intermediate": 0.75, "advanced": 1.0}
+
+    for sid in required_skill_ids:
+        sk = skills_map.get(sid, {"id": sid, "name": "Required Skill", "category": "General", "nsqf_level": 5})
+        is_acquired = sid in acquired_skill_ids
+        gap_info = gaps_map.get(sid, {})
+
+        matching_current = next((c for c in resolved_current_skills if c.get("skill_id") == sid), None)
+        current_prof = matching_current["proficiency"] if matching_current else "none"
+
+        if is_acquired:
+            acquired_target_count += 1
+            weighted_score += prof_weights.get(current_prof, 0.75)
+        else:
+            priority = gap_info.get("priority", "HIGH")
+            missing_skills_data.append({
+                "skill_id": sid,
+                "name": sk.get("name", sid),
+                "category": sk.get("category", "General"),
+                "nsqf_level": sk.get("nsqf_level", 5),
+                "priority": priority,
+                "gap_pct": gap_info.get("gap_pct", 65),
+                "demand_pct": gap_info.get("demand_pct", 70),
+            })
+
+        required_skills_data.append({
+            "skill_id": sid,
+            "skill_name": sk.get("name", sid),
+            "category": sk.get("category", "General"),
+            "nsqf_level": sk.get("nsqf_level", 5),
+            "is_acquired": is_acquired,
+            "proficiency": current_prof,
+        })
+
+    total_target = len(required_skill_ids) or 1
+    skill_match_pct = min(100, max(0, round((weighted_score / total_target) * 100)))
+
+    # 5. Determine Overall Readiness Level
+    combined_score = round(0.6 * skill_match_pct + 0.4 * quiz_score_pct)
+    if combined_score >= 75:
+        readiness_level = "PRODUCTION_READY"
+        readiness_desc = "High competency match and strong diagnostic aptitude. Ready for industry apprenticeships and trainee placement."
+    elif combined_score >= 40:
+        readiness_level = "INTERMEDIATE_READY"
+        readiness_desc = "Solid foundational competencies. Recommended to bridge targeted high-priority skill gaps."
+    else:
+        readiness_level = "FOUNDATIONAL"
+        readiness_desc = "Early-stage learner profile. Structured vocational curriculum and prerequisite practicals recommended."
+
+    # 6. Formulate Tailored Learning Next Steps
+    recommended_steps = []
+    for idx, m in enumerate(missing_skills_data[:3], start=1):
+        recommended_steps.append(f"Step {idx}: Master {m['name']} ({m['category']}) to resolve priority labour deficit.")
+
+    if not recommended_steps:
+        recommended_steps = [
+            "Build an advanced end-to-end capstone portfolio demonstrating production proficiency.",
+            "Apply for verified NAPS apprenticeship openings and employer recruitment drives.",
+            "Explore specialized NSQF Level 7-8 certifications.",
+        ]
+    else:
+        recommended_steps.append("Validate competencies through hands-on lab practicals and apply for state welfare toolkits.")
+
+    # 7. Find Related Courses
+    missing_ids = {m["skill_id"] for m in missing_skills_data}
+    matching_course_ids = {cs["course_id"] for cs in course_skills if cs["skill_id"] in missing_ids}
+    related_courses = [
+        {
+            "id": c["id"],
+            "name": c["name"],
+            "institute": c["institute"],
+            "district": c.get("district", ""),
+        }
+        for c in courses
+        if c["id"] in matching_course_ids
+    ][:3]
+
+    # 8. Assemble Completed Record
+    assessment_id = f"ast-usr-{uuid.uuid4().hex[:8]}"
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    assessment_record = {
+        "id": assessment_id,
+        "name": submission_data.get("name", "").strip(),
+        "education": submission_data.get("education", "").strip(),
+        "district": submission_data.get("district", "Maharashtra").strip() or "Maharashtra",
+        "career_goal": career_goal,
+        "interests": submission_data.get("interests", []),
+        "current_skills": resolved_current_skills,
+        "quiz_answers": quiz_answers,
+        "quiz_score_pct": quiz_score_pct,
+        "skill_match_pct": skill_match_pct,
+        "combined_readiness_score": combined_score,
+        "evaluation_summary": {
+            "readiness_level": readiness_level,
+            "readiness_desc": readiness_desc,
+            "target_role": career_goal,
+            "total_target_skills": len(required_skills_data),
+            "acquired_count": acquired_target_count,
+            "missing_count": len(missing_skills_data),
+            "missing_skills": missing_skills_data,
+            "recommended_next_steps": recommended_steps,
+            "related_courses": related_courses,
+        },
+        "submitted_at": now_iso,
+        "source": "USER_SUBMITTED",
+        "source_label": "Candidate Self-Reported Assessment",
+        "is_demo": False,
+        "data_provenance": "SELF_REPORTED_ASSESSMENT",
+    }
+
+    return assessment_record
+

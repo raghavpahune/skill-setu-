@@ -40,11 +40,13 @@ export default function Layout({ children }) {
     { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway' },
     { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
     { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
+    { path: '/admin', label: 'Admin Data', desc: 'Assessment Data Management' },
   ];
 
   const isActive = (path) => {
     if (path === '/student/copilot') return location.pathname === path;
     if (path === '/student') return location.pathname === '/student';
+    if (path === '/admin') return location.pathname === '/admin';
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path) && path !== '/student');
   };
 
@@ -231,8 +233,14 @@ export default function Layout({ children }) {
                     Employer Validation Hub
                   </Link>
                 </li>
+                <li>
+                  <Link to="/admin" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                    Admin Data Management
+                  </Link>
+                </li>
               </ul>
             </div>
+
 
             {/* Col 3: Intelligence & Navigation */}
             <div>

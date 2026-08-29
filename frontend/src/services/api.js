@@ -115,11 +115,56 @@ export const api = {
     return fetchJSON(`/student/skill-explainability/${encodeURIComponent(skill)}${query}`);
   },
 
-  // AI Copilot
-  askCopilot: (question, role = 'student', district = null) => fetchJSON('/copilot/ask', {
+  // Student Data Collection & Assessment (Phase 12)
+  getAssessmentQuizQuestions: () => fetchJSON('/student/assessment/quiz-questions'),
+  submitStudentAssessment: (payload) => fetchJSON('/student/assessment', {
     method: 'POST',
-    body: JSON.stringify({ question, role, district }),
+    body: JSON.stringify(payload),
   }),
+  getStudentAssessments: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/student/assessments${query ? `?${query}` : ''}`);
+  },
+  getStudentAssessment: (id) => fetchJSON(`/student/assessment/${encodeURIComponent(id)}`),
+
+  // Admin Data Management (Phase 13)
+  getAdminAssessments: (params = {}, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/admin/assessments${query ? `?${query}` : ''}`, {
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+  getAdminAssessment: (id, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON(`/admin/assessments/${encodeURIComponent(id)}`, {
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+  getAdminAssessmentStats: (adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON('/admin/assessments/stats/summary', {
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+  deleteAdminAssessment: (id, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON(`/admin/assessments/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+
+  // AI Copilot
+  askCopilot: (question, role = 'student', district = null, studentId = null) => fetchJSON('/copilot/ask', {
+    method: 'POST',
+    body: JSON.stringify({ question, role, district, student_id: studentId }),
+  }),
+  explainCareerCopilot: (studentId, question = null, district = null) => fetchJSON('/copilot/explain-career', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, question, district }),
+  }),
+
 
   // Schemes & Student Welfare
   getSchemes: (params = {}) => {
@@ -148,7 +193,7 @@ export const api = {
   // AI Diagnostic
   getHealthAI: () => fetchJSON('/health/ai'),
 
-  // Employer Validation & Demand Hub
+  // Employer Validation & Demand Hub (Phase 8 & 14)
   getEmployerValidations: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/employer/validate${query ? `?${query}` : ''}`);
@@ -166,12 +211,37 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/employer/demands${query ? `?${query}` : ''}`);
   },
-  submitEmployerDemand: (demandData) => fetchJSON('/employer/demand', {
+  getEmployerDemand: (id) => fetchJSON(`/employer/demands/${encodeURIComponent(id)}`),
+  submitEmployerDemand: (demandData) => fetchJSON('/employer/demands', {
     method: 'POST',
     body: JSON.stringify(demandData),
   }),
   getDifficultSkills: () => fetchJSON('/employer/difficult-skills'),
   getEmployerSummary: () => fetchJSON('/employer/summary'),
+
+  // Admin Employer Demand Management & Validation (Phase 14)
+  getAdminEmployerDemands: (params = {}, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/admin/employer/demands${query ? `?${query}` : ''}`, {
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+  updateAdminEmployerDemandStatus: (id, status, notes = '', adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON(`/admin/employer/demands/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: { 'X-Admin-Key': key },
+      body: JSON.stringify({ status, admin_notes: notes }),
+    });
+  },
+  deleteAdminEmployerDemand: (id, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON(`/admin/employer/demands/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Key': key },
+    });
+  },
 
   // Policy What-If Simulator
   runSimulation: (scenario) => fetchJSON('/simulator/whatif', {
@@ -179,5 +249,59 @@ export const api = {
     body: JSON.stringify(scenario),
   }),
   getSimulatorCategories: () => fetchJSON('/simulator/categories'),
+
+  // Government Opportunities (Phase 15)
+  getGovOpportunities: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/gov/opportunities${query ? `?${query}` : ''}`);
+  },
+  getGovOpportunityTypes: () => fetchJSON('/gov/opportunities/types'),
+  getGovOpportunity: (id) => fetchJSON(`/gov/opportunities/${encodeURIComponent(id)}`),
+  getRecommendedSchemes: (studentId) => fetchJSON(`/schemes/recommended/${encodeURIComponent(studentId)}`),
+  getRecommendedGovOpportunities: (studentId) => fetchJSON(`/gov/opportunities/recommended/${encodeURIComponent(studentId)}`),
+
+  // Admin Government Opportunities (Phase 15)
+  getAdminGovOpportunities: (params = {}, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/admin/gov/opportunities${query ? `?${query}` : ''}`, {
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+  createAdminGovOpportunity: (data, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON('/admin/gov/opportunities', {
+      method: 'POST',
+      headers: { 'X-Admin-Key': key },
+      body: JSON.stringify(data),
+    });
+  },
+  updateAdminGovOpportunity: (id, data, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON(`/admin/gov/opportunities/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'X-Admin-Key': key },
+      body: JSON.stringify(data),
+    });
+  },
+  deleteAdminGovOpportunity: (id, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    return fetchJSON(`/admin/gov/opportunities/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Key': key },
+    });
+  },
+
+  // Career Recommendations & Skill-Gap Engine (Phase 16)
+  getStudentCareerRecommendations: (studentId) => {
+    return fetchJSON(`/student/recommendations/${encodeURIComponent(studentId)}`);
+  },
+  explainStudentRecommendationsAi: (studentId, prompt = null) => {
+    return fetchJSON(`/student/recommendations/${encodeURIComponent(studentId)}/explain-ai`, {
+      method: 'POST',
+      body: JSON.stringify({ prompt }),
+    });
+  },
 };
+
 

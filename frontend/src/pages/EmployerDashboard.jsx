@@ -364,19 +364,26 @@ export default function EmployerDashboard() {
   const [correctionNote, setCorrectionNote] = useState('');
   const [selectedProficiency, setSelectedProficiency] = useState('advanced');
 
-  // New Demand Form state
+  // New Demand Form state (Phase 14)
   const [demandForm, setDemandForm] = useState({
     employer_name: 'Tata Consultancy Services',
-    industry: 'IT/ITES',
+    company_name: 'Tata Consultancy Services',
+    industry: 'IT & Software',
     district: 'Pune',
     role_title: '',
+    job_role: '',
     selectedSkills: ['Generative AI', 'RAG'],
     customSkillInput: '',
     proficiency_required: 'advanced',
+    preferred_proficiency: 'advanced',
     nsqf_level: 6,
     urgency: 'immediate',
+    hiring_timeline: 'Immediate (0-30 days)',
     positions_count: 15,
+    openings_count: 15,
+    experience_level: 'Entry Level (0-1 yrs)',
     hiring_challenge: '',
+    additional_requirements: '',
   });
   const [submittingDemand, setSubmittingDemand] = useState(false);
 
@@ -478,7 +485,13 @@ export default function EmployerDashboard() {
 
   const handleDemandSubmit = async (e) => {
     e.preventDefault();
-    if (!demandForm.role_title.trim()) {
+    const role = (demandForm.job_role || demandForm.role_title || '').trim();
+    const company = (demandForm.company_name || demandForm.employer_name || '').trim();
+    if (!company) {
+      showToast('error', 'Please enter Company / Organization name.');
+      return;
+    }
+    if (!role) {
       showToast('error', 'Please enter a target Job Role Title.');
       return;
     }
@@ -489,15 +502,23 @@ export default function EmployerDashboard() {
 
     setSubmittingDemand(true);
     const newDemandData = {
-      employer_name: demandForm.employer_name,
+      company_name: company,
+      employer_name: company,
       industry: demandForm.industry,
       district: demandForm.district,
-      role_title: demandForm.role_title.trim(),
+      job_role: role,
+      role_title: role,
+      required_skills: demandForm.selectedSkills,
       skills: demandForm.selectedSkills,
+      preferred_proficiency: demandForm.proficiency_required,
       proficiency_required: demandForm.proficiency_required,
       nsqf_level: Number(demandForm.nsqf_level),
+      hiring_timeline: demandForm.hiring_timeline,
       urgency: demandForm.urgency,
+      openings_count: Number(demandForm.positions_count) || 10,
       positions_count: Number(demandForm.positions_count) || 10,
+      experience_level: demandForm.experience_level,
+      additional_requirements: demandForm.hiring_challenge.trim() || null,
       hiring_challenge: demandForm.hiring_challenge.trim() || null,
     };
 
@@ -506,16 +527,22 @@ export default function EmployerDashboard() {
       const savedDemand = res?.demand || {
         ...newDemandData,
         id: `ed-${Date.now()}`,
+        source: 'EMPLOYER_SUBMITTED',
+        validation_status: 'PENDING',
+        provenance_label: 'Employer Submitted — Pending Validation',
+        is_demo: false,
         submitted_date: new Date().toISOString().split('T')[0],
-        status: 'active',
+        status: 'pending',
       };
       setDemands((prev) => [savedDemand, ...prev]);
-      showToast('success', `Hiring demand for "${demandForm.role_title}" submitted successfully!`);
+      showToast('success', `Hiring demand for "${role}" submitted — Status: Pending Validation`);
       // Reset role & challenge
       setDemandForm((prev) => ({
         ...prev,
         role_title: '',
+        job_role: '',
         hiring_challenge: '',
+        additional_requirements: '',
         customSkillInput: '',
       }));
     } catch (err) {
@@ -523,21 +550,28 @@ export default function EmployerDashboard() {
       const fallbackDemand = {
         ...newDemandData,
         id: `ed-${Date.now()}`,
+        source: 'EMPLOYER_SUBMITTED',
+        validation_status: 'PENDING',
+        provenance_label: 'Employer Submitted — Pending Validation',
+        is_demo: false,
         submitted_date: new Date().toISOString().split('T')[0],
-        status: 'active',
+        status: 'pending',
       };
       setDemands((prev) => [fallbackDemand, ...prev]);
-      showToast('success', `Demand saved locally to intelligence pipeline (Offline Mode)`);
+      showToast('success', `Demand recorded locally — Status: Pending Validation (Offline Ready)`);
       setDemandForm((prev) => ({
         ...prev,
         role_title: '',
+        job_role: '',
         hiring_challenge: '',
+        additional_requirements: '',
         customSkillInput: '',
       }));
     } finally {
       setSubmittingDemand(false);
     }
   };
+
 
   const handleAddSkillToForm = (skill) => {
     if (!skill || demandForm.selectedSkills.includes(skill)) return;
@@ -1216,21 +1250,26 @@ export default function EmployerDashboard() {
         </div>
       )}
 
-      {/* TAB 2: SUBMIT SKILL DEMAND PORTAL */}
+      {/* TAB 2: SUBMIT SKILL DEMAND PORTAL (PHASE 14) */}
       {activeTab === 'demand' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Panel: Submission Form */}
           <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <div className="flex items-center gap-2 mb-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xl">🚀</span>
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                  Submit Industry Hiring Demand Signal
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Input direct industry talent requirements to trigger curriculum updates in district polytechnics and ITIs
-                </p>
+            <div className="flex items-center justify-between gap-2 mb-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🚀</span>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    Submit Industry Hiring & Skill Demand
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Direct employer requirements feed into state curriculum updates and skill-gap intelligence
+                  </p>
+                </div>
               </div>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                Employer Submitted — Pending Validation
+              </span>
             </div>
 
             <form onSubmit={handleDemandSubmit} className="space-y-4 text-xs mt-4">
@@ -1238,13 +1277,13 @@ export default function EmployerDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Employer / Company Name *
+                    Company / Organization Name *
                   </label>
                   <input
                     type="text"
                     required
                     value={demandForm.employer_name}
-                    onChange={(e) => setDemandForm({ ...demandForm, employer_name: e.target.value })}
+                    onChange={(e) => setDemandForm({ ...demandForm, employer_name: e.target.value, company_name: e.target.value })}
                     placeholder="e.g. Tata Consultancy Services, Bajaj Auto, KPIT"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-medium focus:ring-2 focus:ring-teal-500"
                   />
@@ -1287,13 +1326,13 @@ export default function EmployerDashboard() {
 
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Target Job Role Title *
+                    Target Job Role / Designation *
                   </label>
                   <input
                     type="text"
                     required
                     value={demandForm.role_title}
-                    onChange={(e) => setDemandForm({ ...demandForm, role_title: e.target.value })}
+                    onChange={(e) => setDemandForm({ ...demandForm, role_title: e.target.value, job_role: e.target.value })}
                     placeholder="e.g. EV Powertrain Diagnostics Specialist, Cloud Security Analyst"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-medium focus:ring-2 focus:ring-teal-500"
                   />
@@ -1366,71 +1405,69 @@ export default function EmployerDashboard() {
                 </div>
               </div>
 
-              {/* Proficiency, NSQF, Urgency, Open Positions */}
+              {/* Proficiency, Experience, Urgency, Open Positions */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Proficiency</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Preferred Proficiency</label>
                   <select
                     value={demandForm.proficiency_required}
-                    onChange={(e) => setDemandForm({ ...demandForm, proficiency_required: e.target.value })}
+                    onChange={(e) => setDemandForm({ ...demandForm, proficiency_required: e.target.value, preferred_proficiency: e.target.value })}
                     className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-medium"
                   >
-                    <option value="beginner">Beginner</option>
+                    <option value="beginner">Beginner / Foundational</option>
                     <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
+                    <option value="advanced">Advanced / Expert</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Target NSQF</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Experience Level</label>
                   <select
-                    value={demandForm.nsqf_level}
-                    onChange={(e) => setDemandForm({ ...demandForm, nsqf_level: Number(e.target.value) })}
+                    value={demandForm.experience_level}
+                    onChange={(e) => setDemandForm({ ...demandForm, experience_level: e.target.value })}
                     className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-medium"
                   >
-                    <option value={4}>NSQF Level 4 (ITI)</option>
-                    <option value={5}>NSQF Level 5 (Diploma)</option>
-                    <option value={6}>NSQF Level 6 (Degree)</option>
-                    <option value={7}>NSQF Level 7 (Advanced)</option>
-                    <option value={8}>NSQF Level 8 (Post-Grad)</option>
+                    <option value="Entry Level (0-1 yrs)">Entry Level (0-1 yrs)</option>
+                    <option value="Mid Level (2-4 yrs)">Mid Level (2-4 yrs)</option>
+                    <option value="Senior (5+ yrs)">Senior (5+ yrs)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Hiring Urgency</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Hiring Timeline</label>
                   <select
-                    value={demandForm.urgency}
-                    onChange={(e) => setDemandForm({ ...demandForm, urgency: e.target.value })}
+                    value={demandForm.hiring_timeline}
+                    onChange={(e) => setDemandForm({ ...demandForm, hiring_timeline: e.target.value, urgency: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '_') })}
                     className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-medium"
                   >
-                    <option value="immediate">Immediate (&lt;30d)</option>
-                    <option value="next_quarter">Next Quarter</option>
-                    <option value="future">6-12 Months</option>
+                    <option value="Immediate (0-30 days)">Immediate (&lt;30d)</option>
+                    <option value="1-3 Months">1-3 Months</option>
+                    <option value="3-6 Months">3-6 Months</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Open Seats</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Number of Openings</label>
                   <input
                     type="number"
                     min="1"
-                    max="500"
+                    max="1000"
                     value={demandForm.positions_count}
-                    onChange={(e) => setDemandForm({ ...demandForm, positions_count: e.target.value })}
+                    onChange={(e) => setDemandForm({ ...demandForm, positions_count: Number(e.target.value), openings_count: Number(e.target.value) })}
                     className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-medium"
                   />
                 </div>
               </div>
 
-              {/* Qualitative Hiring Bottleneck */}
+              {/* Qualitative Hiring Bottleneck / Additional Requirements */}
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Specific Hiring Challenge / Feedback to Institutes:
+                  Additional Requirements / Specific Hiring Challenges (Optional):
                 </label>
                 <textarea
                   value={demandForm.hiring_challenge}
-                  onChange={(e) => setDemandForm({ ...demandForm, hiring_challenge: e.target.value })}
-                  placeholder="e.g. Candidates understand theoretical concepts but fail practical deployment assessments or lack lab experience with actual hardware..."
+                  onChange={(e) => setDemandForm({ ...demandForm, hiring_challenge: e.target.value, additional_requirements: e.target.value })}
+                  placeholder="e.g. Candidates understand theoretical concepts but lack practical lab experience with high-voltage testing or CAN bus diagnostics..."
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg h-20 focus:ring-2 focus:ring-teal-500 font-normal"
                 />
               </div>
@@ -1440,7 +1477,7 @@ export default function EmployerDashboard() {
                 <button
                   type="submit"
                   disabled={submittingDemand}
-                  className="w-full py-2.5 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 disabled:opacity-50 text-white font-bold rounded-lg text-xs shadow-sm transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 disabled:opacity-50 text-white font-bold rounded-lg text-xs shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {submittingDemand ? (
                     <>
@@ -1450,7 +1487,7 @@ export default function EmployerDashboard() {
                   ) : (
                     <>
                       <span>📡</span>
-                      <span>Submit Demand to State Curriculum Authority</span>
+                      <span>Submit Demand (Pending State Validation)</span>
                     </>
                   )}
                 </button>
@@ -1462,9 +1499,14 @@ export default function EmployerDashboard() {
           <div className="lg:col-span-5 space-y-4">
             {/* Live Preview Card */}
             <div className="bg-gradient-to-br from-teal-900 to-slate-900 text-white p-5 rounded-xl border border-teal-700/50 shadow-sm">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-teal-300 font-bold block mb-1">
-                Live Signal Preview
-              </span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-teal-300 font-bold block">
+                  Live Demand Preview
+                </span>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  Pending Validation
+                </span>
+              </div>
               <h4 className="font-black text-base tracking-tight">
                 {demandForm.role_title || 'Role Title (e.g. Senior AI Engineer)'}
               </h4>
@@ -1486,56 +1528,80 @@ export default function EmployerDashboard() {
               <div className="mt-4 pt-3 border-t border-teal-800/60 flex items-center justify-between text-xs font-mono">
                 <span>{demandForm.positions_count} Vacancies</span>
                 <span className="capitalize px-2 py-0.5 rounded bg-amber-900/80 text-amber-200 border border-amber-600/60">
-                  {demandForm.urgency.replace('_', ' ')}
+                  {demandForm.hiring_timeline}
                 </span>
-                <span>NSQF Level {demandForm.nsqf_level}</span>
+                <span>{demandForm.experience_level}</span>
               </div>
             </div>
 
             {/* Active Demand Signals List */}
             <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
-                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  Active Employer Demand Signals ({demands.length})
-                </h4>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                    Employer Hiring Requirements ({demands.length})
+                  </h4>
+                  <p className="text-[10px] text-slate-500">First-party industrial demand feed</p>
+                </div>
                 <span className="text-[10px] font-mono text-teal-600 font-bold">Live Stream</span>
               </div>
 
               <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                {demands.map((d) => (
-                  <div
-                    key={d.id}
-                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <h5 className="font-bold text-slate-900 dark:text-white text-xs">{d.role_title}</h5>
-                      <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-mono text-[10px] font-bold shrink-0">
-                        {d.positions_count} seats
-                      </span>
-                    </div>
+                {demands.map((d) => {
+                  const statusUpper = (d.validation_status || d.status || 'pending').toUpperCase();
+                  const isVal = statusUpper === 'VALIDATED' || d.status === 'active';
+                  const isRej = statusUpper === 'REJECTED';
 
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
-                      {d.employer_name} · 📍 {d.district}
-                    </p>
-
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {d.skills?.map((sk, idx) => (
-                        <span
-                          key={idx}
-                          className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-medium border border-slate-200 dark:border-slate-600"
-                        >
-                          {sk}
+                  return (
+                    <div
+                      key={d.id}
+                      className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h5 className="font-bold text-slate-900 dark:text-white text-xs">
+                            {d.job_role || d.role_title}
+                          </h5>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                            {d.company_name || d.employer_name} · 📍 {d.district} ({d.industry})
+                          </p>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-mono text-[10px] font-bold shrink-0">
+                          {d.openings_count || d.positions_count || 1} seats
                         </span>
-                      ))}
-                    </div>
+                      </div>
 
-                    {d.hiring_challenge && (
-                      <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 italic bg-white/50 dark:bg-slate-900/40 p-1.5 rounded">
-                        "{d.hiring_challenge}"
-                      </p>
-                    )}
-                  </div>
-                ))}
+                      <div className="flex flex-wrap gap-1">
+                        {(d.required_skills || d.skills || []).map((sk, idx) => (
+                          <span
+                            key={idx}
+                            className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-medium border border-slate-200 dark:border-slate-600"
+                          >
+                            {typeof sk === 'object' ? sk.name : sk}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Status & Provenance Badges */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-700/60 text-[10px]">
+                        <span
+                          className={`font-mono font-bold px-2 py-0.5 rounded uppercase ${
+                            isVal
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                              : isRej
+                              ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                              : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                          }`}
+                        >
+                          {isVal ? '✓ Validated Demand' : isRej ? '✕ Rejected' : '⏳ Pending Validation'}
+                        </span>
+                        <span className="text-slate-400 font-mono">
+                          {d.source === 'EMPLOYER_SUBMITTED' ? 'Employer Direct' : 'Demo Benchmark'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

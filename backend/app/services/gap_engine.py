@@ -28,6 +28,26 @@ def compute_gaps(district: str | None = None) -> list[dict]:
     # Demand: what % of all job postings require this skill
     demand_counts = Counter(js["skill_id"] for js in filtered_js)
 
+    # Phase 14: Incorporate validated first-party employer demands
+    employer_demands = get_demo("employer_demands")
+    skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
+    validated_demands = [
+        d for d in employer_demands
+        if (d.get("validation_status") or "").upper() == "VALIDATED" or d.get("status") == "active"
+    ]
+    if district:
+        validated_demands = [d for d in validated_demands if d.get("district", "").lower() == district.lower()]
+
+    for ed in validated_demands:
+        weight = max(1, ed.get("openings_count", ed.get("positions_count", 10)) // 10)
+        req_skills = ed.get("required_skills") or ed.get("skills") or []
+        for sk in req_skills:
+            sk_name = sk if isinstance(sk, str) else sk.get("name", "")
+            sid = skills_by_name.get(sk_name.lower())
+            if sid:
+                demand_counts[sid] += weight
+                total_jobs += weight
+
     # Coverage: weighted by course enrolment
     # A skill taught in a course with 120 students at level 4/5 is better covered
     # than a skill in a course with 30 students at level 2/5

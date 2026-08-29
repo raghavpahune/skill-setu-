@@ -54,6 +54,54 @@ class DemoProvider(LLMProvider):
                 f"Expand industry-aligned practical training in **{s['name']}** at regional technical institutions to bridge the {s.get('gap_pct', 0)}% curriculum deficit."
             )
 
+        # 2b. Phase 17: Grounded Student Career Recommendation Intelligence
+        if ctx.get("student_recommendation_context"):
+            srec = ctx["student_recommendation_context"]
+            cand_name = srec.get("candidate_name", "Candidate")
+            top_role = srec.get("top_recommended_role", "Target Role")
+            match_pct = srec.get("top_role_match_pct", 0)
+            readiness_score = srec.get("readiness_score", 0)
+            readiness_hl = srec.get("readiness_headline", "Candidate Assessment")
+            openings = srec.get("validated_openings_count", 0)
+            matching = ", ".join(srec.get("matching_skills", [])) or "None identified"
+            missing = ", ".join(srec.get("missing_skills", [])) or "None (Fully acquired)"
+            reasons_md = "\n".join([f"* **{r}**" for r in srec.get("explanation_reasons", [])]) or "* Grounded in verified SkillSetu labour benchmarks."
+
+            roadmap_md = "\n".join([
+                f"* **Step {st['step']}:** Master **{st['skill']}** — {st['why']}"
+                for st in srec.get("personalized_roadmap", [])
+            ]) or "* Build an industrial capstone portfolio to validate competencies."
+
+            emp_signals_md = "\n".join([
+                f"* **{e['company_name']}** ({e.get('district', 'Maharashtra')}): {e['job_role']} — **{e.get('openings_count', 1)} Openings** (Status: {e.get('validation_status', 'VALIDATED')})"
+                for e in srec.get("validated_employer_signals", [])
+            ]) or "* General verified vocational hiring demand across state corridors."
+
+            gov_ops_md = "\n".join([
+                f"* **{g['name']}** ({g.get('department', 'Govt of Maharashtra')}): {g.get('opportunity_type', 'training')}"
+                for g in srec.get("matched_government_opportunities", [])
+            ]) or "* State welfare fee concessions and MahaDBT vocational stipends apply."
+
+            return (
+                f"### Career Recommendation Briefing for {cand_name}\n\n"
+                f"Here is your personalized, grounded career intelligence summary based on your self-reported competencies and verified Maharashtra labour demand:\n\n"
+                f"#### 🎯 Recommended Pathway: **{top_role}**\n"
+                f"* **Competency Match Score:** **{match_pct}%**\n"
+                f"* **Overall Readiness:** **{readiness_score}%** ({readiness_hl})\n"
+                f"* **Matching Skills ({len(srec.get('matching_skills', []))}):** {matching}\n"
+                f"* **Targeted Skill Gaps ({len(srec.get('missing_skills', []))}):** {missing}\n\n"
+                f"#### 💡 Why This Role is Recommended:\n"
+                f"{reasons_md}\n\n"
+                f"#### 🏢 Validated Employer Demand ({openings} Openings):\n"
+                f"{emp_signals_md}\n\n"
+                f"#### 🏛️ Matched Government Schemes & Opportunities:\n"
+                f"{gov_ops_md}\n\n"
+                f"#### 🚀 Step-by-Step Learning Roadmap:\n"
+                f"{roadmap_md}\n\n"
+                f"> **Provenance Note:** All metrics are deterministically computed from your assessment, strictly validated employer requirements, and government datasets. No ungrounded claims are made."
+            )
+
+
         # 3. District-specific queries (when no specific unindexed skill is queried)
         if ctx.get("focused_district"):
             fd = ctx["focused_district"]

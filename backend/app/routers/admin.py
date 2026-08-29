@@ -1,0 +1,494 @@
+"""Admin Data Management API — inspection, filtering, aggregate analytics, and management of student assessments, employer demands, and government opportunities."""
+from collections import Counter
+from datetime import datetime, timezone
+from typing import Any
+import uuid
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from pydantic import BaseModel, Field
+from app.config import settings
+from app.db import (
+    get_demo,
+    delete_student_assessment,
+    update_employer_demand_status,
+    delete_employer_demand,
+    save_gov_opportunity,
+    update_gov_opportunity,
+    delete_gov_opportunity,
+)
+
+router = APIRouter()
+
+
+DEFAULT_DEMO_ADMIN_KEY = "demo-admin-key-2026"
+
+
+class DemandValidationUpdate(BaseModel):
+    status: str | None = Field(None, description="'VALIDATED' | 'REJECTED' | 'PENDING'")
+    validation_status: str | None = Field(None, description="'VALIDATED' | 'REJECTED' | 'PENDING'")
+    admin_notes: str | None = None
+    validated_by: str | None = "Admin Team"
+
+
+def verify_admin_key(x_admin_key: str | None = Header(None, alias="X-Admin-Key")):
+    """Enforce X-Admin-Key header authentication using configured or demo admin key."""
+    expected_key = settings.admin_api_key.strip() if (settings.admin_api_key and settings.admin_api_key.strip()) else DEFAULT_DEMO_ADMIN_KEY
+    if not x_admin_key or x_admin_key.strip() != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Invalid or missing X-Admin-Key header. Provide configured administrator key.",
+        )
+    return True
+
+
+@router.get("/admin/assessments", dependencies=[Depends(verify_admin_key)])
+async def list_admin_assessments(
+    source: str | None = Query(None, description="'USER_SUBMITTED' | 'DEMO_SYNTHETIC' | 'all'"),
+    district: str | None = Query(None, description="District filter or 'all'"),
+    career_goal: str | None = Query(None, description="Target role filter or 'all'"),
+    date_from: str | None = Query(None, description="ISO start date YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO end date YYYY-MM-DD"),
+    search: str | None = Query(None, description="Search term for candidate name, course, or skills"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Retrieve and filter student assessment records with pagination and source distinction."""
+    assessments = get_demo("student_assessments")
+    results = assessments
+
+    # 1. Filter by Data Source
+    if source and source.strip() and source.lower() != "all":
+        results = [a for a in results if a.get("source", "").lower() == source.strip().lower()]
+
+    # 2. Filter by District
+    if district and district.strip() and district.lower() != "all":
+        d_clean = district.strip().lower()
+        results = [a for a in results if d_clean in a.get("district", "").lower() or a.get("district", "").lower() in d_clean]
+
+    # 3. Filter by Career Goal
+    if career_goal and career_goal.strip() and career_goal.lower() != "all":
+        g_clean = career_goal.strip().lower()
+        results = [a for a in results if g_clean in a.get("career_goal", "").lower() or a.get("career_goal", "").lower() in g_clean]
+
+    # 4. Filter by Date Range
+    if date_from and date_from.strip():
+        f_clean = date_from.strip()
+        results = [a for a in results if a.get("submitted_at", "")[:10] >= f_clean]
+
+    if date_to and date_to.strip():
+        t_clean = date_to.strip()
+        results = [a for a in results if a.get("submitted_at", "")[:10] <= t_clean]
+
+    # 5. Search Text Filter (name, education, career_goal, skills)
+    if search and search.strip():
+        q = search.strip().lower()
+        filtered = []
+        for a in results:
+            name_match = q in a.get("name", "").lower()
+            edu_match = q in a.get("education", "").lower()
+            goal_match = q in a.get("career_goal", "").lower()
+            skill_match = any(
+                q in (s.get("skill_name", "") if isinstance(s, dict) else str(s)).lower()
+                for s in a.get("current_skills", [])
+            )
+            if name_match or edu_match or goal_match or skill_match:
+                filtered.append(a)
+        results = filtered
+
+    total_count = len(results)
+    paginated = results[offset : offset + limit]
+
+    return {
+        "status": "success",
+        "total": total_count,
+        "limit": limit,
+        "offset": offset,
+        "assessments": paginated,
+    }
+
+
+@router.get("/admin/assessments/stats/summary", dependencies=[Depends(verify_admin_key)])
+async def get_admin_assessment_stats():
+    """Calculate aggregate analytics, labor-market demand distribution, and skill deficits."""
+    assessments = get_demo("student_assessments")
+
+    total_submissions = len(assessments)
+    user_submitted_count = sum(1 for a in assessments if a.get("source") == "USER_SUBMITTED")
+    demo_synthetic_count = sum(1 for a in assessments if a.get("source") == "DEMO_SYNTHETIC")
+
+    avg_quiz_score = (
+        round(sum(a.get("quiz_score_pct", 0) for a in assessments) / max(1, total_submissions), 1)
+        if total_submissions > 0 else 0.0
+    )
+    avg_skill_match = (
+        round(sum(a.get("skill_match_pct", 0) for a in assessments) / max(1, total_submissions), 1)
+        if total_submissions > 0 else 0.0
+    )
+
+    # Distributions
+    district_counts = Counter(a.get("district", "Maharashtra") for a in assessments)
+    district_distribution = [{"district": k, "count": v} for k, v in district_counts.most_common(10)]
+
+    career_counts = Counter(a.get("career_goal", "Unspecified") for a in assessments)
+    career_goal_distribution = [{"career_goal": k, "count": v} for k, v in career_counts.most_common(10)]
+
+    # Missing Skills Aggregation
+    missing_skills_counter = Counter()
+    for a in assessments:
+        eval_summary = a.get("evaluation_summary", {})
+        for m in eval_summary.get("missing_skills", []):
+            sk_name = m.get("name") if isinstance(m, dict) else str(m)
+            if sk_name:
+                missing_skills_counter[sk_name] += 1
+
+    top_missing_skills = [
+        {"skill_name": k, "deficit_count": v}
+        for k, v in missing_skills_counter.most_common(10)
+    ]
+
+    # Domain Interests Aggregation
+    interests_counter = Counter()
+    for a in assessments:
+        for interest in a.get("interests", []):
+            if interest:
+                interests_counter[interest] += 1
+
+    top_interests = [{"domain": k, "count": v} for k, v in interests_counter.most_common(8)]
+
+    # Readiness Distribution
+    readiness_counter = Counter()
+    for a in assessments:
+        lvl = a.get("evaluation_summary", {}).get("readiness_level", "EVALUATED")
+        readiness_counter[lvl] += 1
+
+    return {
+        "status": "success",
+        "total_submissions": total_submissions,
+        "user_submitted_count": user_submitted_count,
+        "demo_synthetic_count": demo_synthetic_count,
+        "avg_quiz_score": avg_quiz_score,
+        "avg_skill_match": avg_skill_match,
+        "district_distribution": district_distribution,
+        "career_goal_distribution": career_goal_distribution,
+        "top_missing_skills": top_missing_skills,
+        "top_interests": top_interests,
+        "readiness_distribution": dict(readiness_counter),
+        "data_provenance": "SEPARATED_AUDITED_RECORDS",
+        "provenance_note": "User-submitted records represent candidate self-assessments. Demo records are synthetic baseline benchmarks.",
+    }
+
+
+@router.get("/admin/assessments/{assessment_id}", dependencies=[Depends(verify_admin_key)])
+async def get_admin_assessment_detail(assessment_id: str):
+    """Retrieve full individual student assessment record for administrative audit."""
+    assessments = get_demo("student_assessments")
+    for a in assessments:
+        if a.get("id") == assessment_id:
+            return {"status": "success", "assessment": a}
+
+    raise HTTPException(status_code=404, detail=f"Assessment record '{assessment_id}' not found.")
+
+
+@router.delete("/admin/assessments/{assessment_id}", dependencies=[Depends(verify_admin_key)])
+async def delete_admin_assessment(assessment_id: str):
+    """Delete student assessment record from system memory cache and connected database."""
+    deleted = delete_student_assessment(assessment_id)
+    if deleted:
+        return {
+            "status": "success",
+            "message": f"Assessment record '{assessment_id}' successfully removed.",
+            "deleted_id": assessment_id,
+        }
+
+    raise HTTPException(status_code=404, detail=f"Assessment record '{assessment_id}' not found.")
+
+
+# ============================================================================
+# PHASE 14: EMPLOYER DEMAND MANAGEMENT & VALIDATION ENDPOINTS
+# ============================================================================
+
+@router.get("/admin/employer/demands", dependencies=[Depends(verify_admin_key)])
+async def list_admin_employer_demands(
+    district: str | None = Query(None, description="District filter or 'all'"),
+    industry: str | None = Query(None, description="Industry filter or 'all'"),
+    role: str | None = Query(None, description="Role filter or 'all'"),
+    status: str | None = Query(None, description="'PENDING' | 'VALIDATED' | 'REJECTED' | 'all'"),
+    source: str | None = Query(None, description="'EMPLOYER_SUBMITTED' | 'DEMO_SYNTHETIC' | 'all'"),
+    search: str | None = Query(None, description="Search company name, role, or skills"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """List employer demands for administrative audit and validation with aggregate counts."""
+    all_demands = get_demo("employer_demands")
+
+    # Calculate overall KPIs
+    total_demands = len(all_demands)
+    pending_count = sum(1 for d in all_demands if (d.get("validation_status") or d.get("status", "")).upper() == "PENDING")
+    validated_count = sum(1 for d in all_demands if (d.get("validation_status") or d.get("status", "")).upper() == "VALIDATED" or d.get("status") == "active")
+    rejected_count = sum(1 for d in all_demands if (d.get("validation_status") or d.get("status", "")).upper() == "REJECTED")
+    employer_submitted_count = sum(1 for d in all_demands if d.get("source") == "EMPLOYER_SUBMITTED")
+    demo_synthetic_count = sum(1 for d in all_demands if d.get("source") == "DEMO_SYNTHETIC")
+
+    results = all_demands
+
+    # 1. District filter
+    if district and district.strip() and district.lower() != "all":
+        d_clean = district.strip().lower()
+        results = [d for d in results if d_clean in d.get("district", "").lower()]
+
+    # 2. Industry filter
+    if industry and industry.strip() and industry.lower() != "all":
+        i_clean = industry.strip().lower()
+        results = [d for d in results if i_clean in d.get("industry", "").lower()]
+
+    # 3. Role filter
+    if role and role.strip() and role.lower() != "all":
+        r_clean = role.strip().lower()
+        results = [
+            d for d in results
+            if r_clean in d.get("job_role", "").lower() or r_clean in d.get("role_title", "").lower()
+        ]
+
+    # 4. Status / Validation status filter
+    if status and status.strip() and status.lower() != "all":
+        s_clean = status.strip().upper()
+        results = [
+            d for d in results
+            if (d.get("validation_status") or d.get("status", "")).upper() == s_clean
+        ]
+
+    # 5. Source filter
+    if source and source.strip() and source.lower() != "all":
+        src_clean = source.strip().upper()
+        results = [d for d in results if d.get("source", "").upper() == src_clean]
+
+    # 6. Search text filter
+    if search and search.strip():
+        q = search.strip().lower()
+        filtered = []
+        for d in results:
+            company_match = q in (d.get("company_name") or d.get("employer_name") or "").lower()
+            role_match = q in (d.get("job_role") or d.get("role_title") or "").lower()
+            skills_match = any(q in (s.get("name") if isinstance(s, dict) else str(s)).lower() for s in (d.get("required_skills") or d.get("skills") or []))
+            if company_match or role_match or skills_match:
+                filtered.append(d)
+        results = filtered
+
+    total_filtered = len(results)
+    paginated = results[offset : offset + limit]
+
+    return {
+        "status": "success",
+        "total_demands": total_demands,
+        "filtered_count": total_filtered,
+        "pending_count": pending_count,
+        "validated_count": validated_count,
+        "rejected_count": rejected_count,
+        "employer_submitted_count": employer_submitted_count,
+        "demo_synthetic_count": demo_synthetic_count,
+        "limit": limit,
+        "offset": offset,
+        "demands": paginated,
+    }
+
+
+@router.patch("/admin/employer/demands/{demand_id}", dependencies=[Depends(verify_admin_key)])
+@router.patch("/admin/employer/demands/{demand_id}/status", dependencies=[Depends(verify_admin_key)])
+async def update_demand_validation_status(demand_id: str, update: DemandValidationUpdate):
+    """Mark an employer requirement as VALIDATED or REJECTED after administrative review."""
+    raw_status = update.status or update.validation_status
+    if not raw_status:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Either 'status' or 'validation_status' must be provided.",
+        )
+    target_status = raw_status.strip().upper()
+    if target_status not in {"VALIDATED", "REJECTED", "PENDING"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Status must be one of: 'VALIDATED', 'REJECTED', 'PENDING'.",
+        )
+
+    updated = update_employer_demand_status(
+        demand_id=demand_id,
+        new_status=target_status,
+        admin_notes=update.admin_notes,
+        validated_by=update.validated_by or "Administrator",
+    )
+
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
+
+    return {
+        "status": "success",
+        "message": f"Employer demand '{demand_id}' successfully marked as {target_status}.",
+        "demand": updated,
+    }
+
+
+@router.delete("/admin/employer/demands/{demand_id}", dependencies=[Depends(verify_admin_key)])
+async def delete_admin_employer_demand(demand_id: str):
+    """Delete employer demand record from system memory cache and database."""
+    deleted = delete_employer_demand(demand_id)
+    if deleted:
+        return {
+            "status": "success",
+            "message": f"Employer demand '{demand_id}' successfully removed.",
+            "deleted_id": demand_id,
+        }
+
+    raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
+
+
+# ============================================================================
+# PHASE 15: GOVERNMENT OPPORTUNITIES MANAGEMENT ENDPOINTS
+# ============================================================================
+
+class GovOpportunityCreate(BaseModel):
+    name: str = Field(..., min_length=3, max_length=300)
+    department: str = Field(..., min_length=3, max_length=300)
+    description: str = Field(default="", max_length=2000)
+    eligibility_criteria: str = Field(default="", max_length=1000)
+    target_skills: list[str] = Field(default_factory=list)
+    district_coverage: str | list[str] = Field(default="State-wide (Maharashtra)")
+    opportunity_type: str = Field(default="training_program")
+    application_url: str | None = None
+    deadline: str | None = None
+    status: str = Field(default="active")
+
+
+class GovOpportunityUpdate(BaseModel):
+    name: str | None = None
+    department: str | None = None
+    description: str | None = None
+    eligibility_criteria: str | None = None
+    target_skills: list[str] | None = None
+    district_coverage: str | list[str] | None = None
+    opportunity_type: str | None = None
+    application_url: str | None = None
+    deadline: str | None = None
+    status: str | None = None
+
+
+@router.get("/admin/gov/opportunities", dependencies=[Depends(verify_admin_key)])
+async def list_admin_gov_opportunities(
+    district: str | None = Query(None),
+    domain: str | None = Query(None),
+    opportunity_type: str | None = Query(None),
+    status: str | None = Query(None),
+    search: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """List and filter government opportunities for administrative management."""
+    all_records = get_demo("gov_opportunities")
+
+    results = all_records
+
+    if district and district.lower() != "all":
+        d_clean = district.lower()
+        filtered = []
+        for r in results:
+            coverage = r.get("district_coverage", "")
+            if isinstance(coverage, list):
+                districts = [d.lower() for d in coverage]
+            else:
+                districts = [coverage.lower()] if coverage else []
+            if d_clean in districts or any("state-wide" in d for d in districts):
+                filtered.append(r)
+        results = filtered
+
+    if domain and domain.lower() != "all":
+        d_clean = domain.lower()
+        results = [r for r in results if d_clean in [s.lower() for s in (r.get("target_skills") or [])]]
+
+    if opportunity_type and opportunity_type.lower() != "all":
+        results = [r for r in results if r.get("opportunity_type", "").lower() == opportunity_type.lower()]
+
+    if status and status.lower() != "all":
+        results = [r for r in results if r.get("status", "active").lower() == status.lower()]
+
+    if search and search.strip():
+        q = search.strip().lower()
+        results = [
+            r for r in results
+            if q in r.get("name", "").lower() or q in r.get("department", "").lower() or q in r.get("description", "").lower()
+        ]
+
+    total_all = len(all_records)
+    active_count = sum(1 for r in all_records if r.get("status", "active").lower() == "active")
+    inactive_count = total_all - active_count
+    demo_count = sum(1 for r in all_records if r.get("source") == "DEMO_SYNTHETIC")
+
+    return {
+        "status": "success",
+        "total": total_all,
+        "active_count": active_count,
+        "inactive_count": inactive_count,
+        "demo_count": demo_count,
+        "filtered_count": len(results),
+        "limit": limit,
+        "offset": offset,
+        "opportunities": results[offset: offset + limit],
+    }
+
+
+@router.post("/admin/gov/opportunities", dependencies=[Depends(verify_admin_key)])
+async def create_admin_gov_opportunity(data: GovOpportunityCreate):
+    """Create a new government opportunity record."""
+    record = {
+        "id": f"gov-{uuid.uuid4().hex[:8]}",
+        "name": data.name,
+        "department": data.department,
+        "description": data.description,
+        "eligibility_criteria": data.eligibility_criteria,
+        "target_skills": data.target_skills,
+        "district_coverage": data.district_coverage,
+        "opportunity_type": data.opportunity_type,
+        "application_url": data.application_url,
+        "deadline": data.deadline,
+        "source": "ADMIN_CREATED",
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "status": data.status,
+        "is_demo": False,
+    }
+
+    saved = save_gov_opportunity(record)
+    return {
+        "status": "success",
+        "message": f"Government opportunity '{saved['id']}' created.",
+        "opportunity": saved,
+    }
+
+
+@router.patch("/admin/gov/opportunities/{opp_id}", dependencies=[Depends(verify_admin_key)])
+async def update_admin_gov_opportunity(opp_id: str, data: GovOpportunityUpdate):
+    """Update fields on a government opportunity record."""
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=422, detail="No fields to update.")
+
+    updates["last_updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    updated = update_gov_opportunity(opp_id, updates)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Government opportunity '{opp_id}' not found.")
+
+    return {
+        "status": "success",
+        "message": f"Government opportunity '{opp_id}' updated.",
+        "opportunity": updated,
+    }
+
+
+@router.delete("/admin/gov/opportunities/{opp_id}", dependencies=[Depends(verify_admin_key)])
+async def delete_admin_gov_opportunity(opp_id: str):
+    """Delete a government opportunity record."""
+    deleted = delete_gov_opportunity(opp_id)
+    if deleted:
+        return {
+            "status": "success",
+            "message": f"Government opportunity '{opp_id}' removed.",
+            "deleted_id": opp_id,
+        }
+
+    raise HTTPException(status_code=404, detail=f"Government opportunity '{opp_id}' not found.")
