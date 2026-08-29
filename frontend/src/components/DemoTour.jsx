@@ -47,10 +47,10 @@ export default function DemoTour() {
           right: rect.right,
         });
 
-        // Position popover
+        // Determine exact popover dimensions
+        const measuredHeight = popoverRef.current ? popoverRef.current.offsetHeight : 250;
         const popoverWidth = Math.min(460, window.innerWidth - 32);
-        const popoverHeight = 320;
-        const padding = 12;
+        const padding = 16;
 
         let left = Math.max(
           16,
@@ -64,25 +64,26 @@ export default function DemoTour() {
         let placement = 'bottom';
 
         const spaceBelow = window.innerHeight - rect.bottom;
-        const spaceAbove = rect.top;
+        const spaceAbove = rect.top - 60; // 60px reserved for sticky navbar
 
-        // 1. If enough space below the element, place below
-        if (spaceBelow >= popoverHeight + padding) {
+        // Check if fits cleanly below
+        if (spaceBelow >= measuredHeight + padding) {
           top = rect.bottom + padding;
           placement = 'bottom';
         }
-        // 2. If enough space above the element, place above
-        else if (spaceAbove >= popoverHeight + padding) {
-          top = rect.top - popoverHeight - padding;
+        // Check if fits cleanly above
+        else if (spaceAbove >= measuredHeight + padding) {
+          top = rect.top - measuredHeight - padding;
           placement = 'top';
         }
-        // 3. For tall elements occupying large vertical space, anchor to the side with more room
-        else if (spaceAbove > spaceBelow) {
-          top = Math.max(16, rect.top - popoverHeight - padding);
-          placement = 'top';
-        } else {
-          top = Math.max(16, Math.min(rect.bottom + padding, window.innerHeight - popoverHeight - 16));
+        // If neither fits with full padding in current viewport:
+        // Position strictly below (or above) without EVER overlapping [rect.top, rect.bottom]
+        else if (spaceBelow >= spaceAbove) {
+          top = rect.bottom + padding;
           placement = 'bottom';
+        } else {
+          top = Math.max(64, rect.top - measuredHeight - padding);
+          placement = 'top';
         }
 
         setPopoverPos({ top, left, placement });
@@ -140,17 +141,21 @@ export default function DemoTour() {
         }
 
         if (rect.width > 0 && rect.height > 0) {
-          // Calculate intended viewport position
+          // Calculate optimal scroll target so that BOTH the element and the popover fit in the viewport
           let targetY;
-          if (rect.height > window.innerHeight * 0.45) {
-            targetY = el.getBoundingClientRect().top + window.pageYOffset - 80;
+          if (rect.height + 260 + 80 <= window.innerHeight) {
+            // Align element top comfortably below sticky navbar (64px)
+            targetY = el.getBoundingClientRect().top + window.pageYOffset - 64;
+          } else if (rect.height > window.innerHeight * 0.45) {
+            // Tall element: scroll top of element to 64px
+            targetY = el.getBoundingClientRect().top + window.pageYOffset - 64;
           } else {
-            targetY = el.getBoundingClientRect().top + window.pageYOffset - Math.max(80, (window.innerHeight - rect.height) / 2);
+            targetY = el.getBoundingClientRect().top + window.pageYOffset - Math.max(64, (window.innerHeight - rect.height - 260) / 2);
           }
 
-          // If the element is not comfortably in view, smoothly scroll to it
-          const isComfortablyInView = rect.top >= 60 && rect.bottom <= window.innerHeight + 100;
-          if (!isComfortablyInView || Math.abs(window.pageYOffset - targetY) > 50) {
+          // If the element's top is not in the desired position [50..90px], smoothly scroll
+          const isMisaligned = rect.top < 50 || rect.top > 90;
+          if (isMisaligned && Math.abs(window.pageYOffset - targetY) > 15) {
             window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
           }
 
@@ -180,10 +185,8 @@ export default function DemoTour() {
       const el = currentStep.targetSelector ? document.querySelector(currentStep.targetSelector) : null;
       if (el) {
         const rect = el.getBoundingClientRect();
-        if (rect.top < 40 || rect.top > window.innerHeight - 80) {
-          const targetY = rect.height > window.innerHeight * 0.45
-            ? el.getBoundingClientRect().top + window.pageYOffset - 80
-            : el.getBoundingClientRect().top + window.pageYOffset - Math.max(80, (window.innerHeight - rect.height) / 2);
+        if (rect.top < 50 || rect.top > 90) {
+          const targetY = el.getBoundingClientRect().top + window.pageYOffset - 64;
           window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
         }
       }
@@ -407,6 +410,7 @@ export default function DemoTour() {
       ) : (
         /* Steps 1 to 12: Floating Popover Attached to Target or Fixed in Viewport */
         <div
+          ref={popoverRef}
           style={
             targetRect
               ? {
