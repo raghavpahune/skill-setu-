@@ -48,7 +48,7 @@ export default function DemoTour() {
         });
 
         // Determine exact popover dimensions
-        const measuredHeight = popoverRef.current ? popoverRef.current.offsetHeight : 250;
+        const measuredHeight = popoverRef.current ? popoverRef.current.offsetHeight : 240;
         const popoverWidth = Math.min(460, window.innerWidth - 32);
         const padding = 16;
 
@@ -66,25 +66,28 @@ export default function DemoTour() {
         const spaceBelow = window.innerHeight - rect.bottom;
         const spaceAbove = rect.top - 60; // 60px reserved for sticky navbar
 
-        // Check if fits cleanly below
+        // 1. Check if fits cleanly below
         if (spaceBelow >= measuredHeight + padding) {
           top = rect.bottom + padding;
           placement = 'bottom';
         }
-        // Check if fits cleanly above
+        // 2. Check if fits cleanly above
         else if (spaceAbove >= measuredHeight + padding) {
           top = rect.top - measuredHeight - padding;
           placement = 'top';
         }
-        // If neither fits with full padding in current viewport:
-        // Position strictly below (or above) without EVER overlapping [rect.top, rect.bottom]
-        else if (spaceBelow >= spaceAbove) {
-          top = rect.bottom + padding;
+        // 3. If element is very tall and spans most of the screen vertically:
+        else {
+          top = Math.max(16, window.innerHeight - measuredHeight - 16);
+          // On desktop, dock to right side so center of element remains visible
+          if (window.innerWidth >= 1024) {
+            left = Math.min(window.innerWidth - popoverWidth - 24, Math.max(24, rect.right - popoverWidth));
+          }
           placement = 'bottom';
-        } else {
-          top = Math.max(64, rect.top - measuredHeight - padding);
-          placement = 'top';
         }
+
+        // Final safety clamp: popover MUST NEVER overflow bottom of viewport
+        top = Math.max(16, Math.min(top, window.innerHeight - measuredHeight - 16));
 
         setPopoverPos({ top, left, placement });
         return;
@@ -408,7 +411,7 @@ export default function DemoTour() {
           </div>
         </div>
       ) : (
-        /* Steps 1 to 12: Floating Popover Attached to Target or Fixed in Viewport */
+        /* Steps 1 to 13: Floating Popover Attached to Target or Fixed in Viewport */
         <div
           ref={popoverRef}
           style={
@@ -419,6 +422,7 @@ export default function DemoTour() {
                   left: popoverPos.left,
                   transform: 'none',
                   width: 'min(460px, calc(100vw - 32px))',
+                  maxHeight: 'calc(100vh - 32px)',
                 }
               : {
                   position: 'fixed',
@@ -426,12 +430,13 @@ export default function DemoTour() {
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
                   width: 'min(460px, calc(100vw - 32px))',
+                  maxHeight: 'calc(100vh - 32px)',
                 }
           }
-          className="z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-5 animate-fade-in transition-all duration-200"
+          className="z-50 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 sm:p-5 animate-fade-in transition-all duration-200 pointer-events-auto"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-2">
+          {/* Header (Fixed at top of card) */}
+          <div className="shrink-0 flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 font-mono text-[10px] font-bold border border-teal-200 dark:border-teal-800">
                 Step {currentStep.step} of {totalSteps}
@@ -442,68 +447,70 @@ export default function DemoTour() {
             </div>
             <button
               onClick={exitTour}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               title="Exit Tour (Esc)"
             >
               ✕
             </button>
           </div>
 
-          {/* Progress Bar */}
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mb-3.5">
+          {/* Progress Bar (Fixed) */}
+          <div className="shrink-0 w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mb-3">
             <div
               className="bg-gradient-to-r from-teal-500 to-emerald-400 h-full rounded-full transition-all duration-300"
               style={{ width: `${progressPct}%` }}
             />
           </div>
 
-          {/* Title & Description */}
-          <h4 className="text-base font-bold text-slate-900 dark:text-white leading-tight mb-2">
-            {currentStep.title}
-          </h4>
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-            {currentStep.description}
-          </p>
-
-          {/* Why it Matters Callout */}
-          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/40 text-[11px] text-amber-900 dark:text-amber-200 leading-snug mb-4">
-            <span className="font-bold">Why it matters: </span>
-            {currentStep.whyItMatters}
-          </div>
-
-          {/* Navigation Controls */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-            <button
-              onClick={exitTour}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition-colors"
-            >
-              Skip Tour
-            </button>
-
-            <div className="flex items-center gap-2">
-              {currentStepIndex > 0 && (
-                <button
-                  onClick={prevStep}
-                  className="px-3 py-1.5 font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Back
-                </button>
-              )}
-              <button
-                onClick={nextStep}
-                className="px-4 py-1.5 font-bold rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-colors flex items-center gap-1"
-              >
-                <span>Next</span>
-                <span>→</span>
-              </button>
+          {/* Scrollable Content Body (Shrinks/scrolls gracefully on small viewports) */}
+          <div className="flex-1 overflow-y-auto min-h-0 pr-1 mb-3 space-y-2.5">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-tight">
+              {currentStep.title}
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {currentStep.description}
+            </p>
+            <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/40 text-[11px] text-amber-900 dark:text-amber-200 leading-snug">
+              <span className="font-bold">Why it matters: </span>
+              {currentStep.whyItMatters}
             </div>
           </div>
 
-          {/* Keyboard hint */}
-          <div className="mt-2.5 text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono flex items-center justify-center gap-3">
-            <span>[← / →] Navigate</span>
-            <span>•</span>
-            <span>[Esc] Exit Tour</span>
+          {/* Fixed Footer Navigation Controls (ALWAYS 100% VISIBLE & CLICKABLE) */}
+          <div className="shrink-0 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={exitTour}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition-colors cursor-pointer"
+              >
+                Skip Tour
+              </button>
+
+              <div className="flex items-center gap-2">
+                {currentStepIndex > 0 && (
+                  <button
+                    onClick={prevStep}
+                    className="px-3 py-1.5 font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    Back
+                  </button>
+                )}
+                <button
+                  onClick={nextStep}
+                  className="px-4 py-1.5 font-bold rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Next</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Keyboard hint */}
+            <div className="mt-2 text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono flex items-center justify-center gap-3">
+              <span>[← / →] Navigate</span>
+              <span>•</span>
+              <span>[Esc] Exit</span>
+            </div>
           </div>
         </div>
       )}
