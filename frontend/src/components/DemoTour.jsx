@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTour } from '../context/TourContext';
 
 export default function DemoTour() {
+  const location = useLocation();
   const {
     isTourOpen,
     currentStepIndex,
@@ -21,6 +23,13 @@ export default function DemoTour() {
     if (!isTourOpen || !currentStep) return;
 
     if (!currentStep.targetSelector) {
+      setTargetRect(null);
+      return;
+    }
+
+    // Verify route synchronization before finding target
+    const expectedRoute = currentStep.route ? currentStep.route.split('?')[0] : null;
+    if (expectedRoute && location.pathname !== expectedRoute) {
       setTargetRect(null);
       return;
     }
@@ -81,55 +90,112 @@ export default function DemoTour() {
       }
     }
     setTargetRect(null);
-  }, [isTourOpen, currentStep]);
+  }, [isTourOpen, currentStep, location.pathname]);
 
   // Auto-scroll to element and continuously track position across layout shifts / smooth scrolls
   useEffect(() => {
     if (!isTourOpen || !currentStep) return;
 
-    let scrolled = false;
+    const expectedRoute = currentStep.route ? currentStep.route.split('?')[0] : null;
     let attempts = 0;
-    const maxAttempts = 35; // 3.5s total search window for async rendered components
+    const maxAttempts = 40; // 4s total search window for async rendered components
 
-    const interval = setInterval(() => {
+    const alignAndTrack = () => {
       attempts += 1;
+
+      // Check route synchronization first
+      if (expectedRoute && location.pathname !== expectedRoute) {
+        setTargetRect(null);
+        if (currentStepIndex === 4) {
+          console.log('[Tour Step 5] Waiting for route transition:', {
+            currentRoute: location.pathname,
+            expectedRoute,
+          });
+        }
+        return;
+      }
+
       if (!currentStep.targetSelector) {
         setTargetRect(null);
-        if (!scrolled) {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          scrolled = true;
-        }
-        if (attempts >= 10) clearInterval(interval);
         return;
       }
 
       const el = document.querySelector(currentStep.targetSelector);
       if (el) {
-        if (!scrolled) {
-          const rect = el.getBoundingClientRect();
-          // If element is tall (> 50% viewport), scroll to top of element with navbar margin
-          if (rect.height > window.innerHeight * 0.5) {
-            const targetY = el.getBoundingClientRect().top + window.pageYOffset - 80;
-            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-          } else {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-          }
-          scrolled = true;
-        }
-        updatePosition();
-        // Continue tracking for a few frames after scroll to handle layout stabilization
-        if (attempts >= 25) {
-          clearInterval(interval);
-        }
-      } else if (attempts >= maxAttempts) {
-        // Element not found; fallback to centered view gracefully without locking up
-        setTargetRect(null);
-        clearInterval(interval);
-      }
-    }, 100);
+        const rect = el.getBoundingClientRect();
 
-    return () => clearInterval(interval);
-  }, [isTourOpen, currentStepIndex, currentStep, updatePosition]);
+        // Step 5 Instrumentation / Logging
+        if (currentStepIndex === 4) {
+          console.log('=== TOUR STEP 5 DEBUG ===');
+          console.log('TOUR STEP = 5');
+          console.log('CURRENT ROUTE =', location.pathname);
+          console.log('EXPECTED ROUTE =', expectedRoute);
+          console.log('TARGET SELECTOR =', currentStep.targetSelector);
+          console.log('TARGET FOUND =', true);
+          console.log('TARGET RECT =', rect);
+          console.log('TARGET HEIGHT =', rect.height);
+          console.log('TARGET TOP =', rect.top);
+          console.log('TARGET BOTTOM =', rect.bottom);
+          console.log('SCROLL POSITION =', window.pageYOffset);
+        }
+
+        if (rect.width > 0 && rect.height > 0) {
+          // Calculate intended viewport position
+          let targetY;
+          if (rect.height > window.innerHeight * 0.45) {
+            targetY = el.getBoundingClientRect().top + window.pageYOffset - 80;
+          } else {
+            targetY = el.getBoundingClientRect().top + window.pageYOffset - Math.max(80, (window.innerHeight - rect.height) / 2);
+          }
+
+          // If the element is not comfortably in view, smoothly scroll to it
+          const isComfortablyInView = rect.top >= 60 && rect.bottom <= window.innerHeight + 100;
+          if (!isComfortablyInView || Math.abs(window.pageYOffset - targetY) > 50) {
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+          }
+
+          updatePosition();
+        }
+      } else {
+        if (currentStepIndex === 4) {
+          console.log('=== TOUR STEP 5 DEBUG ===');
+          console.log('TOUR STEP = 5');
+          console.log('CURRENT ROUTE =', location.pathname);
+          console.log('EXPECTED ROUTE =', expectedRoute);
+          console.log('TARGET SELECTOR =', currentStep.targetSelector);
+          console.log('TARGET FOUND =', false);
+        }
+        if (attempts >= maxAttempts) {
+          setTargetRect(null);
+        }
+      }
+    };
+
+    // Run polling interval for smooth transition
+    const interval = setInterval(alignAndTrack, 100);
+
+    // Also observe DOM and body resize events to handle async data loading shifts
+    const resizeObserver = new ResizeObserver(() => {
+      updatePosition();
+      const el = currentStep.targetSelector ? document.querySelector(currentStep.targetSelector) : null;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < 40 || rect.top > window.innerHeight - 80) {
+          const targetY = rect.height > window.innerHeight * 0.45
+            ? el.getBoundingClientRect().top + window.pageYOffset - 80
+            : el.getBoundingClientRect().top + window.pageYOffset - Math.max(80, (window.innerHeight - rect.height) / 2);
+          window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        }
+      }
+    });
+
+    resizeObserver.observe(document.body);
+
+    return () => {
+      clearInterval(interval);
+      resizeObserver.disconnect();
+    };
+  }, [isTourOpen, currentStepIndex, currentStep, location.pathname, updatePosition]);
 
   // Handle window resize and all container scrolls (capture phase)
   useEffect(() => {
