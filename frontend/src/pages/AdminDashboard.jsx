@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { api } from '../services/api';
@@ -52,8 +53,24 @@ const INDUSTRIES = [
 ];
 
 export default function AdminDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  
   // Navigation Tab State
-  const [adminTab, setAdminTab] = useState('students'); // 'students' | 'employers' | 'gov'
+  const [adminTab, setAdminTab] = useState(urlTab && ['students', 'employers', 'gov'].includes(urlTab) ? urlTab : 'students');
+
+  useEffect(() => {
+    if (urlTab && ['students', 'employers', 'gov'].includes(urlTab)) {
+      setAdminTab(urlTab);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (newTab) => {
+    setAdminTab(newTab);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', newTab);
+    setSearchParams(newParams, { replace: true });
+  };
 
   // Admin Key State
   const [adminKey, setAdminKey] = useState(() => {
@@ -419,7 +436,7 @@ export default function AdminDashboard() {
       {/* Navigation Tab Bar */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 mb-6 pb-2">
         <button
-          onClick={() => setAdminTab('students')}
+          onClick={() => handleTabChange('students')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
             adminTab === 'students'
               ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
@@ -434,7 +451,7 @@ export default function AdminDashboard() {
         </button>
 
         <button
-          onClick={() => setAdminTab('employers')}
+          onClick={() => handleTabChange('employers')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
             adminTab === 'employers'
               ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
@@ -451,7 +468,7 @@ export default function AdminDashboard() {
         </button>
 
         <button
-          onClick={() => setAdminTab('gov')}
+          onClick={() => handleTabChange('gov')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
             adminTab === 'gov'
               ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
