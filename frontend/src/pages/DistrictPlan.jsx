@@ -250,7 +250,7 @@ export default function DistrictPlan() {
       )}
 
       {/* District KPI Summary */}
-      <div data-demo="district-micro-plan" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div data-demo="district-kpi-summary" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {loading ? (
           <>
             <SkeletonKpiCard />

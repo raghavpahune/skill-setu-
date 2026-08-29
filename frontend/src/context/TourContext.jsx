@@ -84,7 +84,7 @@ export const TOUR_STEPS = [
   },
   {
     step: 9,
-    route: '/student',
+    route: '/student?tab=passport',
     targetSelector: '[data-demo="student-passport-radar"]',
     stage: '09. Student Skill Passport',
     title: 'Student Personalized Skill Passport',
@@ -94,7 +94,7 @@ export const TOUR_STEPS = [
   },
   {
     step: 10,
-    route: '/student',
+    route: '/student?tab=passport',
     targetSelector: '[data-demo="student-industry-alerts"]',
     stage: '10. Industry Telemetry',
     title: 'Real-Time Industry Technology Alerts',
@@ -104,7 +104,7 @@ export const TOUR_STEPS = [
   },
   {
     step: 11,
-    route: '/student',
+    route: '/student?tab=passport',
     targetSelector: '[data-demo="skill-explainability-trigger"]',
     stage: '11. Explainable AI',
     title: '5-Dimension Grounded Skill Explainability',
@@ -159,10 +159,11 @@ export function TourProvider({ children }) {
     setCurrentStepIndex(0);
     setIsTourOpen(true);
     const firstStep = TOUR_STEPS[0];
-    if (location.pathname !== firstStep.route) {
+    const currentFull = location.pathname + location.search;
+    if (firstStep && currentFull !== firstStep.route) {
       navigate(firstStep.route);
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, location.search, navigate]);
 
   const exitTour = useCallback(() => {
     setIsTourOpen(false);
@@ -173,12 +174,16 @@ export function TourProvider({ children }) {
       const idx = Math.max(0, Math.min(totalSteps - 1, stepNumber - 1));
       setCurrentStepIndex(idx);
       const targetStep = TOUR_STEPS[idx];
-      if (targetStep && location.pathname !== targetStep.route) {
-        navigate(targetStep.route);
+      if (targetStep) {
+        const currentFull = location.pathname + location.search;
+        if (currentFull !== targetStep.route) {
+          navigate(targetStep.route);
+        }
       }
     },
-    [totalSteps, location.pathname, navigate]
+    [totalSteps, location.pathname, location.search, navigate]
   );
+
 
   const nextStep = useCallback(() => {
     if (currentStepIndex < totalSteps - 1) {

@@ -28,83 +28,97 @@ export default function DemoTour() {
     const el = document.querySelector(currentStep.targetSelector);
     if (el) {
       const rect = el.getBoundingClientRect();
-      setTargetRect({
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-        bottom: rect.bottom,
-        right: rect.right,
-      });
+      if (rect.width > 0 && rect.height > 0) {
+        setTargetRect({
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+          bottom: rect.bottom,
+          right: rect.right,
+        });
 
-      // Position popover
-      const popoverWidth = Math.min(460, window.innerWidth - 32);
-      const popoverHeight = 300; // approximate
-      const padding = 16;
+        // Position popover
+        const popoverWidth = Math.min(460, window.innerWidth - 32);
+        const popoverHeight = 320;
+        const padding = 16;
 
-      let top = rect.bottom + padding;
-      let left = Math.max(
-        16,
-        Math.min(
-          rect.left + (rect.width / 2) - (popoverWidth / 2),
-          window.innerWidth - popoverWidth - 16
-        )
-      );
-      let placement = 'bottom';
+        let top = rect.bottom + padding;
+        let left = Math.max(
+          16,
+          Math.min(
+            rect.left + (rect.width / 2) - (popoverWidth / 2),
+            window.innerWidth - popoverWidth - 16
+          )
+        );
+        let placement = 'bottom';
 
-      // If popover goes off the bottom of viewport, place above
-      if (rect.bottom + popoverHeight + padding > window.innerHeight && rect.top > popoverHeight + padding) {
-        top = Math.max(16, rect.top - popoverHeight - padding);
-        placement = 'top';
-      } else if (rect.bottom + popoverHeight + padding > window.innerHeight) {
-        // If neither above nor below fits completely, constrain to viewport
-        top = Math.max(16, window.innerHeight - popoverHeight - 16);
+        // If popover goes off the bottom of viewport, place above
+        if (rect.bottom + popoverHeight + padding > window.innerHeight && rect.top > popoverHeight + padding) {
+          top = Math.max(16, rect.top - popoverHeight - padding);
+          placement = 'top';
+        } else if (rect.bottom + popoverHeight + padding > window.innerHeight) {
+          // If neither above nor below fits completely, constrain to viewport
+          top = Math.max(16, window.innerHeight - popoverHeight - 16);
+        }
+
+        setPopoverPos({ top, left, placement });
+        return;
       }
-
-      setPopoverPos({ top, left, placement });
-    } else {
-      setTargetRect(null);
     }
+    setTargetRect(null);
   }, [isTourOpen, currentStep]);
 
-  // Auto-scroll to element when step changes or route transitions
+  // Auto-scroll to element and continuously track position across layout shifts / smooth scrolls
   useEffect(() => {
     if (!isTourOpen || !currentStep) return;
 
-    // Retry finding element in case of async route render
+    let scrolled = false;
     let attempts = 0;
-    const maxAttempts = 15;
+    const maxAttempts = 35; // 3.5s total search window for async rendered components
+
     const interval = setInterval(() => {
       attempts += 1;
       if (!currentStep.targetSelector) {
         setTargetRect(null);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        clearInterval(interval);
+        if (!scrolled) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          scrolled = true;
+        }
+        if (attempts >= 10) clearInterval(interval);
         return;
       }
 
       const el = document.querySelector(currentStep.targetSelector);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        if (!scrolled) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+          scrolled = true;
+        }
         updatePosition();
-        clearInterval(interval);
+        // Continue tracking for a few frames after scroll to handle layout stabilization
+        if (attempts >= 25) {
+          clearInterval(interval);
+        }
       } else if (attempts >= maxAttempts) {
+        // Element not found; fallback to centered view gracefully without locking up
+        setTargetRect(null);
         clearInterval(interval);
       }
-    }, 150);
+    }, 100);
 
     return () => clearInterval(interval);
   }, [isTourOpen, currentStepIndex, currentStep, updatePosition]);
 
-  // Handle window resize and scroll
+  // Handle window resize and all container scrolls (capture phase)
   useEffect(() => {
     if (!isTourOpen) return;
     const handleScrollOrResize = () => updatePosition();
     window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
+    window.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true });
     return () => {
       window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
     };
   }, [isTourOpen, updatePosition]);
 

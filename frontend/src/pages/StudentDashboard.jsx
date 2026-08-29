@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import PassportRadar from '../components/PassportRadar';
@@ -24,39 +24,30 @@ function EmptyState({
   action,
 }) {
   return (
-    <div className="py-8 px-4 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-      <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
-        {icon || (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-          </svg>
-        )}
+    <div className="py-12 px-4 text-center rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800">
+      <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg mx-auto mb-3 shadow-2xs">
+        {icon || '📭'}
       </div>
-      <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">{title}</h4>
-      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">{message}</p>
-      {action && <div className="mt-3">{action}</div>}
+      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">{title}</h4>
+      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-4">{message}</p>
+      {action && <div>{action}</div>}
     </div>
   );
 }
 
 function ErrorBanner({ message, onRetry }) {
   return (
-    <div className="mb-6 p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/60 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+    <div className="p-4 mb-6 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
       <div className="flex items-center gap-2.5">
-        <svg className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <div>
-          <h4 className="text-xs font-bold">Data Communication Issue</h4>
-          <p className="text-[11px] text-rose-700 dark:text-rose-400 mt-0.5">{message}</p>
-        </div>
+        <span className="text-base">⚠️</span>
+        <span className="font-semibold">{message}</span>
       </div>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0 cursor-pointer"
+          className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer self-start sm:self-auto transition-colors"
         >
-          Retry Connection
+          Retry Fetch
         </button>
       )}
     </div>
@@ -88,8 +79,39 @@ function SkeletonRoadmapStep() {
   );
 }
 
+function LoadingSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4">
+      <div className="h-6 w-48 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl"></div>
+        ))}
+      </div>
+      <div className="h-64 bg-slate-100 dark:bg-slate-800 rounded-xl"></div>
+    </div>
+  );
+}
+
+function OpportunitySkeleton() {
+  return (
+    <div className="animate-pulse p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="flex items-start gap-3 w-full">
+        <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 shrink-0"></div>
+        <div className="space-y-2 w-full">
+          <div className="h-4 w-40 bg-slate-200 dark:bg-slate-700 rounded"></div>
+          <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
+        </div>
+      </div>
+      <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded self-end sm:self-center"></div>
+    </div>
+  );
+}
+
 export default function StudentDashboard() {
-  const [mainTab, setMainTab] = useState('recommendations'); // 'recommendations' | 'passport' | 'assessment'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const [mainTab, setMainTab] = useState(urlTab && ['recommendations', 'passport', 'assessment'].includes(urlTab) ? urlTab : 'recommendations');
   const [students, setStudents] = useState(DEFAULT_STUDENTS);
   const [selectedStudentId, setSelectedStudentId] = useState('stu-001');
   const [passport, setPassport] = useState(null);
@@ -100,6 +122,24 @@ export default function StudentDashboard() {
   const [passportError, setPassportError] = useState(null);
   const [roadmapError, setRoadmapError] = useState(null);
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'acquired' | 'gaps'
+
+  // Sync tab from URL search parameters (e.g. ?tab=passport or ?tab=recommendations)
+  useEffect(() => {
+    if (urlTab && ['recommendations', 'passport', 'assessment'].includes(urlTab)) {
+      setMainTab(urlTab);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (newTab) => {
+    setMainTab(newTab);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', newTab);
+    setSearchParams(newParams, { replace: true });
+    // Notify window resize so DemoTour updates position
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 50);
+  };
 
   // Skill Explainability Modal state (PROJECT_SPEC Section 18)
   const [explainModalOpen, setExplainModalOpen] = useState(false);
@@ -308,7 +348,7 @@ export default function StudentDashboard() {
       {/* Top Main Section Switcher Tabs */}
       <div className="flex items-center gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap">
         <button
-          onClick={() => setMainTab('recommendations')}
+          onClick={() => handleTabChange('recommendations')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             mainTab === 'recommendations'
               ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
@@ -323,7 +363,7 @@ export default function StudentDashboard() {
         </button>
 
         <button
-          onClick={() => setMainTab('passport')}
+          onClick={() => handleTabChange('passport')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             mainTab === 'passport'
               ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
@@ -335,7 +375,7 @@ export default function StudentDashboard() {
         </button>
 
         <button
-          onClick={() => setMainTab('assessment')}
+          onClick={() => handleTabChange('assessment')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             mainTab === 'assessment'
               ? 'bg-slate-900 dark:bg-teal-700 text-white shadow-xs'
