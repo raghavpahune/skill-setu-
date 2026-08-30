@@ -56,9 +56,10 @@ async def skill_explainability(
 async def skill_passport(student_id: str):
     profiles = get_demo("student_profiles")
     skills_map = {s["id"]: s for s in get_demo("skills")}
+    skills_name_map = {s["name"].lower(): s for s in get_demo("skills")}
 
     for p in profiles:
-        if p["user_id"] == student_id:
+        if p.get("user_id") == student_id or p.get("id") == student_id:
             current = [
                 {
                     **sk,
@@ -82,13 +83,62 @@ async def skill_passport(student_id: str):
                 if r["skill_id"] not in {s["skill_id"] for s in p.get("skills", [])}
             ]
             return {
-                "user_id": p["user_id"],
+                "user_id": p.get("user_id") or p.get("id"),
                 "name": p["name"],
                 "target_role": p["target_role"],
                 "skill_match_pct": p["skill_match_pct"],
                 "current_skills": current,
                 "required_skills": required,
                 "missing_skills": missing,
+                "source": p.get("source", "DEMO_SYNTHETIC"),
+            }
+
+    # Check student_assessments cache for user-submitted profiles
+    assessments = get_demo("student_assessments")
+    for a in assessments:
+        if a.get("id") == student_id or a.get("user_id") == student_id:
+            target_role = a.get("career_goal", "AI Engineer")
+            from app.services.student_service import ROLE_REQUIREMENTS_MAP
+            req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"])
+
+            curr_skills = []
+            curr_sids = set()
+            for cs in a.get("current_skills", []):
+                s_name = cs.get("skill_name", "")
+                sid = cs.get("skill_id")
+                if not sid and s_name.lower() in skills_name_map:
+                    sid = skills_name_map[s_name.lower()]["id"]
+                if sid:
+                    curr_sids.add(sid)
+                sk_obj = skills_map.get(sid, {})
+                curr_skills.append({
+                    "skill_id": sid or f"sk-custom-{len(curr_skills)+1}",
+                    "skill_name": s_name or sk_obj.get("name", "Custom Skill"),
+                    "proficiency": cs.get("proficiency", "intermediate"),
+                    "category": cs.get("category") or sk_obj.get("category", "General"),
+                    "nsqf_level": cs.get("nsqf_level") or sk_obj.get("nsqf_level", 5),
+                })
+
+            required = [
+                {
+                    "skill_id": sid,
+                    "skill_name": skills_map.get(sid, {}).get("name", sid),
+                    "category": skills_map.get(sid, {}).get("category", "General"),
+                    "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
+                }
+                for sid in req_sids
+            ]
+            missing = [r for r in required if r["skill_id"] not in curr_sids]
+
+            return {
+                "user_id": a.get("id"),
+                "name": a.get("name", "Student Candidate"),
+                "target_role": target_role,
+                "skill_match_pct": a.get("skill_match_pct", 50),
+                "current_skills": curr_skills,
+                "required_skills": required,
+                "missing_skills": missing,
+                "source": a.get("source", "USER_SUBMITTED"),
             }
 
     return {"error": "student not found"}
@@ -106,7 +156,7 @@ async def learning_roadmap(student_id: str):
             forecast_map[f["skill_id"]] = f
 
     for p in profiles:
-        if p["user_id"] == student_id:
+        if p.get("user_id") == student_id or p.get("id") == student_id:
             roadmap = []
             for idx, sid in enumerate(p.get("roadmap", []), start=1):
                 skill = skills_map.get(sid, {})
@@ -127,8 +177,41 @@ async def learning_roadmap(student_id: str):
                            f"{fc.get('trend', 'rising')} trend and {fc.get('confidence', '85')}% confidence.",
                 })
             return {
-                "user_id": p["user_id"],
+                "user_id": p.get("user_id") or p.get("id"),
                 "target_role": p["target_role"],
+                "roadmap": roadmap,
+            }
+
+    # Check student_assessments for user-submitted assessments
+    assessments = get_demo("student_assessments")
+    for a in assessments:
+        if a.get("id") == student_id or a.get("user_id") == student_id:
+            target_role = a.get("career_goal", "AI Engineer")
+            from app.services.student_service import ROLE_REQUIREMENTS_MAP
+            req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-003", "sk-004", "sk-006", "sk-005"])
+            curr_sids = {cs.get("skill_id") for cs in a.get("current_skills", []) if cs.get("skill_id")}
+            roadmap_sids = [sid for sid in req_sids if sid not in curr_sids] or req_sids[:3]
+
+            roadmap = []
+            for idx, sid in enumerate(roadmap_sids, start=1):
+                skill = skills_map.get(sid, {"id": sid, "name": "Priority Competency", "category": "General", "nsqf_level": 5})
+                fc = forecast_map.get(sid, {})
+                roadmap.append({
+                    "step": idx,
+                    "skill_id": sid,
+                    "skill_name": skill.get("name", sid),
+                    "category": skill.get("category", "General"),
+                    "nsqf_level": skill.get("nsqf_level", 5),
+                    "future_demand": fc.get("future_demand", "high"),
+                    "trend": fc.get("trend", "rising"),
+                    "confidence": fc.get("confidence", 85),
+                    "timeframe": fc.get("timeframe", "2025-2027"),
+                    "key_drivers": fc.get("key_drivers", ["Labour market expansion", "Employer demand"]),
+                    "why": f"Recommended because {skill.get('name', 'this skill')} bridges critical gap for {target_role}.",
+                })
+            return {
+                "user_id": a.get("id"),
+                "target_role": target_role,
                 "roadmap": roadmap,
             }
 
@@ -137,13 +220,26 @@ async def learning_roadmap(student_id: str):
 
 @router.get("/students")
 async def list_students():
-    """List all demo students (for role selector)."""
+    """List all demo students + user submitted assessments (for role selector)."""
     profiles = get_demo("student_profiles")
-    return [
-        {"user_id": p["user_id"], "name": p["name"], "target_role": p["target_role"],
-         "skill_match_pct": p["skill_match_pct"]}
+    results = [
+        {"user_id": p.get("user_id") or p.get("id"), "name": p["name"], "target_role": p["target_role"],
+         "skill_match_pct": p["skill_match_pct"], "source": p.get("source", "DEMO_SYNTHETIC")}
         for p in profiles
     ]
+    assessments = get_demo("student_assessments")
+    for a in assessments:
+        if a.get("source") == "USER_SUBMITTED" or a.get("id", "").startswith("ast-usr-"):
+            aid = a.get("id")
+            if not any(r["user_id"] == aid for r in results):
+                results.append({
+                    "user_id": aid,
+                    "name": f"{a.get('name', 'Candidate')} (Self-Assessed)",
+                    "target_role": a.get("career_goal", "Target Career"),
+                    "skill_match_pct": a.get("skill_match_pct", 50),
+                    "source": "USER_SUBMITTED",
+                })
+    return results
 
 
 # ---------------------------------------------------------------------------
