@@ -189,6 +189,28 @@ async def skill_passport(
     assessments = get_demo("student_assessments")
     for a in assessments:
         if a.get("id") == student_id or a.get("user_id") == student_id:
+            # Privacy check: user-submitted assessments are private to the candidate and admin
+            if a.get("source") in ("USER_SUBMITTED", "FIRST_PARTY") or not a.get("is_demo", True):
+                if not current_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Authentication required to view candidate assessment.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                user_id = current_user.get("id")
+                user_email = current_user.get("email")
+                user_role = (current_user.get("role") or "").upper()
+                is_owner = (
+                    (a.get("user_id") and a.get("user_id") == user_id)
+                    or (a.get("id") and a.get("id") == user_id)
+                    or (user_email and a.get("user_email") == user_email)
+                )
+                if not is_owner and user_role != "ADMIN":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: You cannot access another student's personal assessment.",
+                    )
+
             target_role = a.get("career_goal", "AI Engineer")
             from app.services.student_service import ROLE_REQUIREMENTS_MAP
             req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"])

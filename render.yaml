@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: skillsetu-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: USE_DEMO_DATA
+        value: "true"
+      - key: AUTO_SYNC_ENABLED
+        value: "true"
+      - key: CORS_ORIGINS
+        value: "https://skill-setu-raghavpahune-8496.vercel.app"
+      - key: ADMIN_API_KEY
+        value: "demo-admin-key-2026"
+      - key: JWT_SECRET_KEY
+        value: "skillsetu-secure-jwt-secret-key-2026-production"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

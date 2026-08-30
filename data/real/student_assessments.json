@@ -1,110 +1,118 @@
 [
   {
-    "id": "ast-usr-73e3da40",
-    "name": "Ananya Kulkarni",
-    "education": "Diploma in EV Technology",
-    "district": "Nashik",
-    "career_goal": "EV Technician",
+    "id": "ast-usr-e8dae87c",
+    "name": "Tanmay Joshi",
+    "education": "B.Sc Computer Science",
+    "district": "Maharashtra",
+    "career_goal": "Full Stack Developer",
     "interests": [
-      "Electric Vehicles"
+      "Web Development"
     ],
     "current_skills": [
       {
-        "skill_id": "sk-023",
-        "skill_name": "Electrical Maintenance",
-        "category": "Manufacturing",
-        "nsqf_level": 4,
+        "skill_id": "sk-013",
+        "skill_name": "React",
+        "category": "Web Development",
+        "nsqf_level": 5,
         "proficiency": "intermediate"
       }
     ],
     "quiz_answers": {
-      "q1": "b",
-      "q2": "b"
+      "q1": "b"
     },
-    "quiz_score_pct": 30,
-    "skill_match_pct": 19,
-    "combined_readiness_score": 23,
+    "quiz_score_pct": 20,
+    "skill_match_pct": 15,
+    "combined_readiness_score": 17,
     "evaluation_summary": {
       "readiness_level": "FOUNDATIONAL",
       "readiness_desc": "Early-stage learner profile. Structured vocational curriculum and prerequisite practicals recommended.",
-      "target_role": "EV Technician",
-      "total_target_skills": 4,
+      "target_role": "Full Stack Developer",
+      "total_target_skills": 5,
       "acquired_count": 1,
-      "missing_count": 3,
+      "missing_count": 4,
       "missing_skills": [
         {
-          "skill_id": "sk-018",
-          "name": "EV Battery Technology",
-          "category": "Electric Vehicles",
-          "nsqf_level": 6,
-          "priority": "LOW",
-          "gap_pct": 0,
-          "demand_pct": 4
+          "skill_id": "sk-001",
+          "name": "Python",
+          "category": "Programming",
+          "nsqf_level": 5,
+          "priority": "HIGH",
+          "gap_pct": 13,
+          "demand_pct": 25
         },
         {
-          "skill_id": "sk-019",
-          "name": "EV Motor Design",
-          "category": "Electric Vehicles",
-          "nsqf_level": 6,
-          "priority": "LOW",
-          "gap_pct": 0,
-          "demand_pct": 1
-        },
-        {
-          "skill_id": "sk-045",
-          "name": "Embedded Systems",
-          "category": "Electronics",
-          "nsqf_level": 6,
+          "skill_id": "sk-014",
+          "name": "Node.js",
+          "category": "Web Development",
+          "nsqf_level": 5,
           "priority": "MEDIUM",
           "gap_pct": 4,
-          "demand_pct": 6
+          "demand_pct": 7
+        },
+        {
+          "skill_id": "sk-008",
+          "name": "SQL",
+          "category": "Data Science",
+          "nsqf_level": 4,
+          "priority": "MEDIUM",
+          "gap_pct": 4,
+          "demand_pct": 9
+        },
+        {
+          "skill_id": "sk-039",
+          "name": "Full Stack Development",
+          "category": "Web Development",
+          "nsqf_level": 6,
+          "priority": "MEDIUM",
+          "gap_pct": 6,
+          "demand_pct": 8
         }
       ],
       "recommended_next_steps": [
-        "Step 1: Master EV Battery Technology (Electric Vehicles) to resolve priority labour deficit.",
-        "Step 2: Master EV Motor Design (Electric Vehicles) to resolve priority labour deficit.",
-        "Step 3: Master Embedded Systems (Electronics) to resolve priority labour deficit.",
+        "Step 1: Master Python (Programming) to resolve priority labour deficit.",
+        "Step 2: Master Node.js (Web Development) to resolve priority labour deficit.",
+        "Step 3: Master SQL (Data Science) to resolve priority labour deficit.",
         "Validate competencies through hands-on lab practicals and apply for state welfare toolkits."
       ],
       "related_courses": [
         {
-          "id": "cr-010",
-          "name": "EV Technology & Maintenance",
-          "institute": "KPIT Skill Centre",
+          "id": "cr-001",
+          "name": "Advanced AI & Machine Learning",
+          "institute": "COEP Technological University",
           "district": "Pune"
         },
         {
-          "id": "cr-011",
-          "name": "IoT & Embedded Systems",
-          "institute": "Government Polytechnic Nagpur",
-          "district": "Nagpur"
+          "id": "cr-002",
+          "name": "Full Stack Web Development",
+          "institute": "Symbiosis Institute of Technology",
+          "district": "Pune"
         },
         {
-          "id": "cr-024",
-          "name": "Mechatronics",
-          "institute": "Government Polytechnic Pune",
-          "district": "Pune"
+          "id": "cr-003",
+          "name": "Data Science & Analytics",
+          "institute": "IIT Bombay (CEP)",
+          "district": "Mumbai"
         }
       ]
     },
-    "submitted_at": "2026-08-30T16:29:21.694438+00:00",
+    "submitted_at": "2026-08-30T17:42:05.586844+00:00",
     "source": "USER_SUBMITTED",
     "source_label": "Candidate Self-Reported Assessment",
     "is_demo": false,
     "data_provenance": "SELF_REPORTED_ASSESSMENT",
-    "created_at": "2026-08-30T16:29:21.694460+00:00",
-    "updated_at": "2026-08-30T16:29:21.694460+00:00"
+    "created_at": "2026-08-30T17:42:05.586862+00:00",
+    "updated_at": "2026-08-30T17:42:05.586862+00:00"
   },
   {
-    "id": "ast-usr-dfe4bb4e",
-    "name": "Aarav Patil",
-    "education": "B.Tech Electrical Engineering",
+    "id": "ast-usr-0c5965ec",
+    "name": "Devendra Shinde",
+    "education": "BE Artificial Intelligence & Data Science (3rd Year)",
     "district": "Pune",
-    "career_goal": "EV Powertrain Specialist",
+    "career_goal": "AI Engineer",
     "interests": [
       "AI / ML",
       "Data Science",
-      "Electric Vehicles"
+      "Cloud Computing"
     ],
     "current_skills": [
       {
@@ -112,21 +120,21 @@
         "skill_name": "Python",
         "category": "Programming",
         "nsqf_level": 5,
-        "proficiency": "intermediate"
+        "proficiency": "advanced"
       },
       {
         "skill_id": "sk-008",
         "skill_name": "SQL",
         "category": "Data Science",
         "nsqf_level": 4,
-        "proficiency": "beginner"
+        "proficiency": "intermediate"
       },
       {
-        "skill_id": "sk-018",
-        "skill_name": "EV Battery Technology",
-        "category": "Electric Vehicles",
-        "nsqf_level": 6,
-        "proficiency": "intermediate"
+        "skill_id": "sk-002",
+        "skill_name": "Machine Learning",
+        "category": "AI/ML",
+        "nsqf_level": 7,
+        "proficiency": "beginner"
       }
     ],
     "quiz_answers": {
@@ -137,24 +145,152 @@
       "q5": "b"
     },
     "quiz_score_pct": 100,
-    "skill_match_pct": 29,
-    "combined_readiness_score": 57,
+    "skill_match_pct": 23,
+    "combined_readiness_score": 54,
     "evaluation_summary": {
       "readiness_level": "INTERMEDIATE_READY",
       "readiness_desc": "Solid foundational competencies. Recommended to bridge targeted high-priority skill gaps.",
-      "target_role": "EV Powertrain Specialist",
-      "total_target_skills": 4,
+      "target_role": "AI Engineer",
+      "total_target_skills": 6,
       "acquired_count": 2,
-      "missing_count": 2,
+      "missing_count": 4,
       "missing_skills": [
+        {
+          "skill_id": "sk-003",
+          "name": "Deep Learning",
+          "category": "AI/ML",
+          "nsqf_level": 8,
+          "priority": "LOW",
+          "gap_pct": 0,
+          "demand_pct": 2
+        },
+        {
+          "skill_id": "sk-004",
+          "name": "Generative AI",
+          "category": "AI/ML",
+          "nsqf_level": 8,
+          "priority": "MEDIUM",
+          "gap_pct": 4,
+          "demand_pct": 5
+        },
+        {
+          "skill_id": "sk-005",
+          "name": "AI Agents",
+          "category": "AI/ML",
+          "nsqf_level": 8,
+          "priority": "LOW",
+          "gap_pct": 1,
+          "demand_pct": 1
+        },
+        {
+          "skill_id": "sk-006",
+          "name": "RAG",
+          "category": "AI/ML",
+          "nsqf_level": 7,
+          "priority": "LOW",
+          "gap_pct": 2,
+          "demand_pct": 3
+        }
+      ],
+      "recommended_next_steps": [
+        "Step 1: Master Deep Learning (AI/ML) to resolve priority labour deficit.",
+        "Step 2: Master Generative AI (AI/ML) to resolve priority labour deficit.",
+        "Step 3: Master AI Agents (AI/ML) to resolve priority labour deficit.",
+        "Validate competencies through hands-on lab practicals and apply for state welfare toolkits."
+      ],
+      "related_courses": [
+        {
+          "id": "cr-001",
+          "name": "Advanced AI & Machine Learning",
+          "institute": "COEP Technological University",
+          "district": "Pune"
+        },
+        {
+          "id": "cr-026",
+          "name": "Generative AI & LLM Applications",
+          "institute": "COEP Technological University",
+          "district": "Pune"
+        }
+      ]
+    },
+    "submitted_at": "2026-08-30T17:42:00.956148+00:00",
+    "source": "USER_SUBMITTED",
+    "source_label": "Candidate Self-Reported Assessment",
+    "is_demo": false,
+    "data_provenance": "SELF_REPORTED_ASSESSMENT",
+    "created_at": "2026-08-30T17:42:00.956165+00:00",
+    "updated_at": "2026-08-30T17:42:00.956165+00:00"
+  },
+  {
+    "id": "ast-usr-8de9344d",
+    "name": "Aarav Live Verified Candidate",
+    "education": "B.Tech Mechanical Engineering",
+    "district": "Pune",
+    "career_goal": "Industrial Automation Specialist",
+    "interests": [
+      "Automation",
+      "Manufacturing"
+    ],
+    "current_skills": [
+      {
+        "skill_id": "sk-017",
+        "skill_name": "PLC Programming",
+        "category": "Manufacturing",
+        "nsqf_level": 5,
+        "proficiency": "intermediate"
+      },
+      {
+        "skill_id": "sk-021",
+        "skill_name": "Robotics",
+        "category": "Manufacturing",
+        "nsqf_level": 6,
+        "proficiency": "beginner"
+      }
+    ],
+    "quiz_answers": {
+      "q1": "B",
+      "q2": "A",
+      "q3": "C",
+      "q4": "A",
+      "q5": "B"
+    },
+    "quiz_score_pct": 60,
+    "skill_match_pct": 0,
+    "combined_readiness_score": 24,
+    "evaluation_summary": {
+      "readiness_level": "FOUNDATIONAL",
+      "readiness_desc": "Early-stage learner profile. Structured vocational curriculum and prerequisite practicals recommended.",
+      "target_role": "Industrial Automation Specialist",
+      "total_target_skills": 4,
+      "acquired_count": 0,
+      "missing_count": 4,
+      "missing_skills": [
+        {
+          "skill_id": "sk-001",
+          "name": "Python",
+          "category": "Programming",
+          "nsqf_level": 5,
+          "priority": "HIGH",
+          "gap_pct": 13,
+          "demand_pct": 25
+        },
         {
           "skill_id": "sk-007",
           "name": "Data Analysis",
           "category": "Data Science",
           "nsqf_level": 5,
-          "priority": "LOW",
-          "gap_pct": 1,
-          "demand_pct": 8
+          "priority": "MEDIUM",
+          "gap_pct": 3,
+          "demand_pct": 9
+        },
+        {
+          "skill_id": "sk-008",
+          "name": "SQL",
+          "category": "Data Science",
+          "nsqf_level": 4,
+          "priority": "MEDIUM",
+          "gap_pct": 4,
+          "demand_pct": 9
         },
         {
           "skill_id": "sk-050",
@@ -167,43 +303,44 @@
         }
       ],
       "recommended_next_steps": [
-        "Step 1: Master Data Analysis (Data Science) to resolve priority labour deficit.",
-        "Step 2: Master Communication Skills (Soft Skills) to resolve priority labour deficit.",
+        "Step 1: Master Python (Programming) to resolve priority labour deficit.",
+        "Step 2: Master Data Analysis (Data Science) to resolve priority labour deficit.",
+        "Step 3: Master SQL (Data Science) to resolve priority labour deficit.",
         "Validate competencies through hands-on lab practicals and apply for state welfare toolkits."
       ],
       "related_courses": [
+        {
+          "id": "cr-001",
+          "name": "Advanced AI & Machine Learning",
+          "institute": "COEP Technological University",
+          "district": "Pune"
+        },
+        {
+          "id": "cr-002",
+          "name": "Full Stack Web Development",
+          "institute": "Symbiosis Institute of Technology",
+          "district": "Pune"
+        },
         {
           "id": "cr-003",
           "name": "Data Science & Analytics",
           "institute": "IIT Bombay (CEP)",
           "district": "Mumbai"
-        },
-        {
-          "id": "cr-012",
-          "name": "Digital Marketing",
-          "institute": "MSBTE Skill Hub, Mumbai",
-          "district": "Mumbai"
-        },
-        {
-          "id": "cr-018",
-          "name": "Supply Chain & Logistics",
-          "institute": "NITIE Mumbai (Short Course)",
-          "district": "Mumbai"
         }
       ]
     },
-    "submitted_at": "2026-08-30T16:56:58.546574+00:00",
+    "submitted_at": "2026-08-30T17:41:52.839364+00:00",
     "source": "USER_SUBMITTED",
     "source_label": "Candidate Self-Reported Assessment",
     "is_demo": false,
     "data_provenance": "SELF_REPORTED_ASSESSMENT",
     "user_id": "usr-student-001",
     "user_email": "student@skillsetu.gov.in",
-    "created_at": "2026-08-30T16:56:58.546604+00:00",
-    "updated_at": "2026-08-30T16:56:58.546604+00:00"
+    "created_at": "2026-08-30T17:41:52.839411+00:00",
+    "updated_at": "2026-08-30T17:41:52.839411+00:00"
   },
   {
-    "id": "ast-usr-04d00440",
+    "id": "ast-usr-86b4f7ab",
     "name": "Tanvi Joshi",
     "education": "Diploma in Mechanical Engineering",
     "district": "Pune",
@@ -311,162 +448,44 @@
         }
       ]
     },
-    "submitted_at": "2026-08-30T16:28:28.097166+00:00",
+    "submitted_at": "2026-08-30T17:41:07.835091+00:00",
     "source": "USER_SUBMITTED",
     "source_label": "Candidate Self-Reported Assessment",
     "is_demo": false,
     "data_provenance": "SELF_REPORTED_ASSESSMENT",
-    "created_at": "2026-08-30T16:28:28.097202+00:00",
-    "updated_at": "2026-08-30T16:28:28.097202+00:00"
+    "created_at": "2026-08-30T17:41:07.835134+00:00",
+    "updated_at": "2026-08-30T17:41:07.835134+00:00"
   },
   {
-    "id": "ast-usr-04595ecb",
-    "name": "Devendra Shinde",
-    "education": "BE Artificial Intelligence & Data Science (3rd Year)",
+    "id": "ast-usr-2d81438b",
+    "name": "Candidate Alpha",
+    "education": "ITI Fitter",
     "district": "Pune",
-    "career_goal": "AI Engineer",
+    "career_goal": "CNC Specialist",
     "interests": [
-      "AI / ML",
-      "Data Science",
-      "Cloud Computing"
+      "Manufacturing"
     ],
     "current_skills": [
       {
-        "skill_id": "sk-001",
-        "skill_name": "Python",
-        "category": "Programming",
-        "nsqf_level": 5,
-        "proficiency": "advanced"
-      },
-      {
-        "skill_id": "sk-008",
-        "skill_name": "SQL",
-        "category": "Data Science",
-        "nsqf_level": 4,
-        "proficiency": "intermediate"
-      },
-      {
-        "skill_id": "sk-002",
-        "skill_name": "Machine Learning",
-        "category": "AI/ML",
-        "nsqf_level": 7,
+        "skill_id": null,
+        "skill_name": "CAD/CAM",
+        "category": "Self-Reported",
+        "nsqf_level": null,
         "proficiency": "beginner"
       }
     ],
     "quiz_answers": {
-      "q1": "b",
-      "q2": "c",
-      "q3": "a",
-      "q4": "b",
-      "q5": "b"
+      "q1": "A"
     },
-    "quiz_score_pct": 100,
-    "skill_match_pct": 23,
-    "combined_readiness_score": 54,
-    "evaluation_summary": {
-      "readiness_level": "INTERMEDIATE_READY",
-      "readiness_desc": "Solid foundational competencies. Recommended to bridge targeted high-priority skill gaps.",
-      "target_role": "AI Engineer",
-      "total_target_skills": 6,
-      "acquired_count": 2,
-      "missing_count": 4,
-      "missing_skills": [
-        {
-          "skill_id": "sk-003",
-          "name": "Deep Learning",
-          "category": "AI/ML",
-          "nsqf_level": 8,
-          "priority": "LOW",
-          "gap_pct": 0,
-          "demand_pct": 2
-        },
-        {
-          "skill_id": "sk-004",
-          "name": "Generative AI",
-          "category": "AI/ML",
-          "nsqf_level": 8,
-          "priority": "MEDIUM",
-          "gap_pct": 3,
-          "demand_pct": 5
-        },
-        {
-          "skill_id": "sk-005",
-          "name": "AI Agents",
-          "category": "AI/ML",
-          "nsqf_level": 8,
-          "priority": "LOW",
-          "gap_pct": 1,
-          "demand_pct": 1
-        },
-        {
-          "skill_id": "sk-006",
-          "name": "RAG",
-          "category": "AI/ML",
-          "nsqf_level": 7,
-          "priority": "LOW",
-          "gap_pct": 2,
-          "demand_pct": 3
-        }
-      ],
-      "recommended_next_steps": [
-        "Step 1: Master Deep Learning (AI/ML) to resolve priority labour deficit.",
-        "Step 2: Master Generative AI (AI/ML) to resolve priority labour deficit.",
-        "Step 3: Master AI Agents (AI/ML) to resolve priority labour deficit.",
-        "Validate competencies through hands-on lab practicals and apply for state welfare toolkits."
-      ],
-      "related_courses": [
-        {
-          "id": "cr-001",
-          "name": "Advanced AI & Machine Learning",
-          "institute": "COEP Technological University",
-          "district": "Pune"
-        },
-        {
-          "id": "cr-026",
-          "name": "Generative AI & LLM Applications",
-          "institute": "COEP Technological University",
-          "district": "Pune"
-        }
-      ]
-    },
-    "submitted_at": "2026-08-30T16:29:18.424037+00:00",
-    "source": "USER_SUBMITTED",
-    "source_label": "Candidate Self-Reported Assessment",
-    "is_demo": false,
-    "data_provenance": "SELF_REPORTED_ASSESSMENT",
-    "created_at": "2026-08-30T16:29:18.424052+00:00",
-    "updated_at": "2026-08-30T16:29:18.424052+00:00"
-  },
-  {
-    "id": "ast-usr-20091659",
-    "name": "Tanmay Joshi",
-    "education": "B.Sc Computer Science",
-    "district": "Maharashtra",
-    "career_goal": "Full Stack Developer",
-    "interests": [
-      "Web Development"
-    ],
-    "current_skills": [
-      {
-        "skill_id": "sk-013",
-        "skill_name": "React",
-        "category": "Web Development",
-        "nsqf_level": 5,
-        "proficiency": "intermediate"
-      }
-    ],
-    "quiz_answers": {
-      "q1": "b"
-    },
-    "quiz_score_pct": 20,
-    "skill_match_pct": 15,
-    "combined_readiness_score": 17,
+    "quiz_score_pct": 10,
+    "skill_match_pct": 0,
+    "combined_readiness_score": 4,
     "evaluation_summary": {
       "readiness_level": "FOUNDATIONAL",
       "readiness_desc": "Early-stage learner profile. Structured vocational curriculum and prerequisite practicals recommended.",
-      "target_role": "Full Stack Developer",
-      "total_target_skills": 5,
-      "acquired_count": 1,
+      "target_role": "CNC Specialist",
+      "total_target_skills": 4,
+      "acquired_count": 0,
       "missing_count": 4,
       "missing_skills": [
         {
@@ -475,17 +494,17 @@
           "category": "Programming",
           "nsqf_level": 5,
           "priority": "HIGH",
-          "gap_pct": 11,
+          "gap_pct": 13,
           "demand_pct": 25
         },
         {
-          "skill_id": "sk-014",
-          "name": "Node.js",
-          "category": "Web Development",
+          "skill_id": "sk-007",
+          "name": "Data Analysis",
+          "category": "Data Science",
           "nsqf_level": 5,
           "priority": "MEDIUM",
-          "gap_pct": 4,
-          "demand_pct": 7
+          "gap_pct": 3,
+          "demand_pct": 9
         },
         {
           "skill_id": "sk-008",
@@ -493,22 +512,22 @@
           "category": "Data Science",
           "nsqf_level": 4,
           "priority": "MEDIUM",
-          "gap_pct": 3,
+          "gap_pct": 4,
           "demand_pct": 9
         },
         {
-          "skill_id": "sk-039",
-          "name": "Full Stack Development",
-          "category": "Web Development",
-          "nsqf_level": 6,
-          "priority": "MEDIUM",
-          "gap_pct": 6,
-          "demand_pct": 8
+          "skill_id": "sk-050",
+          "name": "Communication Skills",
+          "category": "Soft Skills",
+          "nsqf_level": 3,
+          "priority": "LOW",
+          "gap_pct": 1,
+          "demand_pct": 5
         }
       ],
       "recommended_next_steps": [
         "Step 1: Master Python (Programming) to resolve priority labour deficit.",
-        "Step 2: Master Node.js (Web Development) to resolve priority labour deficit.",
+        "Step 2: Master Data Analysis (Data Science) to resolve priority labour deficit.",
         "Step 3: Master SQL (Data Science) to resolve priority labour deficit.",
         "Validate competencies through hands-on lab practicals and apply for state welfare toolkits."
       ],
@@ -533,12 +552,110 @@
         }
       ]
     },
-    "submitted_at": "2026-08-30T16:29:23.339528+00:00",
+    "submitted_at": "2026-08-30T17:41:48.468949+00:00",
     "source": "USER_SUBMITTED",
     "source_label": "Candidate Self-Reported Assessment",
     "is_demo": false,
     "data_provenance": "SELF_REPORTED_ASSESSMENT",
-    "created_at": "2026-08-30T16:29:23.339552+00:00",
-    "updated_at": "2026-08-30T16:29:23.339552+00:00"
+    "user_id": "usr-student-4a378ece",
+    "user_email": "candidate_a_privacy@skillsetu.gov.in",
+    "created_at": "2026-08-30T17:41:48.468964+00:00",
+    "updated_at": "2026-08-30T17:41:48.468964+00:00"
+  },
+  {
+    "id": "ast-usr-63360425",
+    "name": "Ananya Kulkarni",
+    "education": "Diploma in EV Technology",
+    "district": "Nashik",
+    "career_goal": "EV Technician",
+    "interests": [
+      "Electric Vehicles"
+    ],
+    "current_skills": [
+      {
+        "skill_id": "sk-023",
+        "skill_name": "Electrical Maintenance",
+        "category": "Manufacturing",
+        "nsqf_level": 4,
+        "proficiency": "intermediate"
+      }
+    ],
+    "quiz_answers": {
+      "q1": "b",
+      "q2": "b"
+    },
+    "quiz_score_pct": 30,
+    "skill_match_pct": 19,
+    "combined_readiness_score": 23,
+    "evaluation_summary": {
+      "readiness_level": "FOUNDATIONAL",
+      "readiness_desc": "Early-stage learner profile. Structured vocational curriculum and prerequisite practicals recommended.",
+      "target_role": "EV Technician",
+      "total_target_skills": 4,
+      "acquired_count": 1,
+      "missing_count": 3,
+      "missing_skills": [
+        {
+          "skill_id": "sk-018",
+          "name": "EV Battery Technology",
+          "category": "Electric Vehicles",
+          "nsqf_level": 6,
+          "priority": "LOW",
+          "gap_pct": 0,
+          "demand_pct": 4
+        },
+        {
+          "skill_id": "sk-019",
+          "name": "EV Motor Design",
+          "category": "Electric Vehicles",
+          "nsqf_level": 6,
+          "priority": "LOW",
+          "gap_pct": 0,
+          "demand_pct": 1
+        },
+        {
+          "skill_id": "sk-045",
+          "name": "Embedded Systems",
+          "category": "Electronics",
+          "nsqf_level": 6,
+          "priority": "MEDIUM",
+          "gap_pct": 5,
+          "demand_pct": 6
+        }
+      ],
+      "recommended_next_steps": [
+        "Step 1: Master EV Battery Technology (Electric Vehicles) to resolve priority labour deficit.",
+        "Step 2: Master EV Motor Design (Electric Vehicles) to resolve priority labour deficit.",
+        "Step 3: Master Embedded Systems (Electronics) to resolve priority labour deficit.",
+        "Validate competencies through hands-on lab practicals and apply for state welfare toolkits."
+      ],
+      "related_courses": [
+        {
+          "id": "cr-010",
+          "name": "EV Technology & Maintenance",
+          "institute": "KPIT Skill Centre",
+          "district": "Pune"
+        },
+        {
+          "id": "cr-011",
+          "name": "IoT & Embedded Systems",
+          "institute": "Government Polytechnic Nagpur",
+          "district": "Nagpur"
+        },
+        {
+          "id": "cr-024",
+          "name": "Mechatronics",
+          "institute": "Government Polytechnic Pune",
+          "district": "Pune"
+        }
+      ]
+    },
+    "submitted_at": "2026-08-30T17:42:03.858630+00:00",
+    "source": "USER_SUBMITTED",
+    "source_label": "Candidate Self-Reported Assessment",
+    "is_demo": false,
+    "data_provenance": "SELF_REPORTED_ASSESSMENT",
+    "created_at": "2026-08-30T17:42:03.858646+00:00",
+    "updated_at": "2026-08-30T17:42:03.858646+00:00"
   }
 ]

@@ -185,8 +185,20 @@ def init_db():
             try:
                 res = client.table(tbl).select("*").execute()
                 if res.data and len(res.data) > 0:
-                    _cache[tbl] = res.data
-                    logger.info("[DB] Loaded %d records from Supabase table '%s'", len(res.data), tbl)
+                    existing = _cache.setdefault(tbl, [])
+                    existing_ids = {r.get("id") for r in existing if isinstance(r, dict) and r.get("id")}
+                    for r in res.data:
+                        if not isinstance(r, dict):
+                            continue
+                        rid = r.get("id")
+                        if rid and rid in existing_ids:
+                            for idx, item in enumerate(existing):
+                                if isinstance(item, dict) and item.get("id") == rid:
+                                    existing[idx] = r
+                                    break
+                        else:
+                            existing.insert(0, r)
+                    logger.info("[DB] Merged %d records from Supabase table '%s'", len(res.data), tbl)
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 

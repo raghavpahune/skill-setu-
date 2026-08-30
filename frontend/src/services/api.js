@@ -56,6 +56,9 @@ async function fetchJSON(endpoint, options = {}) {
           errMsg = errText;
         }
       }
+      if (errText && (errText.includes('<!DOCTYPE') || errText.includes('<html'))) {
+        errMsg = `Backend API at "${base}" returned HTTP ${res.status} HTML. Verify VITE_API_URL or backend service status.`;
+      }
       throw new Error(errMsg);
     }
 
@@ -63,7 +66,9 @@ async function fetchJSON(endpoint, options = {}) {
     if (!contentType.includes('application/json')) {
       const text = await res.text();
       if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-        throw new Error(`Endpoint ${endpoint} returned HTML instead of JSON. Backend service may be connecting.`);
+        throw new Error(
+          `Backend API is not reachable at "${url}". The request returned an HTML page instead of JSON. Configure VITE_API_URL to point to your deployed Render backend.`
+        );
       }
       try {
         return JSON.parse(text);
