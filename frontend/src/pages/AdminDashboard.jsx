@@ -106,6 +106,7 @@ export default function AdminDashboard() {
 
   // Employer Demands State (Phase 14)
   const [employerDemands, setEmployerDemands] = useState([]);
+  const [empTotalCount, setEmpTotalCount] = useState(0);
   const [empLoading, setEmpLoading] = useState(false);
   const [empDistrictFilter, setEmpDistrictFilter] = useState('All Districts');
   const [empIndustryFilter, setEmpIndustryFilter] = useState('All Industries');
@@ -732,7 +733,7 @@ export default function AdminDashboard() {
         {/* VIEW 0: EXECUTIVE ADMINISTRATIVE OVERVIEW (PHASE 24) */}
         {/* ========================================================================= */}
         {adminTab === 'overview' && (
-          <div className="space-y-8 animate-fadeIn">
+          <div data-demo="admin-overview-section" className="space-y-8 animate-fadeIn">
             {/* Top KPI Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
               <StatCard
@@ -1060,7 +1061,7 @@ export default function AdminDashboard() {
         {/* VIEW 1: STUDENT ASSESSMENTS & TELEMETRY (PHASE 12 & 13) */}
         {/* ========================================================================= */}
         {adminTab === 'students' && (
-        <>
+        <div data-demo="admin-students-section">
           {/* Top Aggregate KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
             <StatCard
@@ -1410,14 +1411,14 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* ========================================================================= */}
       {/* VIEW 2: EMPLOYER DEMANDS & VALIDATION (PHASE 14) */}
       {/* ========================================================================= */}
       {adminTab === 'employers' && (
-        <>
+        <div data-demo="admin-employers-section">
           {/* Top KPI StatCards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
             <StatCard
@@ -1718,7 +1719,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* ========================================================================= */}
@@ -2006,7 +2007,7 @@ export default function AdminDashboard() {
       {/* VIEW 2.5: INSTITUTE COURSES & VOCATIONAL PROGRAMS (PHASE 25) */}
       {/* ========================================================================= */}
       {adminTab === 'institutes' && (
-        <>
+        <div data-demo="admin-institutes-section">
           {/* Top Aggregate KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <StatCard
@@ -2224,7 +2225,7 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* INSPECT INSTITUTE COURSE MODAL (Phase 25) */}
@@ -2325,7 +2326,7 @@ export default function AdminDashboard() {
       {/* VIEW 3: GOVERNMENT OPPORTUNITIES MANAGEMENT (PHASE 15) */}
       {/* ========================================================================= */}
       {adminTab === 'gov' && (
-        <>
+        <div data-demo="admin-gov-section">
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <StatCard
@@ -2509,14 +2510,14 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* ========================================================================= */}
       {/* 5. INDUSTRY INTELLIGENCE & AUTOMATED INGESTION TAB (Phase 26)             */}
       {/* ========================================================================= */}
       {adminTab === 'industry' && (
-        <>
+        <div data-demo="admin-signals-section">
           {/* Header & Ingestion Trigger Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
@@ -2825,7 +2826,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* ========================================================================= */}

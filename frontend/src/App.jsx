@@ -75,7 +75,12 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/student/copilot" element={<CopilotPage />} />
+              <Route path="/copilot" element={<CopilotPage />} />
+              <Route path="/student/copilot" element={<CopilotPage roleOverride="student" />} />
+              <Route path="/employer/copilot" element={<CopilotPage roleOverride="employer" />} />
+              <Route path="/institute/copilot" element={<CopilotPage roleOverride="institute" />} />
+              <Route path="/government/copilot" element={<CopilotPage roleOverride="government" />} />
+              <Route path="/admin/copilot" element={<CopilotPage roleOverride="admin" />} />
               <Route
                 path="/employer"
                 element={

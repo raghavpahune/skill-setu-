@@ -35,15 +35,19 @@ export default function Login() {
 
     try {
       const user = await login(email, password);
-      // Route intelligently based on user role if from is home or login
-      if (from === '/' || from === '/login') {
-        const role = (user.role || '').toUpperCase();
-        if (role === 'STUDENT') navigate('/student');
-        else if (role === 'EMPLOYER') navigate('/employer');
-        else if (role === 'INSTITUTE') navigate('/institute');
-        else if (role === 'GOVERNMENT') navigate('/government');
-        else if (role === 'ADMIN') navigate('/admin');
-        else navigate('/');
+      const role = (user?.role || '').toUpperCase();
+      const roleDefaultRoute =
+        {
+          STUDENT: '/student',
+          EMPLOYER: '/employer',
+          INSTITUTE: '/institute',
+          GOVERNMENT: '/government',
+          ADMIN: '/admin',
+        }[role] || '/';
+
+      // Route directly to the authenticated role's primary command center
+      if (from === '/' || from === '/login' || !from) {
+        navigate(roleDefaultRoute, { replace: true });
       } else {
         navigate(from, { replace: true });
       }

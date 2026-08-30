@@ -205,7 +205,7 @@ export default function Layout({ children }) {
   const footerConfig = getFooterLinksForRole(role, isAuthenticated);
 
   const isActive = (path) => {
-    if (path === '/student/copilot') return location.pathname === path;
+    if (path.includes('copilot')) return location.pathname.includes('copilot');
     if (path === '/student') return location.pathname === '/student';
     if (path === '/admin') return location.pathname === '/admin';
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path) && path !== '/student');

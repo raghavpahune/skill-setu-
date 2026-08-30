@@ -2,12 +2,23 @@ import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import CopilotChat from '../components/CopilotChat';
+import { useAuth } from '../context/AuthContext';
 
-export default function CopilotPage() {
+export default function CopilotPage({ roleOverride }) {
   const [searchParams] = useSearchParams();
+  const { role: authRole, isAuthenticated } = useAuth();
   const urlRole = searchParams.get('role');
-  const validRoles = ['government', 'institute', 'student', 'employer'];
-  const initialRole = validRoles.includes(urlRole) ? urlRole : 'government';
+  const validRoles = ['government', 'institute', 'student', 'employer', 'admin'];
+
+  let initialRole = 'student';
+  if (roleOverride && validRoles.includes(roleOverride.toLowerCase())) {
+    initialRole = roleOverride.toLowerCase();
+  } else if (urlRole && validRoles.includes(urlRole.toLowerCase())) {
+    initialRole = urlRole.toLowerCase();
+  } else if (isAuthenticated && authRole && validRoles.includes(authRole.toLowerCase())) {
+    initialRole = authRole.toLowerCase();
+  }
+
   const initialPrompt = searchParams.get('q') || '';
   const urlDistrict = searchParams.get('district') || '';
   const urlStudentId = searchParams.get('student_id') || searchParams.get('student') || '';
@@ -23,7 +34,7 @@ export default function CopilotPage() {
             SkillSetu Intelligence Copilot
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl mx-auto">
-            Query labour-market intelligence, verify district skill supply gaps, assess curriculum alignment, and guide student career choices.
+            Query labour-market intelligence, verify district skill supply gaps, assess curriculum alignment, and guide career choices.
           </p>
         </div>
 
@@ -38,5 +49,4 @@ export default function CopilotPage() {
       </div>
     </Layout>
   );
-
 }

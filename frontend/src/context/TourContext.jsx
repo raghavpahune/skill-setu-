@@ -58,7 +58,7 @@ export const STUDENT_TOUR_STEPS = [
   },
   {
     step: 6,
-    route: '/student/copilot?role=student',
+    route: '/student/copilot',
     targetSelector: '[data-demo="copilot-chat-container"]',
     stage: '06. AI Career Copilot',
     title: 'Evidence-Based AI Career Copilot',
@@ -114,7 +114,7 @@ export const EMPLOYER_TOUR_STEPS = [
   },
   {
     step: 5,
-    route: '/student/copilot?role=employer',
+    route: '/employer/copilot',
     targetSelector: '[data-demo="copilot-chat-container"]',
     stage: '05. Talent Intelligence Copilot',
     title: 'Conversational Labour Intelligence',
@@ -160,7 +160,7 @@ export const INSTITUTE_TOUR_STEPS = [
   },
   {
     step: 4,
-    route: '/student/copilot?role=institute',
+    route: '/institute/copilot',
     targetSelector: '[data-demo="copilot-chat-container"]',
     stage: '04. Academic Copilot',
     title: 'Academic & NSQF Decision Support',
@@ -226,7 +226,7 @@ export const GOVERNMENT_TOUR_STEPS = [
   },
   {
     step: 6,
-    route: '/student/copilot?role=government',
+    route: '/government/copilot',
     targetSelector: '[data-demo="copilot-chat-container"]',
     stage: '06. Policy AI Copilot',
     title: 'Government Decision-Support Copilot',
@@ -242,8 +242,8 @@ export const GOVERNMENT_TOUR_STEPS = [
 export const ADMIN_TOUR_STEPS = [
   {
     step: 1,
-    route: '/admin',
-    targetSelector: '[data-demo="admin-dashboard-container"]',
+    route: '/admin?tab=overview',
+    targetSelector: '[data-demo="admin-overview-section"]',
     stage: '01. Executive Governance',
     title: 'Administrative Command Center',
     description: 'Complete oversight across Student, Employer, Institute, Government, and Industry telemetry pipelines.',
@@ -252,8 +252,8 @@ export const ADMIN_TOUR_STEPS = [
   },
   {
     step: 2,
-    route: '/admin',
-    targetSelector: '[data-demo="admin-dashboard-container"]',
+    route: '/admin?tab=students',
+    targetSelector: '[data-demo="admin-students-section"]',
     stage: '02. Assessment Telemetry',
     title: 'Student Assessment Registry & Provenance',
     description: 'Real-time candidate telemetry partitioned into USER_SUBMITTED (live assessments) and DEMO_SYNTHETIC (baseline benchmarks).',
@@ -262,8 +262,8 @@ export const ADMIN_TOUR_STEPS = [
   },
   {
     step: 3,
-    route: '/admin',
-    targetSelector: '[data-demo="admin-dashboard-container"]',
+    route: '/admin?tab=employers',
+    targetSelector: '[data-demo="admin-employers-section"]',
     stage: '03. Employer Validation Gate',
     title: 'First-Party Employer Demands Moderation',
     description: 'Review, validate, or reject incoming industry hiring demand orders before inclusion in recommendation models.',
@@ -272,8 +272,8 @@ export const ADMIN_TOUR_STEPS = [
   },
   {
     step: 4,
-    route: '/admin',
-    targetSelector: '[data-demo="admin-dashboard-container"]',
+    route: '/admin?tab=industry',
+    targetSelector: '[data-demo="admin-signals-section"]',
     stage: '04. Industry Intelligence Moderation',
     title: 'Continuous Signal Ingestion & Moderation',
     description: 'Audit automated technology signals, manage source credibility scores, and trigger manual web ingestion runs.',
@@ -282,7 +282,7 @@ export const ADMIN_TOUR_STEPS = [
   },
   {
     step: 5,
-    route: '/student/copilot',
+    route: '/admin/copilot',
     targetSelector: '[data-demo="copilot-chat-container"]',
     stage: '05. Cross-Platform Copilot',
     title: 'Platform-Wide Conversational AI',

@@ -277,8 +277,8 @@ export default function DemoTour() {
         />
       )}
 
-      {/* Step 13: Full Ecosystem Summary Modal (Centered) */}
-      {isLastStep ? (
+      {/* Optional Full Ecosystem Summary Modal (Centered) */}
+      {currentStep.isSummary ? (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
           <div
             ref={popoverRef}
@@ -353,46 +353,6 @@ export default function DemoTour() {
               </div>
             </div>
 
-            {/* 7 Key Differentiators */}
-            <div className="mt-5 space-y-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Core Competitive Differentiators
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">✓</span>
-                  <div><strong className="text-slate-800 dark:text-slate-200">Evidence-Based:</strong> Real Maharashtra job postings and data.gov.in integration.</div>
-                </div>
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">✓</span>
-                  <div><strong className="text-slate-800 dark:text-slate-200">Human-in-the-Loop:</strong> Employers validate and calibrate AI signals.</div>
-                </div>
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">✓</span>
-                  <div><strong className="text-slate-800 dark:text-slate-200">5D Explainability:</strong> Tells students WHY a skill matters before learning.</div>
-                </div>
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">✓</span>
-                  <div><strong className="text-slate-800 dark:text-slate-200">Policy Simulator:</strong> Pre-tests seat additions and stagnation risk.</div>
-                </div>
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">✓</span>
-                  <div><strong className="text-slate-800 dark:text-slate-200">Grounded Copilot:</strong> Zero hallucination with database citation.</div>
-                </div>
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">✓</span>
-                  <div><strong className="text-slate-800 dark:text-slate-200">District Actionable:</strong> Generates concrete trainer & equipment micro-plans.</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Closing Statement */}
-            <div className="mt-5 p-3.5 rounded-xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/10 border border-teal-500/20 text-center">
-              <p className="text-sm font-bold text-teal-900 dark:text-teal-200">
-                “SkillSetu turns fragmented skill data into actionable, accountable decisions.”
-              </p>
-            </div>
-
             {/* Actions */}
             <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <button
@@ -411,7 +371,7 @@ export default function DemoTour() {
           </div>
         </div>
       ) : (
-        /* Steps 1 to 13: Floating Popover Attached to Target or Fixed in Viewport */
+        /* Standard Floating Popover Attached to Target */
         <div
           ref={popoverRef}
           style={
@@ -496,11 +456,11 @@ export default function DemoTour() {
                   </button>
                 )}
                 <button
-                  onClick={nextStep}
+                  onClick={isLastStep ? exitTour : nextStep}
                   className="px-4 py-1.5 font-bold rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
                 >
-                  <span>Next</span>
-                  <span>→</span>
+                  <span>{isLastStep ? 'Finish Tour ✓' : 'Next'}</span>
+                  {!isLastStep && <span>→</span>}
                 </button>
               </div>
             </div>
