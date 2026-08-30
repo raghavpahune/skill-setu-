@@ -9,10 +9,10 @@
 -- USERS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('government', 'institute', 'employer', 'student')),
+    role TEXT NOT NULL CHECK (UPPER(role) IN ('GOVERNMENT', 'INSTITUTE', 'EMPLOYER', 'STUDENT', 'ADMIN')),
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -360,3 +360,59 @@ CREATE INDEX IF NOT EXISTS idx_signals_category ON industry_signals(category);
 CREATE INDEX IF NOT EXISTS idx_signals_industry ON industry_signals(industry);
 CREATE INDEX IF NOT EXISTS idx_signals_active ON industry_signals(is_active);
 CREATE INDEX IF NOT EXISTS idx_signals_status ON industry_signals(validation_status);
+
+-- ============================================================
+-- STUDENT_ASSESSMENTS Table for Phase 24 & Real-Data Hardening
+-- ============================================================
+CREATE TABLE IF NOT EXISTS student_assessments (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    user_email TEXT,
+    name TEXT NOT NULL,
+    education TEXT,
+    district TEXT DEFAULT 'Maharashtra',
+    career_goal TEXT NOT NULL,
+    interests TEXT[] DEFAULT '{}',
+    current_skills JSONB DEFAULT '[]'::jsonb,
+    quiz_answers JSONB DEFAULT '{}'::jsonb,
+    quiz_score_pct INT DEFAULT 0,
+    skill_match_pct INT DEFAULT 0,
+    combined_readiness_score INT DEFAULT 0,
+    evaluation_summary JSONB DEFAULT '{}'::jsonb,
+    source TEXT DEFAULT 'USER_SUBMITTED',
+    is_demo BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_assessments_user ON student_assessments(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_assessments_district ON student_assessments(district);
+CREATE INDEX IF NOT EXISTS idx_student_assessments_goal ON student_assessments(career_goal);
+
+-- ============================================================
+-- GOV_OPPORTUNITIES Table for Phase 25 & Government Scheme Publishing
+-- ============================================================
+CREATE TABLE IF NOT EXISTS gov_opportunities (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    department TEXT,
+    description TEXT,
+    eligibility_criteria TEXT,
+    target_skills TEXT[] DEFAULT '{}',
+    district_coverage TEXT[] DEFAULT '{}',
+    opportunity_type TEXT DEFAULT 'APPRENTICESHIP',
+    application_url TEXT,
+    deadline TEXT,
+    status TEXT DEFAULT 'active',
+    source TEXT DEFAULT 'USER_SUBMITTED',
+    data_provenance TEXT DEFAULT 'GOVERNMENT_OFFICIAL',
+    is_demo BOOLEAN DEFAULT FALSE,
+    user_id TEXT,
+    user_email TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gov_opps_status ON gov_opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_gov_opps_type ON gov_opportunities(opportunity_type);
+

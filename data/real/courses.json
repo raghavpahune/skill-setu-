@@ -1,5 +1,44 @@
 [
   {
+    "id": "cr-inst-b0cbe4b1",
+    "course_id": "cr-inst-b0cbe4b1",
+    "name": "Advanced EV Battery Diagnostics & BMS Testing",
+    "course_name": "Advanced EV Battery Diagnostics & BMS Testing",
+    "description": "Comprehensive practical lab curriculum for EV powertrains and high-voltage battery safety.",
+    "institute": "Government Polytechnic Pune",
+    "institute_name": "Government Polytechnic Pune",
+    "district": "Pune",
+    "category": "Automotive & Clean Energy",
+    "skills": [
+      "EV Battery Technology",
+      "Battery Management (BMS)",
+      "CAN Bus"
+    ],
+    "skills_taught": [
+      "EV Battery Technology",
+      "Battery Management (BMS)",
+      "CAN Bus"
+    ],
+    "nsqf_level": 6,
+    "enrolment_count": 60,
+    "enrolment_capacity": 60,
+    "student_count": 60,
+    "placed_count": 52,
+    "placement_rate": 87,
+    "duration_weeks": 16,
+    "certifications": "MSBTE & DGT Certificate in Clean Energy",
+    "status": "active",
+    "source": "USER_SUBMITTED",
+    "is_demo": false,
+    "data_provenance": "INSTITUTE_REPORTED",
+    "submitted_at": "2026-08-30T17:55:23.096898+00:00",
+    "user_id": "usr-institute-001",
+    "user_email": "institute@skillsetu.gov.in",
+    "institute_id": "inst-coep",
+    "created_at": "2026-08-30T17:55:23.096913+00:00",
+    "updated_at": "2026-08-30T17:55:23.096913+00:00"
+  },
+  {
     "id": "cr-inst-9a2eba1e",
     "course_id": "cr-inst-9a2eba1e",
     "name": "Advanced EV Battery Diagnostics & BMS Testing",
@@ -861,5 +900,83 @@
     "institute_id": "inst-coep",
     "created_at": "2026-08-30T17:41:47.698143+00:00",
     "updated_at": "2026-08-30T17:41:47.698143+00:00"
+  },
+  {
+    "id": "cr-inst-34b6358c",
+    "course_id": "cr-inst-34b6358c",
+    "name": "Advanced EV Powertrain & BMS Diagnostics",
+    "course_name": "Advanced EV Powertrain & BMS Diagnostics",
+    "description": "Hands-on vocational certification in EV high-voltage battery assembly and motor calibration.",
+    "institute": "Government Polytechnic Pune",
+    "institute_name": "Government Polytechnic Pune",
+    "district": "Pune",
+    "category": "Automotive & Clean Energy",
+    "skills": [
+      "EV Battery Technology",
+      "Battery Management (BMS)",
+      "Motor Control"
+    ],
+    "skills_taught": [
+      "EV Battery Technology",
+      "Battery Management (BMS)",
+      "Motor Control"
+    ],
+    "nsqf_level": 6,
+    "enrolment_count": 80,
+    "enrolment_capacity": 80,
+    "student_count": 80,
+    "placed_count": 68,
+    "placement_rate": 85,
+    "duration_weeks": 24,
+    "certifications": "MSBTE Advanced Certificate in EV Systems",
+    "status": "active",
+    "source": "USER_SUBMITTED",
+    "is_demo": false,
+    "data_provenance": "INSTITUTE_REPORTED",
+    "submitted_at": "2026-08-30T17:55:20.248032+00:00",
+    "user_id": "usr-institute-001",
+    "user_email": "institute@skillsetu.gov.in",
+    "institute_id": "inst-coep",
+    "created_at": "2026-08-30T17:55:20.248048+00:00",
+    "updated_at": "2026-08-30T17:55:20.248048+00:00"
+  },
+  {
+    "id": "cr-inst-8b9ffc92",
+    "course_id": "cr-inst-8b9ffc92",
+    "name": "Advanced Cyber-Physical Factory Systems",
+    "course_name": "Advanced Cyber-Physical Factory Systems",
+    "description": "Comprehensive cyber-physical factory testbed curriculum.",
+    "institute": "Government Polytechnic Pune",
+    "institute_name": "Government Polytechnic Pune",
+    "district": "Pune",
+    "category": "Advanced Manufacturing",
+    "skills": [
+      "PLC Programming",
+      "SCADA",
+      "Industrial IoT"
+    ],
+    "skills_taught": [
+      "PLC Programming",
+      "SCADA",
+      "Industrial IoT"
+    ],
+    "nsqf_level": 6,
+    "enrolment_count": 60,
+    "enrolment_capacity": 60,
+    "student_count": 60,
+    "placed_count": 48,
+    "placement_rate": 80,
+    "duration_weeks": 24,
+    "certifications": "MSBTE Certified",
+    "status": "active",
+    "source": "USER_SUBMITTED",
+    "is_demo": false,
+    "data_provenance": "INSTITUTE_REPORTED",
+    "submitted_at": "2026-08-30T17:55:35.878107+00:00",
+    "user_id": "usr-institute-001",
+    "user_email": "institute@skillsetu.gov.in",
+    "institute_id": "inst-coep",
+    "created_at": "2026-08-30T17:55:35.878120+00:00",
+    "updated_at": "2026-08-30T17:55:35.878120+00:00"
   }
 ]

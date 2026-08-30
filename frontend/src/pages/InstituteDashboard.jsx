@@ -221,6 +221,7 @@ export default function InstituteDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
 
   // Submit Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -249,10 +250,12 @@ export default function InstituteDashboard() {
   };
 
   const fetchCourses = async () => {
+    setLoading(true);
+    setApiError(null);
     try {
       const [coursesRes, recsRes] = await Promise.all([
-        api.getInstituteCourses().catch(() => null),
-        api.getCourseRecommendations().catch(() => null),
+        api.getInstituteCourses(),
+        api.getCourseRecommendations(),
       ]);
       if (Array.isArray(coursesRes) && coursesRes.length > 0) {
         setCourses(coursesRes);
@@ -260,6 +263,9 @@ export default function InstituteDashboard() {
       if (Array.isArray(recsRes) && recsRes.length > 0) {
         setRecommendations(recsRes);
       }
+    } catch (err) {
+      console.warn('Failed loading institute live data:', err);
+      setApiError(err?.message || 'Could not connect to live backend API. Displaying offline demo baseline.');
     } finally {
       setLoading(false);
     }
@@ -468,6 +474,24 @@ export default function InstituteDashboard() {
           </Link>
         </div>
       </div>
+
+      {apiError && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">⚠️</span>
+            <div>
+              <span className="font-bold">Live Data Disconnected: </span>
+              <span>{apiError}</span>
+            </div>
+          </div>
+          <button
+            onClick={fetchCourses}
+            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mb-6">

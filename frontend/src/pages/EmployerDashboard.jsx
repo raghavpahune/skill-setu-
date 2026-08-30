@@ -352,6 +352,7 @@ export default function EmployerDashboard() {
   const [difficultSkills, setDifficultSkills] = useState(DEFAULT_DIFFICULT_SKILLS);
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all');
@@ -392,38 +393,30 @@ export default function EmployerDashboard() {
   // Notifications
   const [toastMessage, setToastMessage] = useState(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadEmployerData = async () => {
     setLoading(true);
+    setApiError(null);
+    try {
+      const [valsRes, demandsRes, diffRes, sigsRes] = await Promise.all([
+        api.getEmployerValidations(),
+        api.getEmployerDemands(),
+        api.getDifficultSkills(),
+        api.getSignals(),
+      ]);
+      if (Array.isArray(valsRes) && valsRes.length > 0) setValidations(valsRes);
+      if (Array.isArray(demandsRes) && demandsRes.length > 0) setDemands(demandsRes);
+      if (Array.isArray(diffRes) && diffRes.length > 0) setDifficultSkills(diffRes);
+      if (Array.isArray(sigsRes) && sigsRes.length > 0) setSignals(sigsRes);
+    } catch (err) {
+      console.warn('Failed loading employer live data:', err);
+      setApiError(err?.message || 'Could not connect to live backend API. Displaying offline demo baseline.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    Promise.all([
-      api.getEmployerValidations().catch(() => null),
-      api.getEmployerDemands().catch(() => null),
-      api.getDifficultSkills().catch(() => null),
-      api.getSignals().catch(() => null),
-    ])
-      .then(([valsRes, demandsRes, diffRes, sigsRes]) => {
-        if (!isMounted) return;
-        if (Array.isArray(valsRes) && valsRes.length > 0) {
-          setValidations(valsRes);
-        }
-        if (Array.isArray(demandsRes) && demandsRes.length > 0) {
-          setDemands(demandsRes);
-        }
-        if (Array.isArray(diffRes) && diffRes.length > 0) {
-          setDifficultSkills(diffRes);
-        }
-        if (Array.isArray(sigsRes) && sigsRes.length > 0) {
-          setSignals(sigsRes);
-        }
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    loadEmployerData();
   }, []);
 
   const showToast = (type, message) => {
@@ -855,6 +848,24 @@ export default function EmployerDashboard() {
           </span>
         </button>
       </div>
+
+      {apiError && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">⚠️</span>
+            <div>
+              <span className="font-bold">Live Data Disconnected: </span>
+              <span>{apiError}</span>
+            </div>
+          </div>
+          <button
+            onClick={loadEmployerData}
+            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* TAB 1: AI SIGNAL VALIDATION QUEUE */}
       {activeTab === 'validation' && (

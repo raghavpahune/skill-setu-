@@ -10,9 +10,9 @@
     "source_url": "https://nasscom.in",
     "source_name": "NASSCOM",
     "source_type": "INDUSTRY_ANNOUNCEMENT",
-    "published_at": "2026-08-30T17:41:34.549851+00:00",
-    "collected_at": "2026-08-30T17:41:34.549905+00:00",
-    "updated_at": "2026-08-30T17:41:34.549942+00:00",
+    "published_at": "2026-08-30T17:55:25.800872+00:00",
+    "collected_at": "2026-08-30T17:55:25.800914+00:00",
+    "updated_at": "2026-08-30T17:55:25.800937+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -26,7 +26,7 @@
     "impact_level": "high",
     "signal_date": "2026-08-30",
     "source": "NASSCOM",
-    "created_at": "2026-08-30T17:41:34.549942+00:00"
+    "created_at": "2026-08-30T17:55:25.800937+00:00"
   },
   {
     "id": "nasscom-genai-2026-q3",
@@ -50,9 +50,9 @@
     "source_url": "https://nasscom.in/research/genai-talent-index-2026",
     "source_name": "NASSCOM Strategic Review & FutureSkills Prime",
     "source_type": "INDUSTRY_ANNOUNCEMENT",
-    "published_at": "2026-08-30T17:40:23.129606+00:00",
-    "collected_at": "2026-08-30T17:41:32.842169+00:00",
-    "updated_at": "2026-08-30T17:41:46.859928+00:00",
+    "published_at": "2026-08-30T17:54:13.693555+00:00",
+    "collected_at": "2026-08-30T17:55:24.457964+00:00",
+    "updated_at": "2026-08-30T17:55:35.176558+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -66,7 +66,7 @@
     "impact_level": "high",
     "signal_date": "2026-08-30",
     "source": "NASSCOM Strategic Review & FutureSkills Prime",
-    "created_at": "2026-08-30T17:41:32.842267+00:00"
+    "created_at": "2026-08-30T17:55:24.458061+00:00"
   },
   {
     "id": "siam-ev-chakan-2026",
@@ -88,9 +88,9 @@
     "source_url": "https://siam.in/reports/maharashtra-ev-workforce-2026",
     "source_name": "Society of Indian Automobile Manufacturers (SIAM)",
     "source_type": "INDUSTRY_ANNOUNCEMENT",
-    "published_at": "2026-08-30T17:40:23.129615+00:00",
-    "collected_at": "2026-08-30T17:41:32.843158+00:00",
-    "updated_at": "2026-08-30T17:41:46.861663+00:00",
+    "published_at": "2026-08-30T17:54:13.693563+00:00",
+    "collected_at": "2026-08-30T17:55:24.459089+00:00",
+    "updated_at": "2026-08-30T17:55:35.177450+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -104,7 +104,7 @@
     "impact_level": "high",
     "signal_date": "2026-08-30",
     "source": "Society of Indian Automobile Manufacturers (SIAM)",
-    "created_at": "2026-08-30T17:41:32.843202+00:00"
+    "created_at": "2026-08-30T17:55:24.459177+00:00"
   },
   {
     "id": "dvet-circ-2026-108",
@@ -126,9 +126,9 @@
     "source_url": "https://dvet.gov.in/notifications/iti-industry40-modernization",
     "source_name": "Directorate of Vocational Education & Training (DVET) Maharashtra",
     "source_type": "OFFICIAL_GOV",
-    "published_at": "2026-08-30T17:40:23.129617+00:00",
-    "collected_at": "2026-08-30T17:41:32.843875+00:00",
-    "updated_at": "2026-08-30T17:41:46.863100+00:00",
+    "published_at": "2026-08-30T17:54:13.693565+00:00",
+    "collected_at": "2026-08-30T17:55:24.460086+00:00",
+    "updated_at": "2026-08-30T17:55:35.178288+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -142,7 +142,7 @@
     "impact_level": "high",
     "signal_date": "2026-08-30",
     "source": "Directorate of Vocational Education & Training (DVET) Maharashtra",
-    "created_at": "2026-08-30T17:41:32.843912+00:00"
+    "created_at": "2026-08-30T17:55:24.460117+00:00"
   },
   {
     "id": "cncf-landscape-2026",
@@ -166,9 +166,9 @@
     "source_url": "https://cncf.io/reports/cloud-native-standards-2026",
     "source_name": "Cloud Native Computing Foundation (CNCF) & Linux Foundation",
     "source_type": "TECH_DOCUMENTATION",
-    "published_at": "2026-08-30T17:40:23.129618+00:00",
-    "collected_at": "2026-08-30T17:41:32.844628+00:00",
-    "updated_at": "2026-08-30T17:41:46.863968+00:00",
+    "published_at": "2026-08-30T17:54:13.693567+00:00",
+    "collected_at": "2026-08-30T17:55:24.460913+00:00",
+    "updated_at": "2026-08-30T17:55:35.179058+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -182,7 +182,7 @@
     "impact_level": "high",
     "signal_date": "2026-08-30",
     "source": "Cloud Native Computing Foundation (CNCF) & Linux Foundation",
-    "created_at": "2026-08-30T17:41:32.844664+00:00"
+    "created_at": "2026-08-30T17:55:24.460942+00:00"
   },
   {
     "id": "msbte-curric-cyber-2026",
@@ -205,9 +205,9 @@
     "source_url": "https://msbte.org.in/curriculum/cybersecurity-elective-2026",
     "source_name": "Maharashtra State Board of Technical Education (MSBTE)",
     "source_type": "OFFICIAL_GOV",
-    "published_at": "2026-08-30T17:40:23.129620+00:00",
-    "collected_at": "2026-08-30T17:41:32.845306+00:00",
-    "updated_at": "2026-08-30T17:41:46.864597+00:00",
+    "published_at": "2026-08-30T17:54:13.693568+00:00",
+    "collected_at": "2026-08-30T17:55:24.461656+00:00",
+    "updated_at": "2026-08-30T17:55:35.179846+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -221,6 +221,6 @@
     "impact_level": "high",
     "signal_date": "2026-08-30",
     "source": "Maharashtra State Board of Technical Education (MSBTE)",
-    "created_at": "2026-08-30T17:41:32.845334+00:00"
+    "created_at": "2026-08-30T17:55:24.461688+00:00"
   }
 ]
