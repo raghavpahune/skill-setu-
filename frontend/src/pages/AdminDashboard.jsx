@@ -3,8 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { api } from '../services/api';
-
-const DEFAULT_DEMO_KEY = 'demo-admin-key-2026';
+import { useAuth } from '../context/AuthContext';
 
 const DISTRICTS = [
   'All Districts',
@@ -53,14 +52,17 @@ const INDUSTRIES = [
 ];
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
   
   // Navigation Tab State
-  const [adminTab, setAdminTab] = useState(urlTab && ['students', 'employers', 'gov'].includes(urlTab) ? urlTab : 'students');
+  const [adminTab, setAdminTab] = useState(
+    urlTab && ['overview', 'students', 'employers', 'institutes', 'gov'].includes(urlTab) ? urlTab : 'overview'
+  );
 
   useEffect(() => {
-    if (urlTab && ['students', 'employers', 'gov'].includes(urlTab)) {
+    if (urlTab && ['overview', 'students', 'employers', 'institutes', 'gov'].includes(urlTab)) {
       setAdminTab(urlTab);
     }
   }, [urlTab]);
@@ -72,15 +74,13 @@ export default function AdminDashboard() {
     setSearchParams(newParams, { replace: true });
   };
 
-  // Admin Key State
+  // Admin Key State (optional custom header override for specialized environments)
   const [adminKey, setAdminKey] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.localStorage?.getItem('skillsetu_admin_key') || DEFAULT_DEMO_KEY;
+      return window.localStorage?.getItem('skillsetu_admin_key') || '';
     }
-    return DEFAULT_DEMO_KEY;
+    return '';
   });
-  const [keyModalOpen, setKeyModalOpen] = useState(false);
-  const [keyInput, setKeyInput] = useState(adminKey);
 
   // Student Data & Stats State (Phase 12 & 13)
   const [stats, setStats] = useState(null);
@@ -107,6 +107,7 @@ export default function AdminDashboard() {
   // Employer Demands State (Phase 14)
   const [employerDemands, setEmployerDemands] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
+  const [empTotalCount, setEmpTotalCount] = useState(0);
   const [empDistrictFilter, setEmpDistrictFilter] = useState('All Districts');
   const [empIndustryFilter, setEmpIndustryFilter] = useState('All Industries');
   const [empStatusFilter, setEmpStatusFilter] = useState('all'); // 'all' | 'PENDING' | 'VALIDATED' | 'REJECTED'
@@ -115,6 +116,18 @@ export default function AdminDashboard() {
   const [selectedDemand, setSelectedDemand] = useState(null);
   const [inspectDemandModalOpen, setInspectDemandModalOpen] = useState(false);
   const [adminNotesInput, setAdminNotesInput] = useState('');
+
+  // Institute Courses State (Phase 25)
+  const [adminCourses, setAdminCourses] = useState([]);
+  const [courseStats, setCourseStats] = useState({ total: 0, user_submitted_count: 0, demo_synthetic_count: 0 });
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [courseDistrictFilter, setCourseDistrictFilter] = useState('All Districts');
+  const [courseCategoryFilter, setCourseCategoryFilter] = useState('all');
+  const [courseSourceFilter, setCourseSourceFilter] = useState('all');
+  const [courseStatusFilter, setCourseStatusFilter] = useState('all');
+  const [courseSearchTerm, setCourseSearchTerm] = useState('');
+  const [selectedAdminCourse, setSelectedAdminCourse] = useState(null);
+  const [inspectCourseModalOpen, setInspectCourseModalOpen] = useState(false);
 
   // Government Opportunities State (Phase 15)
   const [govOpportunities, setGovOpportunities] = useState([]);
@@ -159,7 +172,7 @@ export default function AdminDashboard() {
         setAssessments(listRes.value.assessments || []);
         setTotalCount(listRes.value.total || 0);
       } else if (listRes.status === 'rejected' && listRes.reason?.message?.includes('401')) {
-        setAuthError('Unauthorized: Invalid or missing administrator key. Click "Configure Admin Key" to enter valid credentials.');
+        setAuthError('Unauthorized: Invalid or missing administrator key.');
       }
       setLoading(false);
     });
@@ -192,9 +205,36 @@ export default function AdminDashboard() {
       });
   }, [adminKey, empDistrictFilter, empIndustryFilter, empStatusFilter, empSourceFilter, empSearchTerm]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // Load Institute Courses Data (Phase 25)
+  const fetchAdminCourses = useCallback(() => {
+    setCoursesLoading(true);
+    const params = {};
+    if (courseDistrictFilter !== 'All Districts') params.district = courseDistrictFilter;
+    if (courseCategoryFilter !== 'all') params.category = courseCategoryFilter;
+    if (courseSourceFilter !== 'all') params.source = courseSourceFilter;
+    if (courseStatusFilter !== 'all') params.status = courseStatusFilter;
+    if (courseSearchTerm.trim()) params.search = courseSearchTerm.trim();
+
+    api.getAdminCourses(params, adminKey)
+      .then((res) => {
+        if (res?.status === 'success') {
+          setAdminCourses(res.courses || []);
+          setCourseStats({
+            total: res.total || 0,
+            user_submitted_count: res.user_submitted_count || 0,
+            demo_synthetic_count: res.demo_synthetic_count || 0,
+          });
+        }
+      })
+      .catch((err) => {
+        if (err?.message?.includes('401')) {
+          setAuthError('Unauthorized: Invalid or missing administrator key.');
+        }
+      })
+      .finally(() => {
+        setCoursesLoading(false);
+      });
+  }, [adminKey, courseDistrictFilter, courseCategoryFilter, courseSourceFilter, courseStatusFilter, courseSearchTerm]);
 
   // Load Government Opportunities Data (Phase 15)
   const fetchGovData = useCallback(() => {
@@ -221,23 +261,22 @@ export default function AdminDashboard() {
   }, [adminKey, govDistrictFilter, govTypeFilter, govStatusFilter, govSearchTerm]);
 
   useEffect(() => {
-    if (adminTab === 'employers') {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (adminTab === 'overview') {
       fetchEmployerData();
+      fetchAdminCourses();
+      fetchGovData();
+    } else if (adminTab === 'employers') {
+      fetchEmployerData();
+    } else if (adminTab === 'institutes') {
+      fetchAdminCourses();
     } else if (adminTab === 'gov') {
       fetchGovData();
     }
-  }, [adminTab, fetchEmployerData, fetchGovData]);
-
-  // Save Key Handler
-  const handleSaveKey = (newKey) => {
-    const clean = newKey.trim();
-    setAdminKey(clean);
-    if (typeof window !== 'undefined') {
-      window.localStorage?.setItem('skillsetu_admin_key', clean);
-    }
-    setKeyModalOpen(false);
-    setAuthError(null);
-  };
+  }, [adminTab, fetchEmployerData, fetchAdminCourses, fetchGovData]);
 
   // Delete Assessment Record Handler
   const handleDelete = async (id, name) => {
@@ -329,6 +368,35 @@ export default function AdminDashboard() {
     }
   };
 
+  // Institute Courses Handlers (Phase 25)
+  const handleDeleteAdminCourse = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to remove course '${name}' (${id})?`)) {
+      return;
+    }
+    try {
+      await api.deleteAdminCourse(id, adminKey);
+      setActionMessage(`Course program '${id}' successfully removed.`);
+      setTimeout(() => setActionMessage(null), 4000);
+      if (selectedAdminCourse?.id === id) {
+        setInspectCourseModalOpen(false);
+      }
+      fetchAdminCourses();
+    } catch (err) {
+      alert(`Failed to delete course program: ${err?.message || err}`);
+    }
+  };
+
+  const handleUpdateAdminCourseStatus = async (id, newStatus) => {
+    try {
+      await api.updateAdminCourse(id, { status: newStatus }, adminKey);
+      setActionMessage(`Course '${id}' status updated to ${newStatus}.`);
+      setTimeout(() => setActionMessage(null), 4000);
+      fetchAdminCourses();
+    } catch (err) {
+      alert(`Failed to update course status: ${err?.message || err}`);
+    }
+  };
+
 
   // Export to JSON / CSV
   const handleExportJSON = () => {
@@ -400,115 +468,458 @@ export default function AdminDashboard() {
       <div data-demo="admin-dashboard-container">
         {/* Header & Access Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              State Data Management & Validation Registry
-            </h1>
-            <span className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded border border-slate-200 dark:border-slate-700">
-              Admin Tier
-            </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                State Data Management & Validation Registry
+              </h1>
+              <span className="text-[11px] font-mono px-2 py-0.5 bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-bold rounded border border-rose-300 dark:border-rose-800">
+                ADMIN CONTROL CENTER
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Administrative audit, candidate assessment telemetry, and first-party employer demand validation
+            </p>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Administrative audit, candidate assessment telemetry, and first-party employer demand validation
-          </p>
+
+          {/* Admin Identity & Security Status */}
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs self-start md:self-auto text-xs">
+            <div className="flex items-center gap-2 font-mono text-[11px] text-slate-700 dark:text-slate-200 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
+                {user?.full_name || 'Administrator'}
+              </span>
+              <span className="text-[10px] uppercase px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold">
+                {user?.role || 'ADMIN'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Admin Key Badge & Config Button */}
-        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs self-start md:self-auto text-xs">
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-600 dark:text-slate-300 px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Key: {adminKey ? '••••••••' : 'Not Configured'}</span>
-          </div>
+        {/* Navigation Tab Bar */}
+        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 mb-6 pb-2 overflow-x-auto">
           <button
-            onClick={() => {
-              setKeyInput(adminKey);
-              setKeyModalOpen(true);
-            }}
-            className="px-3 py-1 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white font-bold rounded-lg transition-colors cursor-pointer"
+            onClick={() => handleTabChange('overview')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+              adminTab === 'overview'
+                ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
           >
-            Configure Key ⚙️
+            <span>📊</span>
+            <span>Executive Overview</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('students')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+              adminTab === 'students'
+                ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>👥</span>
+            <span>Student Assessments</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-700 dark:bg-teal-800 text-slate-200">
+              {stats?.total_submissions || assessments.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('employers')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+              adminTab === 'employers'
+                ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>🏢</span>
+            <span>Employer Demands</span>
+            {empPendingCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-slate-950 font-bold font-mono">
+                {empPendingCount} Pending
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleTabChange('institutes')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+              adminTab === 'institutes'
+                ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>🎓</span>
+            <span>Institute Programs</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-700 dark:bg-teal-800 text-slate-200">
+              {courseStats.total || adminCourses.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('gov')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+              adminTab === 'gov'
+                ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>🏛️</span>
+            <span>Government Opportunities</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-700 dark:bg-teal-800 text-slate-200">
+              {govStats.total}
+            </span>
           </button>
         </div>
-      </div>
 
-      {/* Navigation Tab Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 mb-6 pb-2">
-        <button
-          onClick={() => handleTabChange('students')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            adminTab === 'students'
-              ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <span>👥</span>
-          <span>Student Assessments & Diagnostics</span>
-          <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-700 dark:bg-teal-800 text-slate-200">
-            {stats?.total_submissions || assessments.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => handleTabChange('employers')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            adminTab === 'employers'
-              ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <span>🏢</span>
-          <span>Employer Demands & Validation (Phase 14)</span>
-          {empPendingCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-slate-950 font-bold font-mono">
-              {empPendingCount} Pending
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => handleTabChange('gov')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            adminTab === 'gov'
-              ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <span>🏛️</span>
-          <span>Government Opportunities (Phase 15)</span>
-          <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-700 dark:bg-teal-800 text-slate-200">
-            {govStats.total}
-          </span>
-        </button>
-      </div>
-
-      {actionMessage && (
-        <div className="mb-6 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2">
-          <span>✓</span>
-          <span>{actionMessage}</span>
-        </div>
-      )}
-
-      {authError && (
-        <div className="mb-6 p-4 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span>🔒</span>
-            <span>{authError}</span>
+        {actionMessage && (
+          <div className="mb-6 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 shadow-xs">
+            <span>✓</span>
+            <span className="font-semibold">{actionMessage}</span>
           </div>
-          <button
-            onClick={() => handleSaveKey(DEFAULT_DEMO_KEY)}
-            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition-colors shrink-0 cursor-pointer text-xs"
-          >
-            Apply Demo Key ({DEFAULT_DEMO_KEY})
-          </button>
-        </div>
-      )}
+        )}
 
-      {/* ========================================================================= */}
-      {/* VIEW 1: STUDENT ASSESSMENTS & TELEMETRY (PHASE 12 & 13) */}
-      {/* ========================================================================= */}
-      {adminTab === 'students' && (
+        {authError && (
+          <div className="mb-6 p-4 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span>🔒</span>
+              <span className="font-semibold">{authError}</span>
+            </div>
+            <a
+              href="/login"
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition-colors shrink-0 cursor-pointer text-xs"
+            >
+              Sign In as Administrator →
+            </a>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW 0: EXECUTIVE ADMINISTRATIVE OVERVIEW (PHASE 24) */}
+        {/* ========================================================================= */}
+        {adminTab === 'overview' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Top KPI Cards (6 metrics) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+              <StatCard
+                title="Total Submissions"
+                value={stats?.total_submissions ?? assessments.length}
+                subtitle="All cohort assessments"
+                icon="📋"
+              />
+              <StatCard
+                title="Real Submissions"
+                value={stats?.user_submitted_count ?? assessments.filter((a) => a.source === 'USER_SUBMITTED').length}
+                subtitle="Real candidate assessments"
+                icon="🛡️"
+                color="teal"
+              />
+              <StatCard
+                title="Demo Benchmarks"
+                value={stats?.demo_synthetic_count ?? assessments.filter((a) => a.source === 'DEMO_SYNTHETIC').length}
+                subtitle="Synthetic baseline records"
+                icon="🔬"
+                color="slate"
+              />
+              <StatCard
+                title="Avg Quiz Score"
+                value={stats ? `${stats.avg_quiz_score}%` : '...'}
+                subtitle="Diagnostic aptitude"
+                icon="🧠"
+                color="emerald"
+              />
+              <StatCard
+                title="Employer Demands"
+                value={employerDemands.length || '...'}
+                subtitle={`${empPendingCount} pending review`}
+                icon="🏢"
+                color="amber"
+              />
+              <StatCard
+                title="Gov Schemes"
+                value={govStats.total || govOpportunities.length}
+                subtitle={`${govStats.active_count || govOpportunities.length} active programs`}
+                icon="🏛️"
+                color="blue"
+              />
+            </div>
+
+            {/* Provenance Assurance Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-slate-500/10 to-indigo-500/10 border border-teal-500/20 dark:border-teal-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⚖️</span>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 dark:text-white">
+                    Data Provenance & Audit Integrity Enforced
+                  </h4>
+                  <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                    Real candidate assessments (<span className="font-mono text-teal-700 dark:text-teal-300 font-bold">USER_SUBMITTED</span>) are cryptographically partitioned from synthetic baseline benchmarks (<span className="font-mono text-slate-600 dark:text-slate-400 font-bold">DEMO_SYNTHETIC</span>).
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="px-2.5 py-1 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-800 font-mono font-bold text-[11px]">
+                  {stats?.user_submitted_count || 0} Real
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-mono font-bold text-[11px]">
+                  {stats?.demo_synthetic_count || 0} Demo
+                </span>
+              </div>
+            </div>
+
+            {/* Analytics Grid */}
+            {stats && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* District Distribution */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-slate-700 dark:text-slate-300">
+                      📍 District Representation
+                    </h3>
+                    <span className="text-[10px] font-mono text-slate-400">Maharashtra</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {(stats.district_distribution || []).slice(0, 6).map((d) => (
+                      <div key={d.district} className="space-y-1 text-xs">
+                        <div className="flex justify-between font-semibold">
+                          <span className="text-slate-800 dark:text-slate-200">{d.district}</span>
+                          <span className="font-mono text-slate-500">{d.count} candidates</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-teal-500 rounded-full"
+                            style={{ width: `${Math.min(100, (d.count / Math.max(1, stats.total_submissions)) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Top Missing Skills / Skill Gaps */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-slate-700 dark:text-slate-300">
+                      ⚠️ Top Skill Deficits in Cohort
+                    </h3>
+                    <span className="text-[10px] font-mono text-rose-500 font-bold">Deficit Ranking</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {(stats.top_missing_skills || stats.common_missing_skills || []).slice(0, 6).map((sk) => {
+                      const skillName = sk.skill_name || sk.skill || sk.name;
+                      const count = sk.deficit_count || sk.frequency || sk.count || 0;
+                      return (
+                        <div key={skillName} className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/50">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{skillName}</span>
+                          <span className="font-mono text-rose-600 dark:text-rose-400 font-bold text-[11px]">
+                            {count} deficits
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Career Goals & Readiness Tiers */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-slate-700 dark:text-slate-300">
+                      🚀 Top Career Aspirations
+                    </h3>
+                    <span className="text-[10px] font-mono text-teal-600 dark:text-teal-400">Target Roles</span>
+                  </div>
+                  <div className="space-y-2">
+                    {(stats.career_goal_distribution || stats.top_career_goals || []).slice(0, 6).map((cg) => (
+                      <div key={cg.career_goal} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{cg.career_goal}</span>
+                        <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                          {cg.count} ({cg.share_pct || Math.round((cg.count / Math.max(1, stats.total_submissions)) * 100)}%)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Recent Submissions Feed */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    Recent Candidate Submissions & Diagnostic Results
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Latest telemetry received across all Maharashtra districts
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleTabChange('students')}
+                  className="px-3 py-1.5 text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                >
+                  View All ({stats?.total_submissions || assessments.length}) →
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                    <tr>
+                      <th className="p-3.5 font-bold">Candidate Name</th>
+                      <th className="p-3.5 font-bold">District</th>
+                      <th className="p-3.5 font-bold">Career Goal</th>
+                      <th className="p-3.5 font-bold text-center">Quiz Score</th>
+                      <th className="p-3.5 font-bold text-center">Skill Match</th>
+                      <th className="p-3.5 font-bold text-center">Provenance</th>
+                      <th className="p-3.5 font-bold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {assessments.slice(0, 6).map((a) => (
+                      <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="p-3.5 font-semibold text-slate-900 dark:text-white">
+                          <div>{a.name || 'Anonymous Candidate'}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{a.id}</div>
+                        </td>
+                        <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">
+                          {a.district || 'Maharashtra'}
+                        </td>
+                        <td className="p-3.5 text-slate-800 dark:text-slate-200 font-semibold">
+                          {a.career_goal || 'Unspecified'}
+                        </td>
+                        <td className="p-3.5 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {a.quiz_score_pct ?? 0}%
+                        </td>
+                        <td className="p-3.5 text-center font-mono font-bold text-teal-600 dark:text-teal-400">
+                          {a.skill_match_pct ?? 0}%
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                              a.source === 'USER_SUBMITTED'
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {a.source === 'USER_SUBMITTED' ? 'USER SUBMITTED' : 'DEMO SYNTHETIC'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => {
+                              setSelectedRecord(a);
+                              setInspectModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 dark:bg-slate-800 dark:hover:bg-teal-950 dark:hover:text-teal-300 text-slate-700 dark:text-slate-300 font-bold rounded-lg transition-colors cursor-pointer text-[11px]"
+                          >
+                            Inspect 🔍
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Quick Action Navigation Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+              <div
+                onClick={() => handleTabChange('students')}
+                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:border-teal-500 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-600 dark:text-teal-400 flex items-center justify-center text-xl font-bold group-hover:scale-105 transition-transform">
+                    👥
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                      Student Registry
+                    </h4>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {stats?.total_submissions || assessments.length} records
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Filter by district, target career, or data source with CSV export and competency audit.
+                </p>
+              </div>
+
+              <div
+                onClick={() => handleTabChange('employers')}
+                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:border-amber-500 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl font-bold group-hover:scale-105 transition-transform">
+                    🏢
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                      Employer Demands
+                    </h4>
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-mono font-bold">
+                      {empPendingCount} pending review
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Audit and validate corporate hiring requirements to inject real industry signals into state curriculum.
+                </p>
+              </div>
+
+              <div
+                onClick={() => handleTabChange('institutes')}
+                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:border-purple-500 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl font-bold group-hover:scale-105 transition-transform">
+                    🎓
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                      Institute Programs
+                    </h4>
+                    <span className="text-[11px] text-purple-600 dark:text-purple-400 font-mono font-bold">
+                      {courseStats.total || adminCourses.length} accredited courses
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Manage vocational courses, inspect first-party curricula, and review placement health.
+                </p>
+              </div>
+
+              <div
+                onClick={() => handleTabChange('gov')}
+                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-500 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl font-bold group-hover:scale-105 transition-transform">
+                    🏛️
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                      Gov Opportunities
+                    </h4>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {govStats.total} schemes registered
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Publish, update, and manage state welfare schemes, ITI apprenticeships, and skilling programs.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW 1: STUDENT ASSESSMENTS & TELEMETRY (PHASE 12 & 13) */}
+        {/* ========================================================================= */}
+        {adminTab === 'students' && (
         <>
           {/* Top Aggregate KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
@@ -1452,6 +1863,325 @@ export default function AdminDashboard() {
       )}
 
       {/* ========================================================================= */}
+      {/* VIEW 2.5: INSTITUTE COURSES & VOCATIONAL PROGRAMS (PHASE 25) */}
+      {/* ========================================================================= */}
+      {adminTab === 'institutes' && (
+        <>
+          {/* Top Aggregate KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              title="Total Courses"
+              value={courseStats.total}
+              subtitle="All accredited curriculum records"
+              icon="📚"
+            />
+            <StatCard
+              title="First-Party Reported"
+              value={courseStats.user_submitted_count}
+              subtitle="Direct institute submissions"
+              icon="🏛️"
+              color="teal"
+            />
+            <StatCard
+              title="State Benchmark"
+              value={courseStats.demo_synthetic_count}
+              subtitle="Baseline curriculum profiles"
+              icon="🔬"
+              color="slate"
+            />
+            <StatCard
+              title="Monitored Trades"
+              value={adminCourses.length}
+              subtitle="Matching current filters"
+              icon="⚙️"
+              color="amber"
+            />
+          </div>
+
+          {/* Filter Bar */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-6 shadow-xs">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  District
+                </label>
+                <select
+                  value={courseDistrictFilter}
+                  onChange={(e) => setCourseDistrictFilter(e.target.value)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All Districts">All Districts</option>
+                  {DISTRICTS.filter((d) => d !== 'All Districts').map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Data Provenance
+                </label>
+                <select
+                  value={courseSourceFilter}
+                  onChange={(e) => setCourseSourceFilter(e.target.value)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="all">All Sources</option>
+                  <option value="USER_SUBMITTED">First-Party Submitted</option>
+                  <option value="DEMO_SYNTHETIC">State Benchmark</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Alignment Status
+                </label>
+                <select
+                  value={courseStatusFilter}
+                  onChange={(e) => setCourseStatusFilter(e.target.value)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="active">Aligned / Active</option>
+                  <option value="needs_attention">Curriculum Gap Flagged</option>
+                  <option value="review_oversupply">Oversupply Flagged</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Search
+                </label>
+                <input
+                  type="text"
+                  value={courseSearchTerm}
+                  onChange={(e) => setCourseSearchTerm(e.target.value)}
+                  placeholder="Search course title, institute, or skills..."
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Courses Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden mb-6">
+            {coursesLoading ? (
+              <div className="py-12 text-center">
+                <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-xs text-slate-500">Loading institute curriculum directory...</p>
+              </div>
+            ) : adminCourses.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-xs text-slate-500">No institute programs match the current filters.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="p-3">Course Title</th>
+                      <th className="p-3">Institute & District</th>
+                      <th className="p-3">Provenance</th>
+                      <th className="p-3">Capacity</th>
+                      <th className="p-3">Placement Rate</th>
+                      <th className="p-3">Alignment Status</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {adminCourses.map((c) => {
+                      const isUserSubmitted = c.source === 'USER_SUBMITTED';
+                      const isOversupply = c.status === 'review_oversupply';
+                      const isGap = c.status === 'needs_attention';
+
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white max-w-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span>{c.name || c.course_name}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal mt-0.5 line-clamp-1">
+                              {c.description || '—'}
+                            </p>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300">
+                            <div className="font-medium text-slate-800 dark:text-slate-200">
+                              {c.institute || c.institute_name}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono">
+                              📍 {c.district}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            {isUserSubmitted ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 font-mono">
+                                USER SUBMITTED
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-mono">
+                                DEMO SYNTHETIC
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono font-semibold text-slate-700 dark:text-slate-300">
+                            {c.enrolment_count || c.enrolment_capacity || 0} seats
+                          </td>
+                          <td className="p-3 font-mono font-bold">
+                            <span
+                              className={
+                                c.placement_rate >= 75
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : c.placement_rate >= 50
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-rose-600 dark:text-rose-400'
+                              }
+                            >
+                              {c.placement_rate ?? 70}%
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {isOversupply ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                OVERSUPPLY
+                              </span>
+                            ) : isGap ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                CURRICULUM GAP
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                ALIGNED
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setSelectedAdminCourse(c);
+                                  setInspectCourseModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300 rounded font-semibold text-[11px] border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                              >
+                                Audit 🔍
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAdminCourse(c.id, c.name || c.course_name)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete Course"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* INSPECT INSTITUTE COURSE MODAL (Phase 25) */}
+      {inspectCourseModalOpen && selectedAdminCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[85vh]">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                🎓 Course Program Audit
+              </h3>
+              <button
+                onClick={() => setInspectCourseModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Course Name:</span>{' '}
+                <span className="text-slate-900 dark:text-white">{selectedAdminCourse.name}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Institute:</span>{' '}
+                <span className="text-slate-900 dark:text-white">{selectedAdminCourse.institute || selectedAdminCourse.institute_name}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">District:</span>{' '}
+                <span>{selectedAdminCourse.district}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Category:</span>{' '}
+                <span>{selectedAdminCourse.category}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Intake / Placed:</span>{' '}
+                <span className="font-mono">
+                  {selectedAdminCourse.enrolment_count || selectedAdminCourse.enrolment_capacity || 0} intake / {selectedAdminCourse.placed_count || 0} placed ({selectedAdminCourse.placement_rate || 0}%)
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Skills Taught:</span>{' '}
+                <span>{(selectedAdminCourse.skills || selectedAdminCourse.skills_taught || []).join(', ') || '—'}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Description:</span>{' '}
+                <p className="text-slate-600 dark:text-slate-300 mt-1 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-lg">
+                  {selectedAdminCourse.description || '—'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Source:</span>{' '}
+                  <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800">
+                    {selectedAdminCourse.source || 'DEMO_SYNTHETIC'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">NSQF:</span>{' '}
+                  <span className="font-mono text-[10px]">Level {selectedAdminCourse.nsqf_level || 5}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center gap-2">
+              <button
+                onClick={() => handleDeleteAdminCourse(selectedAdminCourse.id, selectedAdminCourse.name)}
+                className="px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 rounded-xl hover:bg-rose-100 cursor-pointer"
+              >
+                Delete Course
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleUpdateAdminCourseStatus(selectedAdminCourse.id, 'active')}
+                  className="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 cursor-pointer"
+                >
+                  Mark Aligned
+                </button>
+                <button
+                  onClick={() => handleUpdateAdminCourseStatus(selectedAdminCourse.id, 'needs_attention')}
+                  className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 rounded-xl hover:bg-amber-100 cursor-pointer"
+                >
+                  Flag Gap
+                </button>
+                <button
+                  onClick={() => setInspectCourseModalOpen(false)}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* VIEW 3: GOVERNMENT OPPORTUNITIES MANAGEMENT (PHASE 15) */}
       {/* ========================================================================= */}
       {adminTab === 'gov' && (
@@ -1728,72 +2458,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ADMIN KEY CONFIGURATION MODAL */}
-      {keyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-base flex items-center gap-2">
-                <span>🔐</span> Configure Administrator Key
-              </h3>
-              <button
-                onClick={() => setKeyModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Administrative APIs verify requests using the <code className="font-mono text-teal-600 dark:text-teal-400">X-Admin-Key</code> header. For local and demo testing, use the documented key below.
-            </p>
-
-            <div className="space-y-1.5 text-xs">
-              <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                Admin Authentication Key
-              </label>
-              <input
-                type="text"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                placeholder="e.g. demo-admin-key-2026"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
-
-            <div className="p-3 rounded-xl bg-teal-50/60 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-xs flex items-center justify-between">
-              <div>
-                <span className="font-bold text-teal-900 dark:text-teal-200 block text-[11px]">Demo Environment Key:</span>
-                <code className="font-mono text-teal-700 dark:text-teal-400 text-[11px]">{DEFAULT_DEMO_KEY}</code>
-              </div>
-              <button
-                type="button"
-                onClick={() => setKeyInput(DEFAULT_DEMO_KEY)}
-                className="px-2.5 py-1 bg-teal-600 text-white rounded-lg text-[11px] font-bold hover:bg-teal-700 transition-colors cursor-pointer"
-              >
-                Use Demo Key
-              </button>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setKeyModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSaveKey(keyInput)}
-                className="px-5 py-2 bg-slate-900 dark:bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-slate-800 dark:hover:bg-teal-700 transition-colors cursor-pointer"
-              >
-                Save & Apply Key
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
     </Layout>
   );

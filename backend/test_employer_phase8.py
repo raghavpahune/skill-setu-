@@ -1,9 +1,13 @@
-"""Test suite for Phase 8: Employer Validation & Industry Demand Hub."""
 import pytest
 from starlette.testclient import TestClient
 from app.main import app
+from app.core.security import create_access_token
+from app.db import init_demo_users
 
+init_demo_users()
 client = TestClient(app)
+EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "employer@skillsetu.gov.in", "role": "EMPLOYER"})
+AUTH_HEADERS = {"Authorization": f"Bearer {EMPLOYER_TOKEN}"}
 
 
 def test_employer_validate_endpoint():
@@ -93,7 +97,7 @@ def test_employer_demand_submission_and_retrieval():
     }
 
     # Submit demand
-    res_post = client.post("/api/employer/demand", json=new_demand)
+    res_post = client.post("/api/employer/demand", json=new_demand, headers=AUTH_HEADERS)
     assert res_post.status_code == 200
     res_data = res_post.json()
     assert res_data.get("status") == "created"

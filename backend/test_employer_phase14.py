@@ -2,18 +2,26 @@
 import pytest
 from starlette.testclient import TestClient
 from app.main import app
-from app.db import init_db
+from app.db import init_db, init_demo_users
 from app.config import settings
+from app.core.security import create_access_token
 from app.services.gap_engine import compute_gaps
 
 client = TestClient(app)
 ADMIN_KEY = settings.admin_api_key or "demo-admin-key-2026"
 HEADERS = {"X-Admin-Key": ADMIN_KEY}
 
+EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "employer@skillsetu.gov.in", "role": "EMPLOYER"})
+EMPLOYER_HEADERS = {"Authorization": f"Bearer {EMPLOYER_TOKEN}"}
+
+ADMIN_TOKEN = create_access_token({"sub": "usr-admin-001", "email": "admin@skillsetu.gov.in", "role": "ADMIN"})
+ADMIN_AUTH_HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+
 
 @pytest.fixture(autouse=True)
 def setup_db():
     init_db()
+    init_demo_users()
 
 
 def test_employer_submission_valid():
@@ -31,7 +39,7 @@ def test_employer_submission_valid():
         "additional_requirements": "Hands-on experience in automotive high-voltage dyno testing.",
     }
 
-    res = client.post("/api/employer/demands", json=payload)
+    res = client.post("/api/employer/demands", json=payload, headers=EMPLOYER_HEADERS)
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "created"
@@ -57,7 +65,7 @@ def test_employer_submission_invalid():
         "district": "Pune",
         "job_role": "Software Developer",
         "required_skills": ["Python"],
-    })
+    }, headers=EMPLOYER_HEADERS)
     assert res_no_company.status_code == 422
 
     # 2. Missing required skills
@@ -67,7 +75,7 @@ def test_employer_submission_invalid():
         "district": "Pune",
         "job_role": "Cloud Engineer",
         "required_skills": [],
-    })
+    }, headers=EMPLOYER_HEADERS)
     assert res_no_skills.status_code == 422
 
 
@@ -81,7 +89,7 @@ def test_employer_demand_retrieval_and_filtering():
         "job_role": "CNC Metallurgy Technician",
         "required_skills": ["CNC Machining", "CAD/CAM"],
         "openings_count": 12,
-    })
+    }, headers=EMPLOYER_HEADERS)
     new_id = post_res.json()["demand"]["id"]
 
     # 1. Single retrieval
@@ -106,7 +114,7 @@ def test_employer_demand_retrieval_and_filtering():
 
 
 def test_admin_employer_demands_and_validation():
-    """Admin endpoints require X-Admin-Key and allow validating/rejecting employer submissions."""
+    """Admin endpoints require authorization and allow validating/rejecting employer submissions."""
     # Create submission
     post_res = client.post("/api/employer/demands", json={
         "company_name": "Kirloskar Oil Engines",
@@ -115,7 +123,7 @@ def test_admin_employer_demands_and_validation():
         "job_role": "Industrial Robotics Maintenance Engineer",
         "required_skills": ["Industrial Robotics", "PLC Programming"],
         "openings_count": 15,
-    })
+    }, headers=EMPLOYER_HEADERS)
     demand_id = post_res.json()["demand"]["id"]
 
     # 1. Reject status update without key
@@ -126,7 +134,7 @@ def test_admin_employer_demands_and_validation():
     assert unauth_res.status_code == 401
 
     # 2. List admin demands with stats
-    admin_list_res = client.get("/api/admin/employer/demands", headers=HEADERS)
+    admin_list_res = client.get("/api/admin/employer/demands", headers=ADMIN_AUTH_HEADERS)
     assert admin_list_res.status_code == 200
     admin_data = admin_list_res.json()
     assert "pending_count" in admin_data
@@ -136,7 +144,7 @@ def test_admin_employer_demands_and_validation():
     # 3. Mark as VALIDATED
     val_res = client.patch(
         f"/api/admin/employer/demands/{demand_id}/status",
-        headers=HEADERS,
+        headers=ADMIN_AUTH_HEADERS,
         json={"status": "VALIDATED", "admin_notes": "Verified company GSTIN and plant presence."},
     )
     assert val_res.status_code == 200
@@ -147,7 +155,7 @@ def test_admin_employer_demands_and_validation():
     # 4. Mark as REJECTED
     rej_res = client.patch(
         f"/api/admin/employer/demands/{demand_id}/status",
-        headers=HEADERS,
+        headers=ADMIN_AUTH_HEADERS,
         json={"status": "REJECTED", "admin_notes": "Duplicate requirement."},
     )
     assert rej_res.status_code == 200
@@ -168,13 +176,13 @@ def test_gap_engine_integration_with_validated_demands():
         "job_role": "Cybersecurity Automotive Lead",
         "required_skills": ["Cybersecurity"],
         "openings_count": 50,
-    })
+    }, headers=EMPLOYER_HEADERS)
     demand_id = post_res.json()["demand"]["id"]
 
     # Pending demand should NOT alter validated counts prematurely
     client.patch(
         f"/api/admin/employer/demands/{demand_id}/status",
-        headers=HEADERS,
+        headers=ADMIN_AUTH_HEADERS,
         json={"status": "VALIDATED"},
     )
 

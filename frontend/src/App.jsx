@@ -2,8 +2,12 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { TourProvider } from './context/TourContext';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import DemoTour from './components/DemoTour';
 import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import GovernmentDashboard from './pages/GovernmentDashboard';
 import DistrictPlan from './pages/DistrictPlan';
 import InstituteDashboard from './pages/InstituteDashboard';
@@ -32,20 +36,66 @@ export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-        <TourProvider>
-          <DemoTour />
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/government" element={<GovernmentDashboard />} />
-            <Route path="/government/district/:name" element={<DistrictPlan />} />
-            <Route path="/institute" element={<InstituteDashboard />} />
-            <Route path="/student" element={<StudentDashboard />} />
-            <Route path="/student/copilot" element={<CopilotPage />} />
-            <Route path="/employer" element={<EmployerDashboard />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </TourProvider>
+        <AuthProvider>
+          <TourProvider>
+            <DemoTour />
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route
+                path="/government"
+                element={
+                  <ProtectedRoute allowedRoles={['GOVERNMENT', 'ADMIN']}>
+                    <GovernmentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/government/district/:name"
+                element={
+                  <ProtectedRoute allowedRoles={['GOVERNMENT', 'ADMIN']}>
+                    <DistrictPlan />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/institute"
+                element={
+                  <ProtectedRoute allowedRoles={['INSTITUTE', 'ADMIN']}>
+                    <InstituteDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student"
+                element={
+                  <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                    <StudentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/student/copilot" element={<CopilotPage />} />
+              <Route
+                path="/employer"
+                element={
+                  <ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN']}>
+                    <EmployerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TourProvider>
+        </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
   );

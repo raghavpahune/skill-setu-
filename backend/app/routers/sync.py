@@ -1,5 +1,5 @@
-"""Sync API — management and monitoring of automated data ingestion."""
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from typing import Any
+from fastapi import APIRouter, Header, HTTPException, Query, status, Depends
 from app.config import settings
 from app.db import get_demo
 from app.ingestion.datagov_connector import (
@@ -13,6 +13,8 @@ from app.ingestion.datagov_connector import (
 from app.ingestion.sync_engine import SyncEngine
 from app.ingestion.scheduler import scheduler
 
+from app.core.security import get_optional_current_user
+
 router = APIRouter()
 
 
@@ -20,13 +22,16 @@ router = APIRouter()
 async def trigger_sync(
     source: str = Query("data.gov.in", description="Source to ingest data from"),
     x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
+    current_user: Any = Depends(get_optional_current_user),
 ):
     """Trigger an on-demand automated ingestion run with concurrency/overlap protection."""
     if settings.admin_api_key and settings.admin_api_key.strip():
-        if x_admin_key != settings.admin_api_key.strip():
+        is_admin_user = current_user and (current_user.get("role") or "").upper() == "ADMIN"
+        is_key_match = x_admin_key and x_admin_key.strip() == settings.admin_api_key.strip()
+        if not is_admin_user and not is_key_match:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized: invalid or missing X-Admin-Key header",
+                detail="Unauthorized: invalid or missing admin credentials",
             )
 
     result = await scheduler.execute_sync(source=source)

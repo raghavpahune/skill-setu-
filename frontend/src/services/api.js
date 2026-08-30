@@ -29,10 +29,16 @@ const API_BASE = getApiBase();
 async function fetchJSON(endpoint, options = {}) {
   const base = getApiBase();
   const url = `${base}${endpoint}`;
+  
+  // Attach Bearer token from localStorage if present
+  const token = typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_auth_token') : null;
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
   try {
     const res = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...options.headers,
       },
       ...options,
@@ -74,6 +80,18 @@ async function fetchJSON(endpoint, options = {}) {
 }
 
 export const api = {
+  // Authentication & RBAC (Phase 23)
+  login: (email, password) => fetchJSON('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  }),
+  register: (userData) => fetchJSON('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(userData),
+  }),
+  getMe: () => fetchJSON('/auth/me'),
+  logout: () => fetchJSON('/auth/logout', { method: 'POST' }),
+
   // Health
   getHealth: () => fetchJSON('/health'),
 
@@ -129,29 +147,27 @@ export const api = {
 
   // Admin Data Management (Phase 13)
   getAdminAssessments: (params = {}, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
     const query = new URLSearchParams(params).toString();
-    return fetchJSON(`/admin/assessments${query ? `?${query}` : ''}`, {
-      headers: { 'X-Admin-Key': key },
-    });
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/assessments${query ? `?${query}` : ''}`, { headers });
   },
   getAdminAssessment: (id, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
-    return fetchJSON(`/admin/assessments/${encodeURIComponent(id)}`, {
-      headers: { 'X-Admin-Key': key },
-    });
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/assessments/${encodeURIComponent(id)}`, { headers });
   },
   getAdminAssessmentStats: (adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
-    return fetchJSON('/admin/assessments/stats/summary', {
-      headers: { 'X-Admin-Key': key },
-    });
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON('/admin/assessments/stats/summary', { headers });
   },
   deleteAdminAssessment: (id, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
     return fetchJSON(`/admin/assessments/${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: { 'X-Admin-Key': key },
+      headers,
     });
   },
 
@@ -193,7 +209,7 @@ export const api = {
   // AI Diagnostic
   getHealthAI: () => fetchJSON('/health/ai'),
 
-  // Employer Validation & Demand Hub (Phase 8 & 14)
+  // Employer Validation & Demand Hub (Phase 8, 14 & 25)
   getEmployerValidations: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/employer/validate${query ? `?${query}` : ''}`);
@@ -211,35 +227,73 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/employer/demands${query ? `?${query}` : ''}`);
   },
+  getMyEmployerDemands: () => fetchJSON('/employer/my-demands'),
   getEmployerDemand: (id) => fetchJSON(`/employer/demands/${encodeURIComponent(id)}`),
   submitEmployerDemand: (demandData) => fetchJSON('/employer/demands', {
     method: 'POST',
     body: JSON.stringify(demandData),
   }),
+  updateEmployerDemand: (id, updates) => fetchJSON(`/employer/demands/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }),
+  deleteEmployerDemand: (id) => fetchJSON(`/employer/demands/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }),
   getDifficultSkills: () => fetchJSON('/employer/difficult-skills'),
   getEmployerSummary: () => fetchJSON('/employer/summary'),
 
+  // Institute Data Pipeline & Course Management (Phase 25)
+  getInstituteCourses: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/institute/courses${query ? `?${query}` : ''}`);
+  },
+  getMyInstituteCourses: () => fetchJSON('/institute/my-courses'),
+  submitInstituteCourse: (courseData) => fetchJSON('/institute/courses', {
+    method: 'POST',
+    body: JSON.stringify(courseData),
+  }),
+  updateInstituteCourse: (id, updates) => fetchJSON(`/institute/courses/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }),
+  deleteInstituteCourse: (id) => fetchJSON(`/institute/courses/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }),
+  getAdminCourses: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/admin/institute/courses${query ? `?${query}` : ''}`);
+  },
+  updateAdminCourse: (id, updates) => fetchJSON(`/admin/institute/courses/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }),
+  deleteAdminCourse: (id) => fetchJSON(`/admin/institute/courses/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }),
+
   // Admin Employer Demand Management & Validation (Phase 14)
   getAdminEmployerDemands: (params = {}, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
     const query = new URLSearchParams(params).toString();
-    return fetchJSON(`/admin/employer/demands${query ? `?${query}` : ''}`, {
-      headers: { 'X-Admin-Key': key },
-    });
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/employer/demands${query ? `?${query}` : ''}`, { headers });
   },
   updateAdminEmployerDemandStatus: (id, status, notes = '', adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
     return fetchJSON(`/admin/employer/demands/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
-      headers: { 'X-Admin-Key': key },
+      headers,
       body: JSON.stringify({ status, admin_notes: notes }),
     });
   },
   deleteAdminEmployerDemand: (id, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
     return fetchJSON(`/admin/employer/demands/${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: { 'X-Admin-Key': key },
+      headers,
     });
   },
 
@@ -262,33 +316,35 @@ export const api = {
 
   // Admin Government Opportunities (Phase 15)
   getAdminGovOpportunities: (params = {}, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
     const query = new URLSearchParams(params).toString();
-    return fetchJSON(`/admin/gov/opportunities${query ? `?${query}` : ''}`, {
-      headers: { 'X-Admin-Key': key },
-    });
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/gov/opportunities${query ? `?${query}` : ''}`, { headers });
   },
   createAdminGovOpportunity: (data, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
     return fetchJSON('/admin/gov/opportunities', {
       method: 'POST',
-      headers: { 'X-Admin-Key': key },
+      headers,
       body: JSON.stringify(data),
     });
   },
   updateAdminGovOpportunity: (id, data, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
     return fetchJSON(`/admin/gov/opportunities/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      headers: { 'X-Admin-Key': key },
+      headers,
       body: JSON.stringify(data),
     });
   },
   deleteAdminGovOpportunity: (id, adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '') || 'demo-admin-key-2026';
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
     return fetchJSON(`/admin/gov/opportunities/${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: { 'X-Admin-Key': key },
+      headers,
     });
   },
 

@@ -14,12 +14,15 @@ from app.db import (
     save_gov_opportunity,
     update_gov_opportunity,
     delete_gov_opportunity,
+    update_course,
+    delete_course,
 )
+
+from app.core.security import verify_admin_access
 
 router = APIRouter()
 
-
-DEFAULT_DEMO_ADMIN_KEY = "demo-admin-key-2026"
+verify_admin_key = verify_admin_access
 
 
 class DemandValidationUpdate(BaseModel):
@@ -27,17 +30,6 @@ class DemandValidationUpdate(BaseModel):
     validation_status: str | None = Field(None, description="'VALIDATED' | 'REJECTED' | 'PENDING'")
     admin_notes: str | None = None
     validated_by: str | None = "Admin Team"
-
-
-def verify_admin_key(x_admin_key: str | None = Header(None, alias="X-Admin-Key")):
-    """Enforce X-Admin-Key header authentication using configured or demo admin key."""
-    expected_key = settings.admin_api_key.strip() if (settings.admin_api_key and settings.admin_api_key.strip()) else DEFAULT_DEMO_ADMIN_KEY
-    if not x_admin_key or x_admin_key.strip() != expected_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized: Invalid or missing X-Admin-Key header. Provide configured administrator key.",
-        )
-    return True
 
 
 @router.get("/admin/assessments", dependencies=[Depends(verify_admin_key)])
@@ -492,3 +484,119 @@ async def delete_admin_gov_opportunity(opp_id: str):
         }
 
     raise HTTPException(status_code=404, detail=f"Government opportunity '{opp_id}' not found.")
+
+
+# ============================================================================
+# PHASE 25: INSTITUTE COURSES & VOCATIONAL PROGRAMS MANAGEMENT ENDPOINTS
+# ============================================================================
+
+class AdminCourseUpdate(BaseModel):
+    name: str | None = None
+    institute: str | None = None
+    district: str | None = None
+    category: str | None = None
+    description: str | None = None
+    skills: list[str] | None = None
+    nsqf_level: int | None = None
+    enrolment_count: int | None = None
+    placed_count: int | None = None
+    status: str | None = None
+
+
+@router.get("/admin/institute/courses", dependencies=[Depends(verify_admin_key)])
+@router.get("/admin/courses", dependencies=[Depends(verify_admin_key)])
+async def list_admin_courses(
+    district: str | None = Query(None),
+    category: str | None = Query(None),
+    skill: str | None = Query(None),
+    source: str | None = Query(None),
+    status: str | None = Query(None),
+    search: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """List and audit academic & vocational course records with source separation."""
+    all_courses = get_demo("courses")
+    results = all_courses
+
+    if district and district.lower() != "all":
+        d_clean = district.strip().lower()
+        results = [c for c in results if d_clean in c.get("district", "").lower()]
+
+    if category and category.lower() != "all":
+        cat_clean = category.strip().lower()
+        results = [c for c in results if cat_clean in c.get("category", "").lower()]
+
+    if skill and skill.lower() != "all":
+        sk_clean = skill.strip().lower()
+        results = [
+            c for c in results
+            if any(sk_clean in s.lower() for s in (c.get("skills") or c.get("skills_taught") or []))
+        ]
+
+    if source and source.lower() != "all":
+        src_clean = source.strip().lower()
+        results = [c for c in results if src_clean == c.get("source", "DEMO_SYNTHETIC").lower()]
+
+    if status and status.lower() != "all":
+        st_clean = status.strip().lower()
+        results = [c for c in results if st_clean == c.get("status", "active").lower()]
+
+    if search and search.strip():
+        q = search.strip().lower()
+        results = [
+            c for c in results
+            if q in c.get("name", "").lower()
+            or q in (c.get("institute") or c.get("institute_name") or "").lower()
+            or q in c.get("description", "").lower()
+            or any(q in s.lower() for s in (c.get("skills") or []))
+        ]
+
+    total_all = len(all_courses)
+    user_submitted_count = sum(1 for c in all_courses if c.get("source") == "USER_SUBMITTED")
+    demo_synthetic_count = total_all - user_submitted_count
+
+    return {
+        "status": "success",
+        "total": total_all,
+        "user_submitted_count": user_submitted_count,
+        "demo_synthetic_count": demo_synthetic_count,
+        "filtered_count": len(results),
+        "limit": limit,
+        "offset": offset,
+        "courses": results[offset : offset + limit],
+    }
+
+
+@router.patch("/admin/institute/courses/{course_id}", dependencies=[Depends(verify_admin_key)])
+@router.patch("/admin/courses/{course_id}", dependencies=[Depends(verify_admin_key)])
+async def update_admin_course(course_id: str, data: AdminCourseUpdate):
+    """Administratively update course syllabus, status, and placement health."""
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=422, detail="No fields to update.")
+
+    updated = update_course(course_id, updates)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
+
+    return {
+        "status": "success",
+        "message": f"Course '{course_id}' updated.",
+        "course": updated,
+    }
+
+
+@router.delete("/admin/institute/courses/{course_id}", dependencies=[Depends(verify_admin_key)])
+@router.delete("/admin/courses/{course_id}", dependencies=[Depends(verify_admin_key)])
+async def delete_admin_course(course_id: str):
+    """Administratively remove a course record."""
+    deleted = delete_course(course_id)
+    if deleted:
+        return {
+            "status": "success",
+            "message": f"Course '{course_id}' removed.",
+            "deleted_id": course_id,
+        }
+
+    raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")

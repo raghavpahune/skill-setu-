@@ -257,6 +257,28 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                     "source": g.get("source", "DEMO_SYNTHETIC"),
                 })
 
+        # Connect with matching institute training programs (Phase 25)
+        all_courses = get_demo("courses")
+        role_courses = []
+        for c in all_courses:
+            if c.get("status", "active").lower() not in ("active", "needs_attention"):
+                continue
+            c_skills = [s.lower() for s in (c.get("skills") or c.get("skills_taught") or [])]
+            c_text = f"{c.get('name', '')} {c.get('description', '')}".lower()
+            matches_skill = any(req.lower() in c_skills or req.lower() in c_text for req in missing_skills)
+            if matches_skill:
+                role_courses.append({
+                    "id": c.get("id"),
+                    "course_name": c.get("name") or c.get("course_name"),
+                    "institute_name": c.get("institute") or c.get("institute_name"),
+                    "district": c.get("district"),
+                    "category": c.get("category"),
+                    "placement_rate": c.get("placement_rate", 80),
+                    "nsqf_level": c.get("nsqf_level", 5),
+                    "source": c.get("source", "DEMO_SYNTHETIC"),
+                    "is_demo": c.get("is_demo", True),
+                })
+
         # Generate Explainable Reasons (PROJECT_SPEC Requirement #2)
         reasons = []
         if matched_skills:
@@ -265,6 +287,8 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             reasons.append(f"Directly aligned with your stated career goal '{target_career_raw}'.")
         if total_openings > 0:
             reasons.append(f"{total_openings} verified vacancies available from validated employer submissions in Maharashtra.")
+        if role_courses:
+            reasons.append(f"Supported by {len(role_courses)} accredited training programs across Maharashtra institutes.")
         if role_gov_ops:
             reasons.append(f"Supported by government skill development & apprenticeship initiatives ({role_gov_ops[0]['name']}).")
         if not reasons:
@@ -301,6 +325,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "demand_indicator": demand_indicator,
             "validated_openings_count": total_openings,
             "validated_employer_signals": role_demands[:4],
+            "matched_institute_training": role_courses[:3],
             "matched_government_opportunities": role_gov_ops[:3],
             "explanation_reasons": reasons,
             "is_target_goal": bool(target_career_raw.lower() in role_name.lower() or role_name.lower() in target_career_raw.lower()),
@@ -314,7 +339,8 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
 
     top_recommended_role = career_evaluations[0]
 
-    # 5. Build Targeted Next Learning Steps (Roadmap)
+    # 5. Build Targeted Next Learning Steps (Roadmap with Institute Training Availability)
+    all_courses = get_demo("courses")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why
@@ -323,6 +349,20 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         trend = matching_fc.get("trend", "rising")
         conf = matching_fc.get("confidence", 85)
 
+        # Match institute training courses for this specific missing skill
+        training_options = []
+        for c in all_courses:
+            c_skills = [s.lower() for s in (c.get("skills") or c.get("skills_taught") or [])]
+            if any(skill.lower() in cs or cs in skill.lower() for cs in c_skills) or skill.lower() in c.get("name", "").lower():
+                training_options.append({
+                    "course_id": c.get("id"),
+                    "course_name": c.get("name") or c.get("course_name"),
+                    "institute_name": c.get("institute") or c.get("institute_name"),
+                    "district": c.get("district"),
+                    "placement_rate": c.get("placement_rate", 80),
+                    "source": c.get("source", "DEMO_SYNTHETIC"),
+                })
+
         roadmap_steps.append({
             "step": idx,
             "skill_name": skill,
@@ -330,7 +370,8 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "trend": trend,
             "demand_confidence": conf,
             "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence).",
-            "action_item": f"Complete hands-on projects and laboratory practicals for {skill}.",
+            "action_item": f"Complete hands-on practical modules for {skill} through recommended vocational institutes.",
+            "matched_institute_training": training_options[:2],
         })
 
     if not roadmap_steps:

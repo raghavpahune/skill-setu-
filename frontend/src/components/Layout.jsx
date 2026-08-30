@@ -3,11 +3,13 @@ import { Link, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useTour } from '../context/TourContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Layout({ children }) {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { startTour } = useTour();
+  const { user, role, isAuthenticated, logout } = useAuth();
   const [health, setHealth] = useState({ status: 'connecting', demo_mode: true });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -34,20 +36,40 @@ export default function Layout({ children }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const navLinks = [
+  const allNavLinks = [
     { path: '/government', label: 'Government', desc: 'State & District Intelligence' },
     { path: '/institute', label: 'Institutes', desc: 'Curriculum & Course Health' },
     { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway' },
     { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
     { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
-    { path: '/admin', label: 'Admin Data', desc: 'Assessment Data Management' },
+    { path: '/admin', label: 'Admin Data', desc: 'Assessment Data Management', adminOnly: true },
   ];
+
+  // Only render Admin navigation link if the user has role ADMIN
+  const navLinks = allNavLinks.filter((link) => !link.adminOnly || role === 'ADMIN');
 
   const isActive = (path) => {
     if (path === '/student/copilot') return location.pathname === path;
     if (path === '/student') return location.pathname === '/student';
     if (path === '/admin') return location.pathname === '/admin';
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path) && path !== '/student');
+  };
+
+  const getRoleBadgeStyle = (userRole) => {
+    switch (userRole) {
+      case 'ADMIN':
+        return 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800';
+      case 'STUDENT':
+        return 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800';
+      case 'EMPLOYER':
+        return 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
+      case 'INSTITUTE':
+        return 'bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 border-teal-300 dark:border-teal-800';
+      case 'GOVERNMENT':
+        return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
+      default:
+        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+    }
   };
 
   return (
@@ -91,34 +113,62 @@ export default function Layout({ children }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-mono font-medium">
-              {health.demo_mode ? 'DEMO DATA ACTIVE' : 'LIVE DB CONNECTED'}
+            <span className="hidden xl:inline-flex px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-mono font-medium">
+              {health.demo_mode ? 'DEMO DATA' : 'LIVE DB'}
             </span>
 
             <button
               onClick={startTour}
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
             >
               <span>✨</span>
-              <span>SIH Demo Tour</span>
+              <span>Tour</span>
             </button>
 
             <button
               onClick={toggleTheme}
               aria-label="Toggle Light and Dark Theme"
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs"
+              className="p-1.5 sm:p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs"
               title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
             >
               {theme === 'light' ? '🌙' : '☀️'}
             </button>
 
-            <Link
-              to="/student/copilot"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm border border-slate-700/60 transition-colors"
-            >
-              <span>Ask Copilot</span>
-              <kbd className="bg-slate-800 text-teal-300 text-[10px] px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
-            </Link>
+            {/* Auth Session Profile Badge or Login/Register CTAs */}
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">
+                    {user?.full_name?.split(' ')[0] || user?.email?.split('@')[0]}
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.2 rounded border ${getRoleBadgeStyle(role)}`}>
+                    {role}
+                  </span>
+                </div>
+                <button
+                  onClick={logout}
+                  className="px-2.5 py-1.5 bg-slate-200 hover:bg-rose-100 hover:text-rose-700 dark:bg-slate-800 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  title="Sign Out"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <Link
+                  to="/login"
+                  className="px-3 py-1.5 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="hidden sm:inline-block px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors"
+                >
+                  Register
+                </Link>
+              </div>
+            )}
 
             {/* Mobile hamburger */}
             <button

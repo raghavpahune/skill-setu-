@@ -1,5 +1,5 @@
 """Student API — Skill Passport, learning roadmap, personalized industry alerts, skill explainability, and student self-assessment."""
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends, status
 from pydantic import BaseModel, Field
 from app.db import get_demo, save_student_assessment
 from app.services.student_service import (
@@ -156,8 +156,14 @@ async def get_quiz_questions():
     return {"questions": get_diagnostic_quiz_questions()}
 
 
+from app.core.security import get_optional_current_user, get_current_user
+
+
 @router.post("/student/assessment")
-async def submit_student_assessment(submission: AssessmentSubmission):
+async def submit_student_assessment(
+    submission: AssessmentSubmission,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
     """Receive student data submission, validate, calculate grounded gap/quiz report, and persist."""
     # Convert Pydantic model to dictionary
     submission_data = {
@@ -176,6 +182,11 @@ async def submit_student_assessment(submission: AssessmentSubmission):
     # Evaluate against grounded SkillSetu labour-market data
     assessment_record = evaluate_student_assessment(submission_data)
 
+    # Attach authenticated user identity if logged in
+    if current_user:
+        assessment_record["user_id"] = current_user.get("id")
+        assessment_record["user_email"] = current_user.get("email")
+
     # Persist to database cache and Supabase write-through
     saved_record = save_student_assessment(assessment_record)
 
@@ -190,6 +201,7 @@ async def submit_student_assessment(submission: AssessmentSubmission):
 async def list_student_assessments(
     source: str | None = Query(None, description="'USER_SUBMITTED' or 'DEMO_SYNTHETIC' or 'all'"),
     limit: int = Query(20, ge=1, le=100),
+    current_user: dict | None = Depends(get_optional_current_user),
 ):
     """List all student assessments with clear separation of user-submitted vs demo data."""
     assessments = get_demo("student_assessments")
@@ -206,11 +218,23 @@ async def list_student_assessments(
 
 
 @router.get("/student/assessment/{assessment_id}")
-async def get_student_assessment(assessment_id: str):
-    """Retrieve detailed assessment report by ID."""
+async def get_student_assessment(
+    assessment_id: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    """Retrieve detailed assessment report by ID with ownership verification."""
     assessments = get_demo("student_assessments")
     for a in assessments:
         if a.get("id") == assessment_id:
+            # If the record is private to a specific user, ensure only owner or admin can view
+            record_user_id = a.get("user_id")
+            if record_user_id and current_user:
+                user_role = (current_user.get("role") or "").upper()
+                if user_role != "ADMIN" and current_user.get("id") != record_user_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: You do not have permission to view another student's assessment report",
+                    )
             return {"status": "success", "assessment": a}
 
     raise HTTPException(status_code=404, detail="Student assessment record not found")

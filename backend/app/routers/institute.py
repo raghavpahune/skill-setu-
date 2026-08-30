@@ -1,0 +1,251 @@
+"""Institute Data Management API — courses, vocational training programs, capacity reporting, and skill alignment."""
+from datetime import datetime, timezone
+import uuid
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
+
+from app.db import get_demo, save_course, update_course, delete_course
+from app.core.security import get_current_user, require_roles
+
+router = APIRouter()
+
+
+class InstituteCourseCreate(BaseModel):
+    name: str = Field(..., min_length=3, max_length=200, description="Course / Program Name")
+    institute_name: str | None = Field(None, description="Institute / College Name")
+    district: str = Field(..., min_length=2, max_length=100, description="Maharashtra District")
+    category: str = Field(default="Vocational & Emerging Tech", max_length=100)
+    description: str = Field(default="", max_length=2000)
+    skills: list[str] = Field(..., min_length=1, description="List of skills covered in syllabus")
+    nsqf_level: int = Field(default=5, ge=1, le=10)
+    enrolment_capacity: int = Field(default=60, ge=1, le=10000)
+    placed_count: int = Field(default=0, ge=0)
+    duration_weeks: int = Field(default=12, ge=1, le=260)
+    certifications: list[str] | str | None = None
+    status: str = Field(default="active")
+
+
+class InstituteCourseUpdate(BaseModel):
+    name: str | None = None
+    institute_name: str | None = None
+    district: str | None = None
+    category: str | None = None
+    description: str | None = None
+    skills: list[str] | None = None
+    nsqf_level: int | None = None
+    enrolment_capacity: int | None = None
+    placed_count: int | None = None
+    duration_weeks: int | None = None
+    certifications: list[str] | str | None = None
+    status: str | None = None
+
+
+@router.post("/institute/courses")
+@router.post("/institute/programs")
+async def create_institute_course(
+    data: InstituteCourseCreate,
+    current_user: dict = Depends(require_roles(["INSTITUTE", "ADMIN"])),
+):
+    """Submit a first-party vocational / academic course with skills curriculum and capacity."""
+    inst_name = (
+        data.institute_name
+        or current_user.get("organization_id")
+        or current_user.get("full_name")
+        or "Maharashtra Training Institute"
+    ).strip()
+
+    course_id = f"cr-inst-{uuid.uuid4().hex[:8]}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    enrolment = max(1, data.enrolment_capacity)
+    placed = max(0, data.placed_count)
+    placement_rate = round((placed / enrolment) * 100)
+
+    course_record = {
+        "id": course_id,
+        "course_id": course_id,
+        "name": data.name.strip(),
+        "course_name": data.name.strip(),
+        "description": data.description.strip(),
+        "institute": inst_name,
+        "institute_name": inst_name,
+        "district": data.district.strip(),
+        "category": data.category.strip(),
+        "skills": data.skills,
+        "skills_taught": data.skills,
+        "nsqf_level": data.nsqf_level,
+        "enrolment_count": enrolment,
+        "enrolment_capacity": enrolment,
+        "student_count": enrolment,
+        "placed_count": placed,
+        "placement_rate": placement_rate,
+        "duration_weeks": data.duration_weeks,
+        "certifications": data.certifications,
+        "status": data.status,
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+        "data_provenance": "INSTITUTE_REPORTED",
+        "submitted_at": now_iso,
+        "user_id": current_user.get("id"),
+        "user_email": current_user.get("email"),
+        "institute_id": current_user.get("organization_id") or f"inst-{current_user['id']}",
+    }
+
+    saved = save_course(course_record)
+    return {
+        "status": "created",
+        "message": f"Course program '{course_id}' successfully submitted into state registry.",
+        "course": saved,
+    }
+
+
+@router.get("/institute/my-courses")
+@router.get("/institute/courses/mine")
+async def list_my_courses(current_user: dict = Depends(require_roles(["INSTITUTE", "ADMIN"]))):
+    """Retrieve courses submitted by the current authenticated training institute account."""
+    all_courses = get_demo("courses")
+    user_id = current_user.get("id")
+    org_id = current_user.get("organization_id")
+
+    if current_user.get("role", "").upper() == "ADMIN":
+        my_courses = [c for c in all_courses if c.get("source") == "USER_SUBMITTED"]
+    else:
+        my_courses = [
+            c for c in all_courses
+            if c.get("user_id") == user_id or (org_id and c.get("institute_id") == org_id)
+        ]
+
+    return {
+        "status": "success",
+        "total": len(my_courses),
+        "courses": my_courses,
+    }
+
+
+@router.get("/institute/courses")
+async def list_institute_courses(
+    district: str | None = Query(None),
+    category: str | None = Query(None),
+    skill: str | None = Query(None),
+    source: str | None = Query(None),
+    status_filter: str | None = Query(None, alias="status"),
+    search: str | None = Query(None),
+):
+    """Query state curriculum and training offerings with rich filtering and search."""
+    all_courses = get_demo("courses")
+    results = all_courses
+
+    if district and district.lower() != "all":
+        d_clean = district.strip().lower()
+        results = [c for c in results if d_clean in c.get("district", "").lower()]
+
+    if category and category.lower() != "all":
+        cat_clean = category.strip().lower()
+        results = [c for c in results if cat_clean in c.get("category", "").lower()]
+
+    if skill and skill.lower() != "all":
+        sk_clean = skill.strip().lower()
+        results = [
+            c for c in results
+            if any(sk_clean in s.lower() for s in (c.get("skills") or c.get("skills_taught") or []))
+        ]
+
+    if source and source.lower() != "all":
+        src_clean = source.strip().lower()
+        results = [c for c in results if src_clean == c.get("source", "DEMO_SYNTHETIC").lower()]
+
+    if status_filter and status_filter.lower() != "all":
+        st_clean = status_filter.strip().lower()
+        results = [c for c in results if st_clean == c.get("status", "active").lower()]
+
+    if search and search.strip():
+        q = search.strip().lower()
+        results = [
+            c for c in results
+            if q in c.get("name", "").lower()
+            or q in (c.get("institute") or c.get("institute_name") or "").lower()
+            or q in c.get("description", "").lower()
+            or any(q in s.lower() for s in (c.get("skills") or []))
+        ]
+
+    return results
+
+
+@router.get("/institute/courses/{course_id}")
+async def get_institute_course(course_id: str):
+    """Retrieve detailed individual training course record."""
+    courses = get_demo("courses")
+    for c in courses:
+        if c.get("id") == course_id:
+            return {"status": "success", "course": c}
+
+    raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
+
+
+@router.patch("/institute/courses/{course_id}")
+async def update_my_course(
+    course_id: str,
+    updates: InstituteCourseUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update training course record with ownership authorization."""
+    all_courses = get_demo("courses")
+    matched = next((c for c in all_courses if c.get("id") == course_id), None)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
+
+    user_role = (current_user.get("role") or "").upper()
+    is_owner = (
+        matched.get("user_id") == current_user.get("id")
+        or (current_user.get("organization_id") and matched.get("institute_id") == current_user.get("organization_id"))
+    )
+
+    if user_role != "ADMIN" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not have permission to edit another institute's course offering.",
+        )
+
+    patch_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    if not patch_data:
+        raise HTTPException(status_code=422, detail="No fields provided for update.")
+
+    if "enrolment_capacity" in patch_data:
+        patch_data["enrolment_count"] = patch_data["enrolment_capacity"]
+        patch_data["student_count"] = patch_data["enrolment_capacity"]
+
+    if "placed_count" in patch_data or "enrolment_capacity" in patch_data:
+        placed = patch_data.get("placed_count", matched.get("placed_count", 0))
+        enrol = patch_data.get("enrolment_capacity", matched.get("enrolment_count", 50))
+        patch_data["placement_rate"] = round((placed / max(1, enrol)) * 100)
+
+    updated = update_course(course_id, patch_data)
+    return {"status": "success", "message": "Course program updated.", "course": updated}
+
+
+@router.delete("/institute/courses/{course_id}")
+async def delete_my_course(
+    course_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete training course offering with ownership authorization."""
+    all_courses = get_demo("courses")
+    matched = next((c for c in all_courses if c.get("id") == course_id), None)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
+
+    user_role = (current_user.get("role") or "").upper()
+    is_owner = (
+        matched.get("user_id") == current_user.get("id")
+        or (current_user.get("organization_id") and matched.get("institute_id") == current_user.get("organization_id"))
+    )
+
+    if user_role != "ADMIN" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not have permission to delete another institute's course offering.",
+        )
+
+    delete_course(course_id)
+    return {"status": "success", "message": f"Course program '{course_id}' removed.", "deleted_id": course_id}

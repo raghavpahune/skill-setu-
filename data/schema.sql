@@ -262,3 +262,70 @@ CREATE INDEX IF NOT EXISTS idx_jobs_opportunity_type ON jobs(opportunity_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_external_id
     ON jobs(source, external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sync_logs_source ON sync_logs(source_name, started_at DESC);
+
+-- ============================================================
+-- PHASE 23-25 EXTENSIONS: AUTHENTICATION, EMPLOYER DEMANDS, & INSTITUTES
+-- ============================================================
+
+-- USERS Table extensions for Phase 23 Auth
+ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS district TEXT DEFAULT 'Maharashtra';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+-- EMPLOYER_DEMANDS Table for Phase 14 & 25
+CREATE TABLE IF NOT EXISTS employer_demands (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    employer_id TEXT,
+    company_name TEXT,
+    employer_name TEXT,
+    industry TEXT NOT NULL,
+    district TEXT NOT NULL,
+    job_role TEXT,
+    role_title TEXT,
+    required_skills TEXT[] DEFAULT '{}',
+    skills TEXT[] DEFAULT '{}',
+    preferred_proficiency TEXT DEFAULT 'intermediate',
+    proficiency_required TEXT,
+    openings_count INT DEFAULT 1,
+    positions_count INT DEFAULT 1,
+    experience_level TEXT DEFAULT 'Entry Level (0-1 yrs)',
+    hiring_timeline TEXT DEFAULT 'Immediate (0-30 days)',
+    urgency TEXT,
+    additional_requirements TEXT,
+    hiring_challenge TEXT,
+    nsqf_level INT DEFAULT 5,
+    validation_status TEXT DEFAULT 'PENDING' CHECK (validation_status IN ('PENDING', 'VALIDATED', 'REJECTED')),
+    admin_notes TEXT,
+    validated_by TEXT,
+    source TEXT DEFAULT 'EMPLOYER_SUBMITTED',
+    is_demo BOOLEAN DEFAULT FALSE,
+    submitted_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- COURSES Table extensions for Phase 25 Institute Pipeline
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Vocational & Technical';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS skills TEXT[] DEFAULT '{}';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS nsqf_level INT DEFAULT 5;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS enrolment_capacity INT DEFAULT 60;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS placed_count INT DEFAULT 0;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS placement_rate INT DEFAULT 70;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS duration_weeks INT DEFAULT 12;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS certifications TEXT;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'USER_SUBMITTED';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS data_provenance TEXT DEFAULT 'INSTITUTE_REPORTED';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS institute_id TEXT;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_employer_demands_district ON employer_demands(district);
+CREATE INDEX IF NOT EXISTS idx_employer_demands_status ON employer_demands(validation_status);
+CREATE INDEX IF NOT EXISTS idx_employer_demands_user ON employer_demands(user_id);
+CREATE INDEX IF NOT EXISTS idx_courses_district ON courses(district);
+CREATE INDEX IF NOT EXISTS idx_courses_user ON courses(user_id);
+CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);

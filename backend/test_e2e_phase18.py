@@ -11,9 +11,14 @@ Verifies:
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.core.security import create_access_token
+from app.db import init_demo_users
 
 client = TestClient(app)
+init_demo_users()
 ADMIN_KEY = "demo-admin-key-2026"
+EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "employer@skillsetu.gov.in", "role": "EMPLOYER"})
+EMPLOYER_AUTH_HEADERS = {"Authorization": f"Bearer {EMPLOYER_TOKEN}"}
 
 
 # ===========================================================================
@@ -126,7 +131,7 @@ def test_employer_submission_and_validation_gate_lifecycle():
         "additional_requirements": "Hands-on experience with industrial robot cells.",
     }
 
-    res_post = client.post("/api/employer/demands", json=new_demand_payload)
+    res_post = client.post("/api/employer/demands", json=new_demand_payload, headers=EMPLOYER_AUTH_HEADERS)
     assert res_post.status_code == 200
     created_demand = res_post.json()["demand"]
     demand_id = created_demand["id"]
@@ -293,6 +298,6 @@ def test_error_handling_invalid_payloads():
     assert res_bad_student.status_code == 422
 
     # Employer demand missing required company/role/industry
-    res_bad_employer = client.post("/api/employer/demands", json={"company_name": ""})
+    res_bad_employer = client.post("/api/employer/demands", json={"company_name": ""}, headers=EMPLOYER_AUTH_HEADERS)
     assert res_bad_employer.status_code == 422
 

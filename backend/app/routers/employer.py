@@ -3,8 +3,8 @@ import datetime
 import uuid
 from collections import Counter
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, Field
-from app.db import get_demo, save_employer_feedback, save_employer_demand
+from pydantic import BaseModel, Field, model_validator
+from app.db import get_demo, save_employer_feedback, save_employer_demand, delete_employer_demand
 
 router = APIRouter()
 
@@ -36,6 +36,16 @@ class DemandSubmission(BaseModel):
     additional_requirements: str | None = None
     hiring_challenge: str | None = None
     nsqf_level: int = 5
+
+    @model_validator(mode="after")
+    def validate_company_and_skills(self):
+        c_name = (self.company_name or self.employer_name or "").strip()
+        if len(c_name) < 2:
+            raise ValueError("Company or employer name must be at least 2 characters.")
+        r_skills = self.required_skills or self.skills or []
+        if not r_skills or len(r_skills) == 0:
+            raise ValueError("At least one required skill must be specified.")
+        return self
 
 
 class EmployerDemandSubmission(DemandSubmission):
@@ -98,11 +108,32 @@ async def submit_feedback(submission: FeedbackSubmission):
     return {"error": "feedback not found"}
 
 
+from app.core.security import get_current_user, get_optional_current_user, require_roles
+from fastapi import Depends
+
+
+class DemandUpdate(BaseModel):
+    company_name: str | None = None
+    industry: str | None = None
+    district: str | None = None
+    job_role: str | None = None
+    required_skills: list[str] | None = None
+    preferred_proficiency: str | None = None
+    openings_count: int | None = None
+    experience_level: str | None = None
+    hiring_timeline: str | None = None
+    additional_requirements: str | None = None
+    nsqf_level: int | None = None
+
+
 @router.post("/employer/demand")
 @router.post("/employer/demands")
-async def submit_demand(submission: EmployerDemandSubmission):
+async def submit_demand(
+    submission: EmployerDemandSubmission,
+    current_user: dict = Depends(require_roles(["EMPLOYER", "ADMIN"])),
+):
     """Submit new employer hiring requirements and skill demand signal into intelligence loop."""
-    company = (submission.company_name or submission.employer_name or "").strip()
+    company = (submission.company_name or submission.employer_name or current_user.get("organization_id") or current_user.get("full_name") or "").strip()
     role = (submission.job_role or submission.role_title or "").strip()
     skills_list = submission.required_skills or submission.skills or []
 
@@ -115,16 +146,17 @@ async def submit_demand(submission: EmployerDemandSubmission):
 
     demand_id = f"ed-{uuid.uuid4().hex[:8]}"
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    now_date = datetime.date.today().isoformat()
-    prof = submission.preferred_proficiency or submission.proficiency_required or "intermediate"
-    openings = submission.positions_count if submission.positions_count is not None else (submission.openings_count or 1)
-    timeline = submission.hiring_timeline or submission.urgency or "Immediate (0-30 days)"
-    notes = submission.additional_requirements or submission.hiring_challenge
+    now_date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
+    prof = submission.preferred_proficiency or submission.proficiency_required or "intermediate"
+    openings = submission.openings_count or submission.positions_count or 5
+    timeline = submission.hiring_timeline or submission.urgency or "Immediate (0-30 days)"
+    notes = submission.additional_requirements or submission.hiring_challenge or ""
 
     demand_record = {
         "id": demand_id,
-        "employer_id": submission.employer_id or f"emp-org-{uuid.uuid4().hex[:6]}",
+        "demand_id": demand_id,
+        "employer_id": submission.employer_id or current_user.get("organization_id") or f"emp-{current_user['id']}",
         "company_name": company,
         "employer_name": company,
         "industry": submission.industry.strip(),
@@ -150,6 +182,8 @@ async def submit_demand(submission: EmployerDemandSubmission):
         "submitted_at": now_iso,
         "submitted_date": now_date,
         "status": "pending",
+        "user_id": current_user.get("id"),
+        "user_email": current_user.get("email"),
     }
 
     saved = save_employer_demand(demand_record)
@@ -158,6 +192,89 @@ async def submit_demand(submission: EmployerDemandSubmission):
         "message": "Hiring requirement submitted for validation.",
         "demand": saved,
     }
+
+
+@router.get("/employer/my-demands")
+@router.get("/employer/demands/mine")
+async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER", "ADMIN"]))):
+    """Retrieve hiring requirements submitted by the current authenticated employer account."""
+    all_demands = get_demo("employer_demands")
+    user_id = current_user.get("id")
+    org_id = current_user.get("organization_id")
+
+    if current_user.get("role", "").upper() == "ADMIN":
+        my_demands = [d for d in all_demands if d.get("source") == "EMPLOYER_SUBMITTED"]
+    else:
+        my_demands = [
+            d for d in all_demands
+            if d.get("user_id") == user_id or (org_id and d.get("employer_id") == org_id)
+        ]
+
+    return {
+        "status": "success",
+        "total": len(my_demands),
+        "demands": my_demands,
+    }
+
+
+@router.patch("/employer/demands/{demand_id}")
+async def update_my_demand(
+    demand_id: str,
+    updates: DemandUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update employer demand record with ownership isolation."""
+    all_demands = get_demo("employer_demands")
+    matched = next((d for d in all_demands if d.get("id") == demand_id), None)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
+
+    user_role = (current_user.get("role") or "").upper()
+    is_owner = (
+        matched.get("user_id") == current_user.get("id")
+        or (current_user.get("organization_id") and matched.get("employer_id") == current_user.get("organization_id"))
+    )
+
+    if user_role != "ADMIN" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not have permission to modify another employer's demand record.",
+        )
+
+    patch_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    if not patch_data:
+        raise HTTPException(status_code=422, detail="No fields provided for update.")
+
+    matched.update(patch_data)
+    matched["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    return {"status": "success", "message": "Employer demand updated.", "demand": matched}
+
+
+@router.delete("/employer/demands/{demand_id}")
+async def delete_my_demand(
+    demand_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete employer demand record with ownership check."""
+    all_demands = get_demo("employer_demands")
+    matched = next((d for d in all_demands if d.get("id") == demand_id), None)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
+
+    user_role = (current_user.get("role") or "").upper()
+    is_owner = (
+        matched.get("user_id") == current_user.get("id")
+        or (current_user.get("organization_id") and matched.get("employer_id") == current_user.get("organization_id"))
+    )
+
+    if user_role != "ADMIN" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not have permission to delete another employer's demand record.",
+        )
+
+    delete_employer_demand(demand_id)
+    return {"status": "success", "message": f"Demand '{demand_id}' removed.", "deleted_id": demand_id}
 
 
 @router.get("/employer/demands")

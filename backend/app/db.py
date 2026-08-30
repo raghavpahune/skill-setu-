@@ -95,7 +95,8 @@ def init_db():
             "skills", "jobs", "job_skills", "courses", "course_skills",
             "placements", "employers", "employer_feedback", "industry_signals",
             "skill_forecasts", "student_profiles", "schemes", "sync_logs",
-            "employer_demands", "difficult_skills", "student_assessments"
+            "employer_demands", "difficult_skills", "student_assessments",
+            "gov_opportunities", "users"
         ]
         for tbl in tables:
             try:
@@ -105,6 +106,9 @@ def init_db():
                     logger.info("[DB] Loaded %d records from Supabase table '%s'", len(res.data), tbl)
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
+
+    # 3. Ensure baseline demo users exist for local testing and demonstration
+    init_demo_users()
 
 
 def get_demo(table: str) -> list[dict]:
@@ -333,6 +337,69 @@ def delete_student_assessment(assessment_id: str) -> bool:
     return deleted
 
 
+def save_course(course_data: dict) -> dict:
+    """Save new course or institute training program to cache and Supabase if connected."""
+    if not _cache:
+        load_demo_data()
+    courses = _cache.setdefault("courses", [])
+    courses.insert(0, course_data)
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("courses").upsert(course_data).execute()
+            logger.info("[DB] Persisted course '%s' to Supabase.", course_data.get("id"))
+        except Exception as e:
+            logger.warning("[DB] Failed persisting course to Supabase: %s", e)
+
+    return course_data
+
+
+def update_course(course_id: str, updates: dict) -> dict | None:
+    """Update fields on a course record."""
+    if not _cache:
+        load_demo_data()
+    courses = _cache.get("courses", [])
+    matched = None
+    for c in courses:
+        if c.get("id") == course_id:
+            c.update(updates)
+            matched = c
+            break
+
+    if matched:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("courses").update(updates).eq("id", course_id).execute()
+                logger.info("[DB] Updated course '%s' in Supabase.", course_id)
+            except Exception as e:
+                logger.warning("[DB] Failed updating course in Supabase: %s", e)
+
+    return matched
+
+
+def delete_course(course_id: str) -> bool:
+    """Delete course record from cache and Supabase."""
+    if not _cache:
+        load_demo_data()
+    courses = _cache.get("courses", [])
+    initial_len = len(courses)
+    _cache["courses"] = [c for c in courses if c.get("id") != course_id]
+    deleted = len(_cache["courses"]) < initial_len
+
+    if deleted:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("courses").delete().eq("id", course_id).execute()
+                logger.info("[DB] Deleted course '%s' from Supabase.", course_id)
+            except Exception as e:
+                logger.warning("[DB] Failed deleting course from Supabase: %s", e)
+
+    return deleted
+
+
 def save_gov_opportunity(data: dict) -> dict:
     """Save new government opportunity record to cache and Supabase if connected."""
     if not _cache:
@@ -394,6 +461,161 @@ def delete_gov_opportunity(opp_id: str) -> bool:
                 logger.warning("[DB] Failed deleting gov opportunity from Supabase: %s", e)
 
     return deleted
+
+
+# ---------------------------------------------------------------------------
+# Phase 23: User Identity & Authentication Persistence
+# ---------------------------------------------------------------------------
+
+def init_demo_users():
+    """Ensure baseline demo accounts exist for each role with bcrypt hashed passwords."""
+    if not _cache:
+        load_demo_data()
+    users = _cache.setdefault("users", [])
+    if users:
+        return
+
+    from app.core.security import hash_password
+
+    demo_accounts = [
+        {
+            "id": "usr-student-001",
+            "email": "student@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "Aarav Patil",
+            "role": "STUDENT",
+            "organization_id": None,
+            "district": "Pune",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-employer-001",
+            "email": "employer@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "Tata Motors Skill Lead",
+            "role": "EMPLOYER",
+            "organization_id": "emp-001",
+            "district": "Pune",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-employer-002",
+            "email": "employer2@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "Bajaj Auto Talent Head",
+            "role": "EMPLOYER",
+            "organization_id": "emp-002",
+            "district": "Pune",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-institute-001",
+            "email": "institute@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "COEP Vocational Director",
+            "role": "INSTITUTE",
+            "organization_id": "inst-coep",
+            "district": "Pune",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-institute-002",
+            "email": "institute2@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "VJTI Principal",
+            "role": "INSTITUTE",
+            "organization_id": "inst-vjti",
+            "district": "Mumbai City",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-gov-001",
+            "email": "government@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "Maharashtra Skill Officer",
+            "role": "GOVERNMENT",
+            "organization_id": "gov-msis",
+            "district": "Mumbai City",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-admin-001",
+            "email": "admin@skillsetu.gov.in",
+            "hashed_password": hash_password("AdminPass@2026"),
+            "full_name": "SkillSetu System Administrator",
+            "role": "ADMIN",
+            "organization_id": "admin-gov",
+            "district": "Maharashtra",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+    ]
+    users.extend(demo_accounts)
+
+
+def get_user_by_email(email: str) -> dict | None:
+    """Find user record by case-insensitive email address."""
+    if not _cache:
+        load_demo_data()
+    users = _cache.get("users", [])
+    clean_email = email.strip().lower()
+    for u in users:
+        if u.get("email", "").strip().lower() == clean_email:
+            return u
+    return None
+
+
+def get_user_by_id(user_id: str) -> dict | None:
+    """Find user record by ID."""
+    if not _cache:
+        load_demo_data()
+    users = _cache.get("users", [])
+    for u in users:
+        if u.get("id") == user_id:
+            return u
+    return None
+
+
+def list_users() -> list[dict]:
+    """Return all user accounts."""
+    if not _cache:
+        load_demo_data()
+    return _cache.get("users", [])
+
+
+def save_user(user_data: dict) -> dict:
+    """Save or update user record in memory cache and Supabase write-through."""
+    if not _cache:
+        load_demo_data()
+    users = _cache.setdefault("users", [])
+    existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
+    if existing_idx is not None:
+        users[existing_idx] = user_data
+    else:
+        users.append(user_data)
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("users").upsert(user_data).execute()
+            logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
+        except Exception as e:
+            logger.warning("[DB] Failed persisting user to Supabase: %s", e)
+
+    return user_data
 
 
 
