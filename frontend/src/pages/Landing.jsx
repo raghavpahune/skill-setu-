@@ -4,9 +4,11 @@ import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { api } from '../services/api';
 import { useTour } from '../context/TourContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Landing() {
   const { startTour } = useTour();
+  const { role, user, isAuthenticated } = useAuth();
   const [stats, setStats] = useState({
     jobsCount: 550,
     skillsCount: 55,
@@ -32,8 +34,29 @@ export default function Landing() {
     });
   }, []);
 
-  const roles = [
+  // Primary action destination based on authenticated role
+  const getRoleDashboardInfo = (userRole) => {
+    switch (userRole) {
+      case 'STUDENT':
+        return { path: '/student', label: 'Open My Skill Passport', tag: 'Student Experience' };
+      case 'EMPLOYER':
+        return { path: '/employer', label: 'Open Employer Hub', tag: 'Employer Experience' };
+      case 'INSTITUTE':
+        return { path: '/institute', label: 'Open Institute Portal', tag: 'Institute Experience' };
+      case 'GOVERNMENT':
+        return { path: '/government', label: 'Open Government Command', tag: 'Government Experience' };
+      case 'ADMIN':
+        return { path: '/admin', label: 'Open Admin Board', tag: 'Admin Experience' };
+      default:
+        return { path: '/student', label: 'Explore Skill Passport', tag: 'Candidate Portal' };
+    }
+  };
+
+  const currentDashboard = getRoleDashboardInfo(role);
+
+  const rawRoles = [
     {
+      roleKey: 'GOVERNMENT',
       title: 'Government & Policy Makers',
       path: '/government',
       desc: 'Monitor state-wide skill demands, district capacity gaps, and plan data-backed vocational training seat allocations.',
@@ -47,6 +70,7 @@ export default function Landing() {
       ),
     },
     {
+      roleKey: 'INSTITUTE',
       title: 'Training Institutes & ITIs',
       path: '/institute',
       desc: 'Audit course placement outcomes, identify obsolete curricula, and align trade syllabus with regional industry demand.',
@@ -60,6 +84,7 @@ export default function Landing() {
       ),
     },
     {
+      roleKey: 'STUDENT',
       title: 'Students & Job Seekers',
       path: '/student',
       desc: 'Access your Dynamic Skill Passport, uncover missing competencies for target roles, and follow step-by-step learning roadmaps.',
@@ -73,6 +98,7 @@ export default function Landing() {
       ),
     },
     {
+      roleKey: 'EMPLOYER',
       title: 'Employers & Industry',
       path: '/employer',
       desc: 'Validate AI-forecasted skill trends, correct proficiency requirements, and directly calibrate Maharashtra’s workforce pipeline.',
@@ -86,6 +112,7 @@ export default function Landing() {
       ),
     },
     {
+      roleKey: 'ADMIN',
       title: 'Admin & Data Governance',
       path: '/admin',
       desc: 'Audit student assessments, validate incoming employer hiring demands, and manage government schemes and training programs.',
@@ -99,6 +126,7 @@ export default function Landing() {
       ),
     },
   ];
+
 
 
   const capabilities = [
@@ -196,17 +224,17 @@ export default function Landing() {
             className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer transform hover:-translate-y-0.5"
           >
             <span>✨</span>
-            <span>Start SIH Demo Tour (5-min Walkthrough)</span>
+            <span>{isAuthenticated ? `Start ${role} Demo Tour` : 'Start SIH Demo Tour'}</span>
             <span>→</span>
           </button>
           <Link
-            to="/government"
+            to={currentDashboard.path}
             className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-sm font-semibold rounded-xl border border-slate-700/80 shadow-sm transition-colors flex items-center justify-center gap-2"
           >
-            <span>Explore Government Dashboard</span>
+            <span>{currentDashboard.label}</span>
           </Link>
           <Link
-            to="/student/copilot"
+            to={`/student/copilot${role && role !== 'ADMIN' ? `?role=${role.toLowerCase()}` : ''}`}
             className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors flex items-center justify-center gap-2"
           >
             <span>Ask AI Copilot</span>
@@ -221,125 +249,121 @@ export default function Landing() {
           </span>
           <span className="text-slate-300 dark:text-slate-700">•</span>
           <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-            MSBTE & ITI Syllabus Mapping
+            Human-in-the-Loop Validation
           </span>
           <span className="text-slate-300 dark:text-slate-700">•</span>
           <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-            Human-in-the-Loop Industry Sign-off
+            5-Dimension Explainable Radar
+          </span>
+          <span className="text-slate-300 dark:text-slate-700">•</span>
+          <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            Policy What-If Simulator
           </span>
         </div>
       </section>
 
-      {/* Live Metrics Grid */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
+      {/* Primary Metrics Strip */}
+      <section className="mb-14 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Active Job Postings"
-          value={stats.jobsCount.toString()}
-          subtitle="Indexed across Maharashtra districts"
+          label="Indexed Labour Demand"
+          value={stats.jobsCount.toLocaleString()}
+          subtext="Active listings in Maharashtra"
+          trend="+12% this month"
           icon="💼"
-          trend="up"
-          trendLabel="+18% YoY"
         />
         <StatCard
-          title="Skills Tracked"
-          value={stats.skillsCount.toString()}
-          subtitle="Mapped to NSQF & NCO-2015"
-          icon="🧠"
-          color="teal"
+          label="Tracked Competencies"
+          value={stats.skillsCount}
+          subtext="NSQF & NCO-2015 mapped"
+          trend="55 standardized"
+          icon="🎯"
         />
         <StatCard
-          title="High Priority Gaps"
-          value={stats.criticalGaps.toString()}
-          subtitle="Demanded skills missing in courses"
+          label="Critical Supply Gaps"
+          value={stats.criticalGaps}
+          subtext="Deficit > 30% priority"
+          trend="Immediate review needed"
           icon="⚠️"
-          color="rose"
         />
         <StatCard
-          title="Districts Indexed"
-          value={stats.districtsCount.toString()}
-          subtitle="Maharashtra workforce zones"
+          label="Coverage Scope"
+          value={`${stats.districtsCount} Districts`}
+          subtext="Maharashtra industrial hubs"
+          trend="Pune, Nagpur, Nashik & more"
           icon="📍"
-          color="navy"
         />
       </section>
 
-      {/* How It Works Section */}
-      <section className="mb-16">
-        <div className="text-center mb-10">
+      {/* Closed-Loop System Architecture */}
+      <section className="mb-16 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8">
+        <div className="text-center max-w-2xl mx-auto mb-10">
           <span className="text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">
-            Continuous Closed-Loop System
+            End-to-End Workflow
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
-            How SkillSetu Operates
+            How SkillSetu Closes the Loop
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl mx-auto">
-            From raw employment demand signals to data-backed educational reforms and career pathways
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2">
+            A continuous feedback system ensuring vocational education dynamically adapts to real-world industrial demand
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {steps.map((s, i) => (
+          {steps.map((s, idx) => (
             <div
-              key={s.num}
-              className="relative p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between"
+              key={idx}
+              className="relative p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shadow-xs flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {s.stage}
-                  </span>
-                  <span className="text-xl font-black text-slate-300 dark:text-slate-700 font-mono">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-black text-teal-600 dark:text-teal-400 font-mono">
                     {s.num}
                   </span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                    {s.stage}
+                  </span>
                 </div>
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1.5">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1">
                   {s.title}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   {s.desc}
                 </p>
               </div>
-              {i < steps.length - 1 && (
-                <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-700 text-lg z-10 font-bold">
-                  →
-                </div>
-              )}
             </div>
           ))}
         </div>
       </section>
 
-      {/* Platform Capabilities Section */}
+      {/* Key Architectural Capabilities */}
       <section className="mb-16">
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <span className="text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">
-            System Architecture
+            System Pillars
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
-            Platform Capabilities
+            Built for Scale, Grounding & Governance
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl mx-auto">
-            Comprehensive tools built specifically for Maharashtra’s vocational and technical education ecosystem
+            Six architectural cornerstones powering Maharashtra's labour intelligence infrastructure
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {capabilities.map((c) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {capabilities.map((c, idx) => (
             <div
-              key={c.label}
-              className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors flex flex-col justify-between"
+              key={idx}
+              className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
             >
-              <div>
-                <span className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 mb-2 border border-teal-200/50 dark:border-teal-800/50">
-                  {c.tag}
-                </span>
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1.5">
-                  {c.label}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  {c.detail}
-                </p>
-              </div>
+              <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400 border border-teal-200 dark:border-teal-800 mb-3">
+                {c.tag}
+              </span>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1.5">
+                {c.label}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                {c.detail}
+              </p>
             </div>
           ))}
         </div>
@@ -360,39 +384,70 @@ export default function Landing() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {roles.map((r) => (
-            <div
-              key={r.path}
-              className={`p-6 rounded-xl border shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between ${r.accent}`}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
-                    {r.badge}
-                  </span>
-                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
-                    {r.icon}
-                  </div>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                  {r.title}
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                  {r.desc}
-                </p>
-              </div>
+          {rawRoles.map((r) => {
+            const isUserRole = isAuthenticated && r.roleKey === role;
+            const isAccessible = !isAuthenticated || isUserRole || role === 'ADMIN';
+            const targetPath = isAccessible ? r.path : '/login';
+            const buttonText = isUserRole
+              ? 'Open Active Console'
+              : isAccessible
+              ? 'Enter Dashboard'
+              : `Sign in as ${r.roleKey}`;
+            const badgeText = isUserRole ? '⭐ Your Active Portal' : r.badge;
 
-              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-end">
-                <Link
-                  to={r.path}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-xs flex items-center gap-1.5 ${r.btn}`}
-                >
-                  <span>Enter Dashboard</span>
-                  <span>→</span>
-                </Link>
+            return (
+              <div
+                key={r.path}
+                className={`p-6 rounded-xl border shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between ${
+                  isUserRole
+                    ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20 dark:bg-teal-950/20'
+                    : r.accent
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        isUserRole
+                          ? 'bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 font-bold'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-700/60'
+                      }`}
+                    >
+                      {badgeText}
+                    </span>
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+                      {r.icon}
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                    {r.title}
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {r.desc}
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                  {isUserRole && (
+                    <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400">
+                      Active Session
+                    </span>
+                  )}
+                  <Link
+                    to={targetPath}
+                    className={`ml-auto px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-xs flex items-center gap-1.5 ${
+                      isUserRole
+                        ? 'bg-teal-600 hover:bg-teal-700 text-white'
+                        : r.btn
+                    }`}
+                  >
+                    <span>{buttonText}</span>
+                    <span>→</span>
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

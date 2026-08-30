@@ -17,6 +17,7 @@ import SignalCard from '../components/SignalCard';
 import RecommendationCard from '../components/RecommendationCard';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 function SectionHeader({
   title,
@@ -150,6 +151,7 @@ function SkeletonGaps() {
 }
 
 export default function GovernmentDashboard() {
+  const { role } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [selectedDistrict, setSelectedDistrict] = useState('Pune');
@@ -496,13 +498,23 @@ export default function GovernmentDashboard() {
             <span className="text-slate-500 dark:text-slate-400">
               Showing top priority state-wide deficits
             </span>
-            <Link
-              to="/institute"
-              className="font-bold text-teal-700 dark:text-teal-400 hover:text-teal-900 dark:hover:text-teal-200 hover:underline flex items-center gap-1"
-            >
-              <span>Audit Institute Courses</span>
-              <span>→</span>
-            </Link>
+            {role === 'ADMIN' ? (
+              <Link
+                to="/institute"
+                className="font-bold text-teal-700 dark:text-teal-400 hover:text-teal-900 dark:hover:text-teal-200 hover:underline flex items-center gap-1"
+              >
+                <span>Audit Institute Courses</span>
+                <span>→</span>
+              </Link>
+            ) : (
+              <Link
+                to="/student/copilot?role=government&q=Which+vocational+courses+in+Maharashtra+address+the+highest-priority+skill+deficits%3F"
+                className="font-bold text-teal-700 dark:text-teal-400 hover:text-teal-900 dark:hover:text-teal-200 hover:underline flex items-center gap-1"
+              >
+                <span>Ask AI Copilot for Institute Alignment</span>
+                <span>→</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

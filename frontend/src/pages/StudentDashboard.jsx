@@ -815,7 +815,7 @@ export default function StudentDashboard() {
             <SkeletonRoadmapStep />
           </div>
         ) : roadmap?.roadmap && roadmap.roadmap.length > 0 ? (
-          <div className="space-y-3.5">
+          <div data-demo="student-roadmap-list" className="space-y-3.5">
             {roadmap.roadmap.map((step, idx) => (
               <div
                 key={step.skill_id || idx}

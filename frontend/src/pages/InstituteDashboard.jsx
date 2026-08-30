@@ -429,7 +429,7 @@ export default function InstituteDashboard() {
       )}
 
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div data-demo="institute-dashboard-container" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -612,7 +612,7 @@ export default function InstituteDashboard() {
       </div>
 
       {/* Courses Catalog & Search Workbench */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8 p-5">
+      <div data-demo="course-health-grid" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8 p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -856,7 +856,7 @@ export default function InstituteDashboard() {
       </div>
 
       {/* Curriculum Recommendations */}
-      <div className="mb-8">
+      <div data-demo="curriculum-recommendations-grid" className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white text-lg">

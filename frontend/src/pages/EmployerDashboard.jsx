@@ -15,6 +15,7 @@ import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import SignalCard from '../components/SignalCard';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const DEFAULT_VALIDATIONS = [
   {
@@ -344,6 +345,7 @@ const AVAILABLE_TAXONOMY_SKILLS = [
 ];
 
 export default function EmployerDashboard() {
+  const { role } = useAuth();
   const [activeTab, setActiveTab] = useState('validation'); // 'validation' | 'demand' | 'difficult' | 'signals'
   const [validations, setValidations] = useState(DEFAULT_VALIDATIONS);
   const [demands, setDemands] = useState(DEFAULT_DEMANDS);
@@ -672,7 +674,7 @@ export default function EmployerDashboard() {
       )}
 
       {/* Header & Badges */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+      <div data-demo="employer-dashboard-container" className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
@@ -692,20 +694,28 @@ export default function EmployerDashboard() {
 
         <div className="flex items-center gap-2.5 self-start lg:self-center flex-wrap">
           <button
+            data-demo="employer-post-demand-btn"
             onClick={() => setActiveTab('demand')}
             className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white font-bold rounded-lg text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <span>🚀</span>
             <span>Submit Live Demand</span>
           </button>
-          <Link
-            to="/admin"
-            className="px-3.5 py-2 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/80 text-purple-800 dark:text-purple-300 font-bold rounded-lg text-xs border border-purple-200 dark:border-purple-800 transition-colors flex items-center gap-1.5"
-            title="Open Admin Validation Registry"
-          >
-            <span>🛡️</span>
-            <span>Admin Validation Gate →</span>
-          </Link>
+          {role === 'ADMIN' ? (
+            <Link
+              to="/admin"
+              className="px-3.5 py-2 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/80 text-purple-800 dark:text-purple-300 font-bold rounded-lg text-xs border border-purple-200 dark:border-purple-800 transition-colors flex items-center gap-1.5"
+              title="Open Admin Validation Registry"
+            >
+              <span>🛡️</span>
+              <span>Admin Validation Gate →</span>
+            </Link>
+          ) : (
+            <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-medium rounded-lg text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Live Employer Feed Active</span>
+            </div>
+          )}
           <button
             onClick={exportValidationsJSON}
             className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-lg text-xs border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -1619,7 +1629,7 @@ export default function EmployerDashboard() {
 
       {/* TAB 3: HARD-TO-HIRE SKILLS & TALENT SHORTAGE MATRIX */}
       {activeTab === 'difficult' && (
-        <div className="space-y-6">
+        <div data-demo="employer-difficult-skills" className="space-y-6">
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Deficit Intensity Chart */}
@@ -1720,12 +1730,21 @@ export default function EmployerDashboard() {
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
-                <Link
-                  to="/institute"
-                  className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline"
-                >
-                  View State Institute Curriculum Alignment Recommendations →
-                </Link>
+                {role === 'ADMIN' ? (
+                  <Link
+                    to="/institute"
+                    className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline"
+                  >
+                    View State Institute Curriculum Alignment Recommendations →
+                  </Link>
+                ) : (
+                  <Link
+                    to="/student/copilot?role=employer&q=What+is+the+curriculum+alignment+and+talent+supply+for+Automation+Engineers+in+Maharashtra%3F"
+                    className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline"
+                  >
+                    Ask AI Copilot for Institute Talent Alignment & Supply →
+                  </Link>
+                )}
               </div>
             </div>
           </div>

@@ -83,12 +83,126 @@ export default function Layout({ children }) {
           { path: '/institute', label: 'Institutes', desc: 'Curriculum & Course Health' },
           { path: '/government', label: 'Government', desc: 'State & District Intelligence' },
           { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
-          { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
         ];
     }
   };
 
+  const getFooterLinksForRole = (userRole, isAuth) => {
+    if (!isAuth) {
+      return {
+        col2Title: 'Stakeholder Portals',
+        col2Links: [
+          { path: '/login', label: 'Sign In to Portal' },
+          { path: '/register', label: 'Register New Account' },
+          { path: '/student', label: 'Candidate Passport Preview' },
+          { path: '/institute', label: 'Institute Portal Preview' },
+        ],
+        col3Title: 'Intelligence Tools',
+        col3Links: [
+          { path: '/student/copilot', label: 'AI Intelligence Copilot' },
+          { path: '/login', label: 'District Workforce Plans (Sign in)' },
+        ],
+      };
+    }
+    switch (userRole) {
+      case 'STUDENT':
+        return {
+          col2Title: 'Student Console',
+          col2Links: [
+            { path: '/student', label: 'My Skill Passport' },
+            { path: '/student?tab=assessment', label: 'Diagnostic Skill Assessment' },
+            { path: '/student?tab=recommendations', label: 'Target Career Recommendations' },
+            { path: '/student?tab=roadmap', label: 'Learning Roadmap' },
+          ],
+          col3Title: 'Student Intelligence',
+          col3Links: [
+            { path: '/student/copilot?role=student', label: 'AI Career Copilot' },
+            { path: '/student?tab=signals', label: 'Industry & Technology Alerts' },
+            { path: '/student?tab=forecast', label: 'Future Rising Skills' },
+          ],
+        };
+      case 'EMPLOYER':
+        return {
+          col2Title: 'Employer Console',
+          col2Links: [
+            { path: '/employer', label: 'Employer Hub Overview' },
+            { path: '/employer', label: 'Post Hiring Demands' },
+            { path: '/employer', label: 'Validate AI Labor Signals' },
+            { path: '/employer', label: 'Difficult-to-Hire Shortages' },
+          ],
+          col3Title: 'Workforce Intelligence',
+          col3Links: [
+            { path: '/student/copilot?role=employer', label: 'Talent Market Copilot' },
+            { path: '/employer', label: 'Regional Candidate Availability' },
+          ],
+        };
+      case 'INSTITUTE':
+        return {
+          col2Title: 'Institute Console',
+          col2Links: [
+            { path: '/institute', label: 'Accredited Course Catalog' },
+            { path: '/institute', label: 'Course Health & Placement Conversion' },
+            { path: '/institute', label: 'Curriculum Modernization Blueprints' },
+            { path: '/institute', label: 'Lab Equipment Budgeting' },
+          ],
+          col3Title: 'Academic Intelligence',
+          col3Links: [
+            { path: '/student/copilot?role=institute', label: 'Academic & NSQF Copilot' },
+            { path: '/institute', label: 'Faculty Upskilling Programs' },
+          ],
+        };
+      case 'GOVERNMENT':
+        return {
+          col2Title: 'State Command Console',
+          col2Links: [
+            { path: '/government', label: 'Maharashtra Macro Overview' },
+            { path: '/government', label: '36-District Spatial Heatmap' },
+            { path: '/government', label: 'Policy What-If Simulator' },
+            { path: '/government/district/Pune', label: 'District Training Micro-Plans' },
+          ],
+          col3Title: 'State Intelligence',
+          col3Links: [
+            { path: '/student/copilot?role=government', label: 'Policy Decision-Support Copilot' },
+            { path: '/government', label: 'Welfare Schemes & Apprenticeships' },
+          ],
+        };
+      case 'ADMIN':
+        return {
+          col2Title: 'Governance Console',
+          col2Links: [
+            { path: '/admin', label: 'Admin Board & Executive Overview' },
+            { path: '/admin', label: 'Student Assessment Registry' },
+            { path: '/admin', label: 'Employer Demands Moderation' },
+            { path: '/admin', label: 'Industry Signals Ingestion' },
+          ],
+          col3Title: 'Cross-Domain Tools',
+          col3Links: [
+            { path: '/government', label: 'Government State Command' },
+            { path: '/institute', label: 'Institute Modernization' },
+            { path: '/employer', label: 'Employer Validation Hub' },
+            { path: '/student/copilot', label: 'Platform AI Copilot' },
+          ],
+        };
+      default:
+        return {
+          col2Title: 'Stakeholder Portals',
+          col2Links: [
+            { path: '/student', label: 'Candidate Skill Passport' },
+            { path: '/institute', label: 'Training Institutes & ITIs' },
+            { path: '/government', label: 'State Government Overview' },
+            { path: '/employer', label: 'Employer Validation Hub' },
+          ],
+          col3Title: 'Intelligence Tools',
+          col3Links: [
+            { path: '/student/copilot', label: 'Evidence-Based AI Copilot' },
+            { path: '/login', label: 'District Workforce Plans' },
+          ],
+        };
+    }
+  };
+
   const navLinks = getNavLinksForRole(role, isAuthenticated);
+  const footerConfig = getFooterLinksForRole(role, isAuthenticated);
 
   const isActive = (path) => {
     if (path === '/student/copilot') return location.pathname === path;
@@ -299,64 +413,35 @@ export default function Layout({ children }) {
               </div>
             </div>
 
-            {/* Col 2: Stakeholder Portals */}
+            {/* Col 2: Role-Specific Primary Console */}
             <div>
               <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider mb-3">
-                Stakeholder Portals
+                {footerConfig.col2Title}
               </h4>
               <ul className="space-y-2 text-xs">
-                <li>
-                  <Link to="/government" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
-                    State Government Overview
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/institute" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
-                    Training Institutes & ITIs
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/student" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
-                    Candidate Skill Passport
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/employer" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
-                    Employer Validation Hub
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/admin" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
-                    Admin Data Management
-                  </Link>
-                </li>
+                {footerConfig.col2Links.map((l, idx) => (
+                  <li key={idx}>
+                    <Link to={l.path} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 
-
-            {/* Col 3: Intelligence & Navigation */}
+            {/* Col 3: Role-Specific Intelligence Tools */}
             <div>
               <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider mb-3">
-                Intelligence Tools
+                {footerConfig.col3Title}
               </h4>
               <ul className="space-y-2 text-xs">
-                <li>
-                  <Link to="/student/copilot" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors flex items-center gap-1">
-                    <span>Evidence-Based AI Copilot</span>
-                    <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">⌘K</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/government/district/Pune" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
-                    District Workforce Plans
-                  </Link>
-                </li>
-                <li>
-                  <span className="text-slate-400 dark:text-slate-500">NSQF & NCO-2015 Classification</span>
-                </li>
-                <li>
-                  <span className="text-slate-400 dark:text-slate-500">Open Data Ingestion Pipeline</span>
-                </li>
+                {footerConfig.col3Links.map((l, idx) => (
+                  <li key={idx}>
+                    <Link to={l.path} className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 

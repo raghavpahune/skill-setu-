@@ -1,169 +1,363 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 
-export const TOUR_STEPS = [
+// =========================================================================
+// 1. STUDENT DEMO TOUR (Role: STUDENT)
+// =========================================================================
+export const STUDENT_TOUR_STEPS = [
   {
     step: 1,
-    route: '/',
-    targetSelector: '[data-demo="hero-section"]',
-    stage: '01. Executive Overview',
-    title: 'The Problem: Fragmented Skill Ecosystem',
-    description: 'SkillSetu connects fragmented labour-market demand, vocational training supply, and candidate career pathways into one unified real-time intelligence platform across Maharashtra.',
-    whyItMatters: 'Without live demand telemetry, public training investments and ITI quotas are allocated using multi-year-old static surveys.',
-    badge: 'Core Architecture',
+    route: '/student?tab=passport',
+    targetSelector: '[data-demo="student-passport-radar"]',
+    stage: '01. Skill Passport',
+    title: 'Personalized Dynamic Skill Passport',
+    description: 'Displays verified competencies, baseline strengths, and direct comparison against required target role standards.',
+    whyItMatters: 'Gives youth full transparency into their current market readiness and skill gaps.',
+    badge: 'Competency Radar',
+  },
+  {
+    step: 2,
+    route: '/student?tab=assessment',
+    targetSelector: '[data-demo="student-assessment-section"]',
+    stage: '02. Diagnostic Assessment',
+    title: 'Adaptive Problem-Solving & Domain Quiz',
+    description: '4-question diagnostic testing algorithmic, domain, and aptitude problem-solving with automated scoring.',
+    whyItMatters: 'Calibrates candidate readiness score based on real problem-solving rather than self-reported claims.',
+    badge: 'Diagnostic Quiz',
+  },
+  {
+    step: 3,
+    route: '/student?tab=recommendations',
+    targetSelector: '[data-demo="career-recommendations-section"]',
+    stage: '03. Career Recommendations',
+    title: 'Grounded Career Pathways & Job Demand',
+    description: 'Personalized career recommendations ranked by competency match %, validated employer vacancies, and salary benchmarks.',
+    whyItMatters: 'Connects individual skills directly to live hiring demand across Maharashtra industrial corridors.',
+    badge: 'Career Pathways',
+  },
+  {
+    step: 4,
+    route: '/student?tab=roadmap',
+    targetSelector: '[data-demo="student-roadmap-list"]',
+    stage: '04. Learning Roadmap',
+    title: 'Sequential Learning Roadmap',
+    description: 'Progressive, NSQF-aligned milestones bridging your identified skill gaps step-by-step.',
+    whyItMatters: 'Converts abstract skill requirements into an actionable study plan with verified courses.',
+    badge: 'NSQF Learning Path',
+  },
+  {
+    step: 5,
+    route: '/student?tab=signals',
+    targetSelector: '[data-demo="student-industry-alerts"]',
+    stage: '05. Industry Alerts',
+    title: 'Future Demand & Emerging Tech Alerts',
+    description: 'Live technological alerts, breakthrough tools, and vacancy surges across Maharashtra industrial hubs.',
+    whyItMatters: 'Keeps candidates ahead of obsolescence with early notification of rising technologies.',
+    badge: '7 Growth Sectors',
+  },
+  {
+    step: 6,
+    route: '/student/copilot?role=student',
+    targetSelector: '[data-demo="copilot-chat-container"]',
+    stage: '06. AI Career Copilot',
+    title: 'Evidence-Based AI Career Copilot',
+    description: 'Ask questions about prerequisite competencies, curriculum advice, and state welfare schemes with verified citations.',
+    whyItMatters: 'Your personal 24/7 career mentor grounded in real labor market telemetry.',
+    badge: 'Grounded AI Copilot',
+  },
+];
+
+// =========================================================================
+// 2. EMPLOYER DEMO TOUR (Role: EMPLOYER)
+// =========================================================================
+export const EMPLOYER_TOUR_STEPS = [
+  {
+    step: 1,
+    route: '/employer',
+    targetSelector: '[data-demo="employer-dashboard-container"]',
+    stage: '01. Employer Hub',
+    title: 'Industry Demand & Hiring Command',
+    description: 'Publish first-party hiring requirements and evaluate regional candidate availability across Maharashtra.',
+    whyItMatters: 'Directly calibrates the state skill pipeline with real-time industry needs.',
+    badge: 'Employer Command',
+  },
+  {
+    step: 2,
+    route: '/employer',
+    targetSelector: '[data-demo="employer-post-demand-btn"]',
+    stage: '02. Post Hiring Demands',
+    title: 'Submit Verified Job Requirements',
+    description: 'Specify required job roles, critical skills, proficiency levels, and hiring timelines.',
+    whyItMatters: 'Ensures government and ITI training curriculums update to match your specific toolsets.',
+    badge: 'Demand Submission',
+  },
+  {
+    step: 3,
+    route: '/employer',
+    targetSelector: '[data-demo="employer-validation-queue"]',
+    stage: '03. Human-in-the-Loop Validation',
+    title: 'Validate AI Labor Market Trends',
+    description: 'Confirm, correct, or reject AI-generated skill demand estimates to keep the intelligence loop grounded.',
+    whyItMatters: 'Eliminates AI hallucinations by incorporating domain expert human consensus.',
+    badge: 'Human-in-the-Loop',
+  },
+  {
+    step: 4,
+    route: '/employer',
+    targetSelector: '[data-demo="employer-difficult-skills"]',
+    stage: '04. Talent Bottlenecks',
+    title: 'Difficult-to-Hire Shortage Tracker',
+    description: 'Track critical talent bottlenecks across Pune, Mumbai, Nashik, and Nagpur industrial belts.',
+    whyItMatters: 'Identifies where institutional training capacity must expand to solve workforce deficits.',
+    badge: 'Talent Shortages',
+  },
+  {
+    step: 5,
+    route: '/student/copilot?role=employer',
+    targetSelector: '[data-demo="copilot-chat-container"]',
+    stage: '05. Talent Intelligence Copilot',
+    title: 'Conversational Labour Intelligence',
+    description: 'Query graduate placement conversion, technician availability, and salary benchmarks.',
+    whyItMatters: 'Assists in data-backed workforce planning and hiring strategy.',
+    badge: 'Talent Intelligence',
+  },
+];
+
+// =========================================================================
+// 3. INSTITUTE DEMO TOUR (Role: INSTITUTE)
+// =========================================================================
+export const INSTITUTE_TOUR_STEPS = [
+  {
+    step: 1,
+    route: '/institute',
+    targetSelector: '[data-demo="institute-dashboard-container"]',
+    stage: '01. Institute Portal',
+    title: 'Curriculum Modernization & Course Health',
+    description: 'Manage accredited vocational trades, monitor graduate placement conversion, and audit curriculum modernity.',
+    whyItMatters: 'Prevents training institutions from graduating youth into saturated or obsolete trades.',
+    badge: 'Curriculum Health',
+  },
+  {
+    step: 2,
+    route: '/institute',
+    targetSelector: '[data-demo="course-health-grid"]',
+    stage: '02. Course Health & Obsolescence',
+    title: 'Placement Efficiency & Obsolescence Flags',
+    description: 'Automated detection of course health scores, modernity index, and oversupply warnings (<30% placement with high intake).',
+    whyItMatters: 'Provides early warning to institutional deans before accreditation reviews.',
+    badge: 'Obsolescence Alerts',
+  },
+  {
+    step: 3,
+    route: '/institute',
+    targetSelector: '[data-demo="curriculum-recommendations-grid"]',
+    stage: '03. Modernization Blueprints',
+    title: '5-Point Curriculum Overhaul Blueprints',
+    description: 'Specific module pruning recommendations, NSQF-aligned competency additions, and target placement lift estimates.',
+    whyItMatters: 'Delivers turn-key syllabus revision packages ready for MSBTE / ITI council submission.',
+    badge: 'Syllabus Blueprints',
+  },
+  {
+    step: 4,
+    route: '/student/copilot?role=institute',
+    targetSelector: '[data-demo="copilot-chat-container"]',
+    stage: '04. Academic Copilot',
+    title: 'Academic & NSQF Decision Support',
+    description: 'Query syllabus modernization best practices, credit frameworks, and regional industry demand.',
+    whyItMatters: 'Instant pedagogical advice tailored to Maharashtra vocational training regulations.',
+    badge: 'Academic Copilot',
+  },
+];
+
+// =========================================================================
+// 4. GOVERNMENT DEMO TOUR (Role: GOVERNMENT)
+// =========================================================================
+export const GOVERNMENT_TOUR_STEPS = [
+  {
+    step: 1,
+    route: '/government',
+    targetSelector: '[data-demo="government-kpis"]',
+    stage: '01. State Command',
+    title: 'Maharashtra Workforce Command Center',
+    description: 'Macro overview of 36 districts, active job demand velocity, training supply, and net skill deficits.',
+    whyItMatters: 'Provides top leadership with a single unified evidence base for state-wide skill policy.',
+    badge: 'Live State KPIs',
   },
   {
     step: 2,
     route: '/government',
-    targetSelector: '[data-demo="government-kpis"]',
-    stage: '02. State Intelligence',
-    title: 'State-Wide Labour-Market Sensing',
-    description: 'Government leadership gains a single unified command view of active job postings, indexed technical skills, institutional training capacities, and emerging demand trends across Maharashtra.',
-    whyItMatters: 'Establishes a single source of truth across 36 districts and major vocational boards (MSBTE, DVET, MSSDS).',
-    badge: 'Live State KPIs',
+    targetSelector: '[data-demo="district-heatmap"]',
+    stage: '02. District Heatmap',
+    title: '36-District Spatial Intelligence',
+    description: 'Compare regional talent surpluses and deficits across Western Maharashtra, Marathwada, and Vidarbha.',
+    whyItMatters: 'Target public investments where local industrial corridors face critical worker shortages.',
+    badge: 'District Heatmap',
   },
   {
     step: 3,
     route: '/government',
     targetSelector: '[data-demo="skill-gaps-table"]',
-    stage: '03. Gap Analytics',
-    title: 'Automated Skill Gap Detection',
-    description: 'The platform dynamically computes Skill Gap % using the formula (Demand Frequency % − Curriculum Coverage % = Net Talent Deficit), prioritizing critical shortages like AI/ML, EV, and Cloud.',
-    whyItMatters: 'Prevents public funding from being poured into saturated trades while high-demand technical sectors face critical talent shortages.',
+    stage: '03. Automated Skill Gap Engine',
+    title: 'Formula-Driven Talent Deficit Detection',
+    description: 'Identifies high-priority gaps: (Demand Frequency % − Curriculum Coverage % = Net Talent Deficit).',
+    whyItMatters: 'Directly guides annual ITI trade seat reallocation quotas.',
     badge: 'Demand - Coverage = Gap',
   },
   {
     step: 4,
-    route: '/government',
-    targetSelector: '[data-demo="district-heatmap"]',
-    stage: '04. Geo-Intelligence',
-    title: 'Granular District-Level Telemetry',
-    description: 'Macro state trends are broken down into district-level evidence across Pune, Mumbai, Nagpur, Chhatrapati Sambhajinagar, and rural vocational belts.',
-    whyItMatters: 'Workforce demand in the Chakan EV corridor is drastically different from precision agriculture needs in Vidarbha.',
-    badge: 'District Heatmap',
-  },
-  {
-    step: 5,
     route: '/government/district/Pune',
     targetSelector: '[data-demo="district-micro-plan"]',
-    stage: '05. Micro-Planning',
-    title: 'Actionable District Training Micro-Plans',
-    description: 'Moves government from passive analysis to concrete execution: recommends exact seat reallocations, equipment investments, and certified trainer requirements for Pune district.',
-    whyItMatters: 'Turns abstract labour data into specific budget line items and operational training quotas.',
+    stage: '04. District Micro-Plans',
+    title: 'Actionable District Workforce Action Plans',
+    description: 'Concrete operational blueprints with seat allocations, equipment grants, and instructor counts for Pune district.',
+    whyItMatters: 'Converts state-level policy goals into local execution.',
     badge: 'Pune Micro-Plan',
   },
   {
-    step: 6,
-    route: '/institute',
-    targetSelector: '[data-demo="course-health-grid"]',
-    stage: '06. Academic Alignment',
-    title: 'Institute Curriculum Health & Obsolescence Flags',
-    description: 'Training institutes and ITIs inspect course placement outcomes, flag obsolete syllabi (<30% placement with declining demand), and receive automated NCO/NSQF curriculum upgrade recommendations.',
-    whyItMatters: 'Stops vocational institutions from graduating thousands of students into saturated, obsolete job roles.',
-    badge: 'Obsolescence Flags',
-  },
-  {
-    step: 7,
-    route: '/employer',
-    targetSelector: '[data-demo="employer-validation-queue"]',
-    stage: '07. Industry Demand & Validation',
-    title: 'Employer Demand & Human Validation',
-    description: 'Employers submit first-party hiring demands and review AI skill trends. New demands enter as PENDING until validated by administrators.',
-    whyItMatters: 'Ensures state training policies remain grounded in genuine industry hiring consensus, preventing AI hallucination.',
-    badge: 'Human-in-the-Loop',
-  },
-  {
-    step: 8,
-    route: '/admin',
-    targetSelector: '[data-demo="admin-dashboard-container"]',
-    stage: '08. Governance & Validation Gate',
-    title: 'Admin Registry & Validation Gate',
-    description: 'Authorized administrators audit student assessments, approve/reject employer demand submissions, and manage government schemes and opportunities.',
-    whyItMatters: 'Only VALIDATED employer demands enter the career recommendation and skill-gap engines, ensuring zero noise or fake job postings.',
-    badge: 'Validation Gate',
-  },
-  {
-    step: 9,
-    route: '/student?tab=passport',
-    targetSelector: '[data-demo="student-passport-radar"]',
-    stage: '09. Student Skill Passport',
-    title: 'Student Personalized Skill Passport',
-    description: 'Individual candidates view verified competency radars, benchmark their current skills against target industry roles, and track personalized sequential learning roadmaps.',
-    whyItMatters: 'Empowers youth with transparent career visibility, matching them directly with state welfare schemes and verified apprenticeships.',
-    badge: 'Competency Radar',
-  },
-  {
-    step: 10,
-    route: '/student?tab=passport',
-    targetSelector: '[data-demo="student-industry-alerts"]',
-    stage: '10. Industry Telemetry',
-    title: 'Real-Time Industry Technology Alerts',
-    description: 'Interactive domain chips for 7 high-growth sectors (AI/ML, Data Science, Cloud, Cybersecurity, Robotics, EV, IoT) deliver targeted vacancy shifts and actionable next steps.',
-    whyItMatters: 'Alerts students early to regional industrial investments (e.g. Chakan EV plants) so they can upskill before graduation.',
-    badge: '7 Growth Sectors',
-  },
-  {
-    step: 11,
-    route: '/student?tab=passport',
-    targetSelector: '[data-demo="skill-explainability-trigger"]',
-    stage: '11. Explainable AI',
-    title: '5-Dimension Grounded Skill Explainability',
-    description: 'SkillSetu does not just say "learn this skill"—it provides transparent evidence across Demand Surge, Future Forecasts, Employer Consensus, Curriculum Deficit, and Academic Council Rationale.',
-    whyItMatters: 'Builds trust and motivation by answering the fundamental question of why a specific competency is worth the student\'s time and effort.',
-    badge: '5-Point Evidence',
-  },
-  {
-    step: 12,
-    route: '/student/copilot',
-    targetSelector: '[data-demo="copilot-chat-container"]',
-    stage: '12. Grounded AI Copilot',
-    title: 'Evidence-Based AI Career Copilot',
-    description: 'Strictly grounded in candidate assessments, validated employer demand, and state opportunities. Answers queries with verifiable citations and provenance labels.',
-    whyItMatters: 'Students and officials get instant conversational intelligence backed by real indexed Maharashtra job postings with 100% deterministic fallback.',
-    badge: 'Grounded Intelligence',
-  },
-  {
-    step: 13,
+    step: 5,
     route: '/government',
     targetSelector: '[data-demo="policy-whatif-simulator"]',
-    stage: '13. Decision Support',
-    title: 'Government Policy What-If Simulator',
-    description: 'Decision-makers simulate the impact of adding training seats, curriculum stagnation over 1–5 years, or introducing new courses before investing state funds. Every output is clearly tagged SIMULATED ESTIMATE.',
-    whyItMatters: 'Enables evidence-based risk assessment and budget optimization before committing tens of crores in public capital.',
+    stage: '05. Policy What-If Simulator',
+    title: 'Policy Simulation & Impact Modeling',
+    description: 'Simulate the effect of increasing seat capacity by 30% or curriculum stagnation over 1-5 years (clearly tagged SIMULATED ESTIMATE).',
+    whyItMatters: 'Forecast placement outcomes and budget requirements before investing public funds.',
     badge: 'Policy Simulator',
   },
   {
-    step: 14,
+    step: 6,
+    route: '/student/copilot?role=government',
+    targetSelector: '[data-demo="copilot-chat-container"]',
+    stage: '06. Policy AI Copilot',
+    title: 'Government Decision-Support Copilot',
+    description: 'Query district budget optimization, regional demand shifts, and policy recommendations.',
+    whyItMatters: 'Evidence-based policy assistant grounded in multi-source Maharashtra data.',
+    badge: 'Policy AI Copilot',
+  },
+];
+
+// =========================================================================
+// 5. ADMIN DEMO TOUR (Role: ADMIN)
+// =========================================================================
+export const ADMIN_TOUR_STEPS = [
+  {
+    step: 1,
+    route: '/admin',
+    targetSelector: '[data-demo="admin-dashboard-container"]',
+    stage: '01. Executive Governance',
+    title: 'Administrative Command Center',
+    description: 'Complete oversight across Student, Employer, Institute, Government, and Industry telemetry pipelines.',
+    whyItMatters: 'Single control center for multi-stakeholder platform administration.',
+    badge: 'Cross-Domain Oversight',
+  },
+  {
+    step: 2,
+    route: '/admin',
+    targetSelector: '[data-demo="admin-dashboard-container"]',
+    stage: '02. Assessment Telemetry',
+    title: 'Student Assessment Registry & Provenance',
+    description: 'Real-time candidate telemetry partitioned into USER_SUBMITTED (live assessments) and DEMO_SYNTHETIC (baseline benchmarks).',
+    whyItMatters: 'Maintains complete auditability and data provenance separation.',
+    badge: 'Provenance Partitioning',
+  },
+  {
+    step: 3,
+    route: '/admin',
+    targetSelector: '[data-demo="admin-dashboard-container"]',
+    stage: '03. Employer Validation Gate',
+    title: 'First-Party Employer Demands Moderation',
+    description: 'Review, validate, or reject incoming industry hiring demand orders before inclusion in recommendation models.',
+    whyItMatters: 'Guarantees zero spam or fraudulent job postings in the candidate recommendation loop.',
+    badge: 'Validation Gate',
+  },
+  {
+    step: 4,
+    route: '/admin',
+    targetSelector: '[data-demo="admin-dashboard-container"]',
+    stage: '04. Industry Intelligence Moderation',
+    title: 'Continuous Signal Ingestion & Moderation',
+    description: 'Audit automated technology signals, manage source credibility scores, and trigger manual web ingestion runs.',
+    whyItMatters: 'Ensures freshness and accuracy of market intelligence feeds.',
+    badge: 'Ingestion Pipeline',
+  },
+  {
+    step: 5,
+    route: '/student/copilot',
+    targetSelector: '[data-demo="copilot-chat-container"]',
+    stage: '05. Cross-Platform Copilot',
+    title: 'Platform-Wide Conversational AI',
+    description: 'Query cross-domain metrics, moderation pipelines, and systemic workforce patterns.',
+    whyItMatters: 'Comprehensive analytical assistant for platform administrators.',
+    badge: 'Platform Intelligence',
+  },
+];
+
+// =========================================================================
+// 6. PUBLIC / UNINITIALIZED TOUR (Not Authenticated)
+// =========================================================================
+export const PUBLIC_TOUR_STEPS = [
+  {
+    step: 1,
     route: '/',
+    targetSelector: '[data-demo="hero-section"]',
+    stage: '01. Overview',
+    title: 'SkillSetu — Maharashtra Workforce Intelligence',
+    description: 'An evidence-based closed-loop platform connecting Government, Industry, Institutes, and Students.',
+    whyItMatters: 'Select any demo role to experience a tailored, domain-specific platform.',
+    badge: 'One Platform • Five Experiences',
+  },
+  {
+    step: 2,
+    route: '/login',
     targetSelector: null,
-    stage: '14. Closed Loop Outcome',
-    title: 'Closing the Loop: From Data to Measurable Impact',
-    description: 'Labour Demand → Skill Gap Detection → Training Alignment → Employer Validation → Student Action → Policy Simulation → Measurable Employment.',
-    whyItMatters: 'SkillSetu turns fragmented skill data into actionable, accountable, and scalable workforce transformation for Maharashtra.',
-    badge: 'Measurable Outcomes',
+    stage: '02. Stakeholder Portals',
+    title: 'Select a Stakeholder Demo Account',
+    description: 'Sign in as a Student, Employer, Training Institute, State Government Official, or Platform Administrator.',
+    whyItMatters: 'Each login unlocks a dedicated, role-specific console with zero cross-role clutter.',
+    badge: 'Quick Sign-In',
   },
 ];
 
 const TourContext = createContext(null);
 
 export function TourProvider({ children }) {
+  const { role, isAuthenticated } = useAuth();
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const totalSteps = TOUR_STEPS.length;
-  const currentStep = TOUR_STEPS[currentStepIndex] || TOUR_STEPS[0];
+  // Dynamically select the active tour steps array based on authenticated role
+  const activeSteps = useMemo(() => {
+    if (!isAuthenticated) return PUBLIC_TOUR_STEPS;
+    switch (role) {
+      case 'STUDENT':
+        return STUDENT_TOUR_STEPS;
+      case 'EMPLOYER':
+        return EMPLOYER_TOUR_STEPS;
+      case 'INSTITUTE':
+        return INSTITUTE_TOUR_STEPS;
+      case 'GOVERNMENT':
+        return GOVERNMENT_TOUR_STEPS;
+      case 'ADMIN':
+        return ADMIN_TOUR_STEPS;
+      default:
+        return PUBLIC_TOUR_STEPS;
+    }
+  }, [role, isAuthenticated]);
+
+  const totalSteps = activeSteps.length;
+  const currentStep = activeSteps[currentStepIndex] || activeSteps[0];
 
   const startTour = useCallback(() => {
     setCurrentStepIndex(0);
     setIsTourOpen(true);
-    const firstStep = TOUR_STEPS[0];
+    const firstStep = activeSteps[0];
     const currentFull = location.pathname + location.search;
     if (firstStep && currentFull !== firstStep.route) {
       navigate(firstStep.route);
     }
-  }, [location.pathname, location.search, navigate]);
+  }, [activeSteps, location.pathname, location.search, navigate]);
 
   const exitTour = useCallback(() => {
     setIsTourOpen(false);
@@ -173,7 +367,7 @@ export function TourProvider({ children }) {
     (stepNumber) => {
       const idx = Math.max(0, Math.min(totalSteps - 1, stepNumber - 1));
       setCurrentStepIndex(idx);
-      const targetStep = TOUR_STEPS[idx];
+      const targetStep = activeSteps[idx];
       if (targetStep) {
         const currentFull = location.pathname + location.search;
         if (currentFull !== targetStep.route) {
@@ -181,9 +375,8 @@ export function TourProvider({ children }) {
         }
       }
     },
-    [totalSteps, location.pathname, location.search, navigate]
+    [activeSteps, totalSteps, location.pathname, location.search, navigate]
   );
-
 
   const nextStep = useCallback(() => {
     if (currentStepIndex < totalSteps - 1) {
@@ -225,6 +418,7 @@ export function TourProvider({ children }) {
     currentStepIndex,
     currentStep,
     totalSteps,
+    activeSteps,
     startTour,
     exitTour,
     nextStep,

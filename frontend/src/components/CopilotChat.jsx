@@ -1,24 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '../services/api';
 import { generateClientFallback } from '../services/copilotFallback';
+import { useAuth } from '../context/AuthContext';
 
 const ROLE_DEFINITIONS = [
-  {
-    id: 'government',
-    label: 'Government',
-    badge: 'Policy & ITI Allocation',
-    icon: '🏛️',
-    placeholder: 'Ask about district labour deficits, ITI seat allocations, or scheme budgets (e.g., What are the biggest skill gaps in Pune?)...',
-  },
-  {
-    id: 'institute',
-    label: 'Institutes',
-    badge: 'Curriculum & Course Health',
-    icon: '🏫',
-    placeholder: 'Ask about curriculum updates, low-placement course risks, or NSQF alignment (e.g., Which courses address highest-priority gaps?)...',
-  },
   {
     id: 'student',
     label: 'Students',
@@ -33,21 +20,30 @@ const ROLE_DEFINITIONS = [
     icon: '💼',
     placeholder: 'Ask about industry hiring bottlenecks, technician shortages, or curriculum feedback (e.g., Which technical skills report the highest hiring bottlenecks?)...',
   },
+  {
+    id: 'institute',
+    label: 'Institutes',
+    badge: 'Curriculum & Course Health',
+    icon: '🏫',
+    placeholder: 'Ask about curriculum updates, low-placement course risks, or NSQF alignment (e.g., Which courses address highest-priority gaps?)...',
+  },
+  {
+    id: 'government',
+    label: 'Government',
+    badge: 'Policy & ITI Allocation',
+    icon: '🏛️',
+    placeholder: 'Ask about district labour deficits, ITI seat allocations, or scheme budgets (e.g., What are the biggest skill gaps in Pune?)...',
+  },
+  {
+    id: 'admin',
+    label: 'Admin',
+    badge: 'Governance & Provenance',
+    icon: '⚙️',
+    placeholder: 'Ask about platform ingestion telemetry, employer validation pipeline, or cross-domain metrics...',
+  },
 ];
 
 const CONTEXTUAL_PROMPTS = {
-  government: [
-    'What are the biggest skill gaps in Pune?',
-    'What government action is recommended for Pune and Nagpur?',
-    'What is the projected labour deficit in Electric Vehicle manufacturing?',
-    'Which districts have the highest vocational job demand across Maharashtra?',
-  ],
-  institute: [
-    'Which courses address the highest-priority gaps in Pune?',
-    'What modules should we immediately update in our AI & CS syllabus?',
-    'Which mechanical and industrial courses show low placement risk?',
-    'How should Government ITI Pune adjust CNC machining intake capacity?',
-  ],
   student: [
     'Why is my target career role recommended for me?',
     'What verified employer vacancies match my skills in Maharashtra?',
@@ -62,15 +58,58 @@ const CONTEXTUAL_PROMPTS = {
     'What are the emerging skill trends in Smart Manufacturing and Robotics?',
     'What is the verified placement rate for CNC and Welder graduates in Pune?',
   ],
+  institute: [
+    'Which courses address the highest-priority gaps in Pune?',
+    'What modules should we immediately update in our AI & CS syllabus?',
+    'Which mechanical and industrial courses show low placement risk?',
+    'How should Government ITI Pune adjust CNC machining intake capacity?',
+  ],
+  government: [
+    'What are the biggest skill gaps in Pune?',
+    'What government action is recommended for Pune and Nagpur?',
+    'What is the projected labour deficit in Electric Vehicle manufacturing?',
+    'Which districts have the highest vocational job demand across Maharashtra?',
+  ],
+  admin: [
+    'What is the current status of employer hiring demand validations?',
+    'Show the data provenance breakdown across all assessment records',
+    'How many technology signals were ingested in the last cycle?',
+    'Which training institutes have pending curriculum audit flags?',
+  ],
 };
 
 export default function CopilotChat({
-  defaultRole = 'government',
+  defaultRole = 'student',
   initialPrompt = '',
   initialDistrict = '',
   initialStudentId = '',
 }) {
-  const [role, setRole] = useState(defaultRole);
+  const { role: authRole, isAuthenticated } = useAuth();
+
+  const effectiveDefaultRole = useMemo(() => {
+    if (!isAuthenticated) return defaultRole;
+    if (authRole === 'STUDENT') return 'student';
+    if (authRole === 'EMPLOYER') return 'employer';
+    if (authRole === 'INSTITUTE') return 'institute';
+    if (authRole === 'GOVERNMENT') return 'government';
+    if (authRole === 'ADMIN') return 'admin';
+    return defaultRole;
+  }, [authRole, isAuthenticated, defaultRole]);
+
+  const [role, setRole] = useState(effectiveDefaultRole);
+
+  useEffect(() => {
+    setRole(effectiveDefaultRole);
+  }, [effectiveDefaultRole]);
+
+  const visibleRoleDefs = useMemo(() => {
+    if (!isAuthenticated || authRole === 'ADMIN') {
+      return ROLE_DEFINITIONS;
+    }
+    const roleKey = authRole.toLowerCase();
+    const match = ROLE_DEFINITIONS.filter((r) => r.id === roleKey);
+    return match.length > 0 ? match : ROLE_DEFINITIONS;
+  }, [authRole, isAuthenticated]);
   const [district, setDistrict] = useState(initialDistrict);
   const [studentId, setStudentId] = useState(initialStudentId);
   const [students, setStudents] = useState([]);
@@ -307,7 +346,7 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
         {/* Role Selector & Clear Chat Button */}
         <div className="flex items-center gap-2 self-start md:self-auto w-full md:w-auto justify-between md:justify-end">
           <div className="flex items-center gap-1 bg-slate-800/90 dark:bg-slate-900 p-1 rounded-xl text-xs border border-slate-700/60 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-w-full">
-            {ROLE_DEFINITIONS.map((r) => (
+            {visibleRoleDefs.map((r) => (
               <button
                 key={r.id}
                 onClick={() => setRole(r.id)}
