@@ -15,6 +15,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import CopilotPage from './pages/CopilotPage';
 import EmployerDashboard from './pages/EmployerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminErrorBoundary from './components/AdminErrorBoundary';
 import Layout from './components/Layout';
 
 function NotFound() {
@@ -93,7 +94,9 @@ export default function App() {
                 path="/admin"
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN']}>
-                    <AdminDashboard />
+                    <AdminErrorBoundary>
+                      <AdminDashboard />
+                    </AdminErrorBoundary>
                   </ProtectedRoute>
                 }
               />

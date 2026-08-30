@@ -54,21 +54,11 @@ const INDUSTRIES = [
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const VALID_ADMIN_TABS = ['overview', 'students', 'employers', 'institutes', 'gov', 'industry'];
   const urlTab = searchParams.get('tab');
-  
-  // Navigation Tab State
-  const [adminTab, setAdminTab] = useState(
-    urlTab && ['overview', 'students', 'employers', 'institutes', 'gov', 'industry'].includes(urlTab) ? urlTab : 'overview'
-  );
-
-  useEffect(() => {
-    if (urlTab && ['overview', 'students', 'employers', 'institutes', 'gov', 'industry'].includes(urlTab)) {
-      setAdminTab(urlTab);
-    }
-  }, [urlTab]);
+  const adminTab = urlTab && VALID_ADMIN_TABS.includes(urlTab) ? urlTab : 'overview';
 
   const handleTabChange = (newTab) => {
-    setAdminTab(newTab);
     const newParams = new URLSearchParams(searchParams);
     newParams.set('tab', newTab);
     setSearchParams(newParams, { replace: true });
@@ -126,7 +116,7 @@ export default function AdminDashboard() {
   const [courseSourceFilter, setCourseSourceFilter] = useState('all');
   const [courseStatusFilter, setCourseStatusFilter] = useState('all');
   const [courseSearchTerm, setCourseSearchTerm] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedAdminCourse, setSelectedAdminCourse] = useState(null);
   const [inspectCourseModalOpen, setInspectCourseModalOpen] = useState(false);
 
   // Government Opportunities State (Phase 15)
