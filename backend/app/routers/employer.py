@@ -18,16 +18,19 @@ class FeedbackSubmission(BaseModel):
 
 class DemandSubmission(BaseModel):
     employer_id: str | None = None
+    company: str | None = None
     company_name: str | None = None
     employer_name: str | None = None
     industry: str = Field(..., min_length=2, max_length=150)
     district: str = Field(..., min_length=2, max_length=100)
+    title: str | None = None
     job_role: str | None = None
     role_title: str | None = None
     required_skills: list[str] | None = None
     skills: list[str] | None = None
     preferred_proficiency: str = "intermediate"
     proficiency_required: str | None = None
+    openings: int | None = None
     openings_count: int | None = None
     positions_count: int | None = None
     experience_level: str = "Entry Level (0-1 yrs)"
@@ -39,7 +42,7 @@ class DemandSubmission(BaseModel):
 
     @model_validator(mode="after")
     def validate_company_and_skills(self):
-        c_name = (self.company_name or self.employer_name or "").strip()
+        c_name = (self.company_name or self.employer_name or self.company or "").strip()
         if len(c_name) < 2:
             raise ValueError("Company or employer name must be at least 2 characters.")
         r_skills = self.required_skills or self.skills or []

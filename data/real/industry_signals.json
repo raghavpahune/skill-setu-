@@ -10,9 +10,9 @@
     "source_url": "https://nasscom.in",
     "source_name": "NASSCOM",
     "source_type": "INDUSTRY_ANNOUNCEMENT",
-    "published_at": "2026-08-30T15:44:34.988879+00:00",
-    "collected_at": "2026-08-30T15:44:34.988920+00:00",
-    "updated_at": "2026-08-30T15:44:34.988920+00:00",
+    "published_at": "2026-08-30T16:28:55.169703+00:00",
+    "collected_at": "2026-08-30T16:28:55.169760+00:00",
+    "updated_at": "2026-08-30T16:28:55.169788+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -25,7 +25,8 @@
     "summary": "Valid long description detailing the shift in industrial hiring...",
     "impact_level": "high",
     "signal_date": "2026-08-30",
-    "source": "NASSCOM"
+    "source": "NASSCOM",
+    "created_at": "2026-08-30T16:28:55.169788+00:00"
   },
   {
     "id": "nasscom-genai-2026-q3",
@@ -49,9 +50,9 @@
     "source_url": "https://nasscom.in/research/genai-talent-index-2026",
     "source_name": "NASSCOM Strategic Review & FutureSkills Prime",
     "source_type": "INDUSTRY_ANNOUNCEMENT",
-    "published_at": "2026-08-30T15:43:32.047641+00:00",
-    "collected_at": "2026-08-30T15:44:33.641749+00:00",
-    "updated_at": "2026-08-30T15:44:44.461901+00:00",
+    "published_at": "2026-08-30T16:27:45.038767+00:00",
+    "collected_at": "2026-08-30T16:28:53.422320+00:00",
+    "updated_at": "2026-08-30T16:29:07.228291+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -64,7 +65,8 @@
     "summary": "Enterprise AI adoption across Pune and Mumbai IT hubs has driven acute talent deficits in production RAG systems, embedding vector indexing, and LLMOps deployment frameworks.",
     "impact_level": "high",
     "signal_date": "2026-08-30",
-    "source": "NASSCOM Strategic Review & FutureSkills Prime"
+    "source": "NASSCOM Strategic Review & FutureSkills Prime",
+    "created_at": "2026-08-30T16:28:53.422469+00:00"
   },
   {
     "id": "siam-ev-chakan-2026",
@@ -86,9 +88,9 @@
     "source_url": "https://siam.in/reports/maharashtra-ev-workforce-2026",
     "source_name": "Society of Indian Automobile Manufacturers (SIAM)",
     "source_type": "INDUSTRY_ANNOUNCEMENT",
-    "published_at": "2026-08-30T15:43:32.047650+00:00",
-    "collected_at": "2026-08-30T15:44:33.642733+00:00",
-    "updated_at": "2026-08-30T15:44:44.461901+00:00",
+    "published_at": "2026-08-30T16:27:45.038775+00:00",
+    "collected_at": "2026-08-30T16:28:53.423632+00:00",
+    "updated_at": "2026-08-30T16:29:07.229277+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -101,7 +103,8 @@
     "summary": "The Society of Indian Automobile Manufacturers highlights rapid expansion in Chakan EV powertrain manufacturing. Critical technician competencies needed include BMS calibration and thermal run-away prevention.",
     "impact_level": "high",
     "signal_date": "2026-08-30",
-    "source": "Society of Indian Automobile Manufacturers (SIAM)"
+    "source": "Society of Indian Automobile Manufacturers (SIAM)",
+    "created_at": "2026-08-30T16:28:53.423675+00:00"
   },
   {
     "id": "dvet-circ-2026-108",
@@ -123,9 +126,9 @@
     "source_url": "https://dvet.gov.in/notifications/iti-industry40-modernization",
     "source_name": "Directorate of Vocational Education & Training (DVET) Maharashtra",
     "source_type": "OFFICIAL_GOV",
-    "published_at": "2026-08-30T15:43:32.047652+00:00",
-    "collected_at": "2026-08-30T15:44:33.643562+00:00",
-    "updated_at": "2026-08-30T15:44:44.461901+00:00",
+    "published_at": "2026-08-30T16:27:45.038777+00:00",
+    "collected_at": "2026-08-30T16:28:53.424379+00:00",
+    "updated_at": "2026-08-30T16:29:07.229955+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -138,7 +141,8 @@
     "summary": "Directorate of Vocational Education and Training initiates smart automation and mechatronics lab equipment installation across Government ITIs in Pune, Nagpur, and Aurangabad.",
     "impact_level": "high",
     "signal_date": "2026-08-30",
-    "source": "Directorate of Vocational Education & Training (DVET) Maharashtra"
+    "source": "Directorate of Vocational Education & Training (DVET) Maharashtra",
+    "created_at": "2026-08-30T16:28:53.424407+00:00"
   },
   {
     "id": "cncf-landscape-2026",
@@ -162,9 +166,9 @@
     "source_url": "https://cncf.io/reports/cloud-native-standards-2026",
     "source_name": "Cloud Native Computing Foundation (CNCF) & Linux Foundation",
     "source_type": "TECH_DOCUMENTATION",
-    "published_at": "2026-08-30T15:43:32.047653+00:00",
-    "collected_at": "2026-08-30T15:44:33.644306+00:00",
-    "updated_at": "2026-08-30T15:44:44.461901+00:00",
+    "published_at": "2026-08-30T16:27:45.038779+00:00",
+    "collected_at": "2026-08-30T16:28:53.425073+00:00",
+    "updated_at": "2026-08-30T16:29:07.230590+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -177,7 +181,8 @@
     "summary": "Cloud Native Computing Foundation standardizes distributed telemetry and multi-cluster Kubernetes operations as mandatory competencies for cloud platform engineers.",
     "impact_level": "high",
     "signal_date": "2026-08-30",
-    "source": "Cloud Native Computing Foundation (CNCF) & Linux Foundation"
+    "source": "Cloud Native Computing Foundation (CNCF) & Linux Foundation",
+    "created_at": "2026-08-30T16:28:53.425113+00:00"
   },
   {
     "id": "msbte-curric-cyber-2026",
@@ -200,9 +205,9 @@
     "source_url": "https://msbte.org.in/curriculum/cybersecurity-elective-2026",
     "source_name": "Maharashtra State Board of Technical Education (MSBTE)",
     "source_type": "OFFICIAL_GOV",
-    "published_at": "2026-08-30T15:43:32.047655+00:00",
-    "collected_at": "2026-08-30T15:44:33.644984+00:00",
-    "updated_at": "2026-08-30T15:44:44.461901+00:00",
+    "published_at": "2026-08-30T16:27:45.038780+00:00",
+    "collected_at": "2026-08-30T16:28:53.425707+00:00",
+    "updated_at": "2026-08-30T16:29:07.231208+00:00",
     "validation_status": "APPROVED",
     "is_active": true,
     "is_demo": false,
@@ -215,6 +220,7 @@
     "summary": "Maharashtra State Board of Technical Education integrates practical SOC analysis, network packet forensics, and CERT-In compliance protocols into 3rd-year diploma curricula.",
     "impact_level": "high",
     "signal_date": "2026-08-30",
-    "source": "Maharashtra State Board of Technical Education (MSBTE)"
+    "source": "Maharashtra State Board of Technical Education (MSBTE)",
+    "created_at": "2026-08-30T16:28:53.425734+00:00"
   }
 ]

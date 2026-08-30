@@ -323,6 +323,7 @@ export const api = {
   getGovOpportunity: (id) => fetchJSON(`/gov/opportunities/${encodeURIComponent(id)}`),
   getRecommendedSchemes: (studentId) => fetchJSON(`/schemes/recommended/${encodeURIComponent(studentId)}`),
   getRecommendedGovOpportunities: (studentId) => fetchJSON(`/gov/opportunities/recommended/${encodeURIComponent(studentId)}`),
+  submitGovOpportunity: (data) => fetchJSON('/gov/opportunities', { method: 'POST', body: JSON.stringify(data) }),
 
   // Admin Government Opportunities (Phase 15)
   getAdminGovOpportunities: (params = {}, adminKey = '') => {

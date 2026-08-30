@@ -121,9 +121,6 @@ async def my_skill_passport(
     # 2. Check for student profile
     profiles = get_demo("student_profiles")
     matched_profile = next((p for p in profiles if p.get("user_id") == user_id or p.get("id") == user_id), None)
-    if not matched_profile and profiles:
-        # Graceful fallback to baseline profile for new accounts that haven't taken assessment
-        matched_profile = profiles[0]
 
     if matched_profile:
         current = [
@@ -160,7 +157,20 @@ async def my_skill_passport(
             "is_personalized": False,
         }
 
-    return {"error": "no profile found"}
+    # 3. Explicit unassessed state for new accounts (no silent fallback to demo student)
+    return {
+        "user_id": user_id,
+        "name": current_user.get("full_name", "Student Candidate"),
+        "has_assessment": False,
+        "is_personalized": False,
+        "source": "NO_SUBMISSION",
+        "message": "No personal assessment completed yet. Take the 3-minute diagnostic to generate your personalized Skill Passport.",
+        "target_role": None,
+        "skill_match_pct": 0,
+        "current_skills": [],
+        "required_skills": [],
+        "missing_skills": [],
+    }
 
 
 @router.get("/student/{student_id}/passport")
@@ -349,7 +359,13 @@ async def learning_roadmap(
                 "roadmap": roadmap,
             }
 
-    return {"error": "student not found"}
+    return {
+        "user_id": student_id,
+        "target_role": None,
+        "has_roadmap": False,
+        "roadmap": [],
+        "message": "No personal assessment completed yet. Complete your diagnostic to view your learning roadmap.",
+    }
 
 
 
@@ -494,6 +510,13 @@ async def get_student_recommendations(
         recommendations = compute_career_recommendations(resolved_id)
         return recommendations
     except ValueError as e:
+        if student_id == "me" or (current_user and resolved_id == current_user.get("id")):
+            return {
+                "status": "unassessed",
+                "has_assessment": False,
+                "message": "Complete your diagnostic assessment to receive personalized career recommendations.",
+                "recommended_careers": [],
+            }
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Recommendation engine error: {e}")

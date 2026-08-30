@@ -1,1 +1,28 @@
-[]
+[
+  {
+    "id": "gov-18a163b5",
+    "name": "Maharashtra Clean Mobility Apprenticeship Mission",
+    "department": "Skill Development Dept",
+    "description": "State sponsored EV apprenticeships.",
+    "eligibility_criteria": null,
+    "target_skills": [
+      "EV Battery Maintenance"
+    ],
+    "district_coverage": [
+      "Pune",
+      "Mumbai City"
+    ],
+    "opportunity_type": "APPRENTICESHIP",
+    "application_url": "https://mahaswayam.gov.in",
+    "deadline": null,
+    "status": "active",
+    "source": "USER_SUBMITTED",
+    "data_provenance": "GOVERNMENT_OFFICIAL",
+    "is_demo": false,
+    "last_updated": "2026-08-30",
+    "created_at": "2026-08-30T17:02:21.084588+00:00",
+    "updated_at": "2026-08-30T17:02:21.084615+00:00",
+    "user_id": "usr-gov-001",
+    "user_email": "government@skillsetu.gov.in"
+  }
+]

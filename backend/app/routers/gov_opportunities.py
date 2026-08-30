@@ -1,8 +1,69 @@
 """Government Opportunities API — apprenticeships, training programs, employment, and entrepreneurship schemes."""
-from fastapi import APIRouter, HTTPException, Query
-from app.db import get_demo
+from datetime import datetime, timezone
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
+from app.db import get_demo, save_gov_opportunity
+from app.core.security import require_roles
 
 router = APIRouter()
+
+
+class GovOpportunitySubmission(BaseModel):
+    name: str = Field(..., min_length=3, max_length=250, description="Name of the scheme or opportunity")
+    department: str = Field(..., min_length=2, max_length=200, description="Government department or agency")
+    description: str = Field(..., min_length=5, max_length=3000, description="Description of the opportunity")
+    eligibility_criteria: str | None = Field(None, max_length=1000)
+    target_skills: list[str] = Field(default_factory=list)
+    district_coverage: list[str] | str = Field(default="Maharashtra")
+    opportunity_type: str = Field(default="APPRENTICESHIP", description="APPRENTICESHIP, VOCATIONAL_TRAINING, EMPLOYMENT_SCHEME, SUBSIDY")
+    application_url: str | None = None
+    deadline: str | None = None
+    status: str = Field(default="active")
+
+
+@router.post("/gov/opportunities", status_code=status.HTTP_201_CREATED)
+async def create_gov_opportunity(
+    data: GovOpportunitySubmission,
+    current_user: dict = Depends(require_roles(["GOVERNMENT", "ADMIN"])),
+):
+    """Create a new government scheme or opportunity record. Accessible to GOVERNMENT and ADMIN roles."""
+    opp_id = f"gov-{uuid.uuid4().hex[:8]}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+    now_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    coverage = data.district_coverage
+    if isinstance(coverage, str):
+        coverage = [c.strip() for c in coverage.split(",") if c.strip()]
+
+    record = {
+        "id": opp_id,
+        "name": data.name.strip(),
+        "department": data.department.strip(),
+        "description": data.description.strip(),
+        "eligibility_criteria": data.eligibility_criteria,
+        "target_skills": data.target_skills,
+        "district_coverage": coverage or ["Maharashtra"],
+        "opportunity_type": data.opportunity_type,
+        "application_url": data.application_url or "https://mahaswayam.gov.in",
+        "deadline": data.deadline,
+        "status": data.status,
+        "source": "USER_SUBMITTED",
+        "data_provenance": "GOVERNMENT_OFFICIAL",
+        "is_demo": False,
+        "last_updated": now_date,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "user_id": current_user.get("id"),
+        "user_email": current_user.get("email"),
+    }
+
+    saved = save_gov_opportunity(record)
+    return {
+        "status": "created",
+        "message": f"Government opportunity '{saved['id']}' created successfully.",
+        "opportunity": saved,
+    }
 
 
 def _match_student_to_opportunities(opportunities: list[dict], profile: dict) -> list[dict]:

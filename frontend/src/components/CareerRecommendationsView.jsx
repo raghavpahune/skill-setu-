@@ -83,6 +83,20 @@ export default function CareerRecommendationsView({ studentId, onOpenExplainabil
 
   if (!recommendation) return null;
 
+  if (recommendation.status === 'unassessed' || recommendation.has_assessment === false || !recommendation.recommended_careers?.length) {
+    return (
+      <div className="p-8 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-center space-y-3 my-4">
+        <div className="text-4xl">🎯</div>
+        <h3 className="text-base font-bold text-amber-900 dark:text-amber-200">
+          Personalized Career Recommendations Require Assessment
+        </h3>
+        <p className="text-xs text-amber-700 dark:text-amber-300 max-w-md mx-auto">
+          {recommendation.message || 'Complete the 3-minute diagnostic quiz to see career opportunities dynamically matched with your skills, employer demand, and government apprenticeships.'}
+        </p>
+      </div>
+    );
+  }
+
   const top = selectedCareer || recommendation.top_recommendation;
   const readiness = recommendation.overall_readiness;
 

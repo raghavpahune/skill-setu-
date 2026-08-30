@@ -118,7 +118,7 @@ export default function StudentDashboard() {
   const urlTab = searchParams.get('tab');
   const mainTab = urlTab && VALID_STUDENT_TABS.includes(urlTab) ? urlTab : 'passport';
   const [students, setStudents] = useState(DEFAULT_STUDENTS);
-  const [selectedStudentId, setSelectedStudentId] = useState('stu-001');
+  const [selectedStudentId, setSelectedStudentId] = useState(user?.role === 'STUDENT' ? 'me' : 'stu-001');
   const [passport, setPassport] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [schemes, setSchemes] = useState([]);
@@ -155,6 +155,9 @@ export default function StudentDashboard() {
   useEffect(() => {
     // 1. If user is logged in as a student, check if they already have personal assessment
     if (user?.id) {
+      if (user.role === 'STUDENT') {
+        setSelectedStudentId('me');
+      }
       api.getMyPassport()
         .then((myPass) => {
           if (myPass && (myPass.is_personalized || myPass.source === 'USER_SUBMITTED')) {
@@ -166,9 +169,23 @@ export default function StudentDashboard() {
               const meItem = {
                 user_id: 'me',
                 name: `${myPass.name || user.full_name || 'My Profile'} (Live Profile)`,
-                target_role: myPass.target_role,
-                skill_match_pct: myPass.skill_match_pct,
+                target_role: myPass.target_role || 'Target Career',
+                skill_match_pct: myPass.skill_match_pct || 0,
                 source: 'USER_SUBMITTED',
+              };
+              return [meItem, ...prev];
+            });
+          } else if (myPass && myPass.has_assessment === false) {
+            setPassport(myPass);
+            setStudents((prev) => {
+              const alreadyHasMe = prev.some((s) => s.user_id === 'me');
+              if (alreadyHasMe) return prev;
+              const meItem = {
+                user_id: 'me',
+                name: `${user.full_name || 'My Profile'} (Unassessed)`,
+                target_role: 'Pending Assessment',
+                skill_match_pct: 0,
+                source: 'NO_SUBMISSION',
               };
               return [meItem, ...prev];
             });
@@ -470,7 +487,11 @@ export default function StudentDashboard() {
               <div className="flex items-center gap-2 text-[11px] text-teal-400 font-semibold uppercase tracking-wider font-mono">
                 <span>Career Pathway Sequence</span>
                 <span>•</span>
-                {passport?.source === 'USER_SUBMITTED' || passport?.is_personalized ? (
+                {passport?.has_assessment === false ? (
+                  <span className="px-2 py-0.5 rounded bg-amber-900/80 border border-amber-500 text-amber-300 text-[10px] font-bold">
+                    ⚠️ Unassessed Candidate Profile
+                  </span>
+                ) : passport?.source === 'USER_SUBMITTED' || passport?.is_personalized ? (
                   <span className="px-2 py-0.5 rounded bg-emerald-900/80 border border-emerald-500 text-emerald-300 text-[10px] font-bold">
                     🟢 Live Personalized Data
                   </span>
@@ -518,6 +539,33 @@ export default function StudentDashboard() {
             </div>
           </div>
 
+          {/* Unassessed Candidate Onboarding State (PROJECT_SPEC Requirement 2) */}
+          {selectedStudentId === 'me' && passport?.has_assessment === false && (
+            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-6 text-center my-4 space-y-3">
+              <div className="text-3xl">📝</div>
+              <h3 className="text-lg font-bold text-amber-900 dark:text-amber-200">
+                No Personalized Assessment Completed Yet
+              </h3>
+              <p className="text-xs text-amber-700 dark:text-amber-300 max-w-lg mx-auto leading-relaxed">
+                You are viewing your personal candidate profile. Take the quick 3-minute diagnostic assessment to generate your verified NSQF Skill Passport, radar benchmarks, and personalized learning roadmap.
+              </p>
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => handleTabChange('assessment')}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
+                >
+                  Start Diagnostic Assessment Now →
+                </button>
+                <button
+                  onClick={() => setSelectedStudentId('stu-001')}
+                  className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  Preview Demo Student (Aarav Patil)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Top KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {loading ? (
@@ -531,14 +579,14 @@ export default function StudentDashboard() {
               <>
                 <StatCard
                   title="Candidate Profile"
-                  value={passport?.name || 'Aarav Patil'}
+                  value={passport?.name || (user?.full_name || 'My Profile')}
                   subtitle={`ID: ${selectedStudentId}`}
                   icon="🎓"
                 />
                 <StatCard
                   title="Target Career Role"
-                  value={passport?.target_role || 'AI Engineer'}
-                  subtitle="Industry benchmark target"
+                  value={passport?.has_assessment === false ? 'Pending Assessment' : (passport?.target_role || 'AI Engineer')}
+                  subtitle={passport?.has_assessment === false ? 'Complete diagnostic to set' : 'Industry benchmark target'}
                   icon="🎯"
                   color="teal"
                 />
@@ -557,8 +605,8 @@ export default function StudentDashboard() {
                 />
                 <StatCard
                   title="Critical Skill Gaps"
-                  value={`${passport?.missing_skills?.length || 0} Skills`}
-                  subtitle="Prerequisites to bridge"
+                  value={passport?.has_assessment === false ? 'Diagnostic Needed' : `${passport?.missing_skills?.length || 0} Skills`}
+                  subtitle={passport?.has_assessment === false ? 'Take 3-min quiz' : 'Prerequisites to bridge'}
                   icon="⚡"
                   color="rose"
                 />

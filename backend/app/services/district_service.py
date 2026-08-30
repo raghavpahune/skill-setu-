@@ -46,6 +46,26 @@ def get_district_plan(district: str) -> dict[str, Any]:
 
     # 2. Top 5 Demanded Roles (§13)
     role_counts = Counter(j["title"] for j in district_jobs if j.get("title"))
+
+    # Incorporate user-submitted employer demands
+    employer_demands = get_demo("employer_demands")
+    skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
+    district_js = [js for js in job_skills if js.get("job_id") in district_job_ids]
+    skill_counts = Counter(js["skill_id"] for js in district_js if js.get("skill_id"))
+
+    for ed in employer_demands:
+        ed_dist = (ed.get("district") or "").strip().lower()
+        if ed_dist == d_clean or not ed_dist:
+            role = ed.get("target_role") or ed.get("job_title") or ed.get("title")
+            openings = ed.get("openings_count") or ed.get("openings") or 5
+            if role:
+                role_counts[role] += openings
+            for sk in ed.get("required_skills") or ed.get("skills") or []:
+                sk_name = sk if isinstance(sk, str) else sk.get("name", "")
+                sid = sk if sk in skills_map else skills_by_name.get(str(sk_name).lower())
+                if sid:
+                    skill_counts[sid] += openings
+
     top_roles = [{"role": r, "count": c} for r, c in role_counts.most_common(5)]
     if not top_roles:
         top_roles = [
@@ -55,8 +75,6 @@ def get_district_plan(district: str) -> dict[str, Any]:
         ]
 
     # 3. Top Skills Demanded in District (§13)
-    district_js = [js for js in job_skills if js.get("job_id") in district_job_ids]
-    skill_counts = Counter(js["skill_id"] for js in district_js if js.get("skill_id"))
     top_skills = [
         {
             "skill_id": sid,
@@ -211,7 +229,9 @@ def get_district_plan(district: str) -> dict[str, Any]:
         "total_courses": len(district_courses) or len(local_courses),
         "total_enrolment": total_enrolment,
         "top_roles": top_roles,
+        "top_demanded_roles": top_roles,
         "top_skills": top_skills,
+        "top_demanded_skills": top_skills,
         "skill_gaps": gaps,
         "local_courses": local_courses,
         "industry_demand": industries,

@@ -1,4 +1,4 @@
-"""Database and data loader — supports Supabase PostgreSQL with robust fallback to demo dataset."""
+from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
@@ -242,7 +242,7 @@ def get_data_governance_summary() -> dict[str, Any]:
 def get_demo(table: str) -> list[dict]:
     """Get data for a table name. Returns empty list if not found."""
     if not _cache:
-        load_demo_data()
+        init_db()
     return _cache.get(table, [])
 
 
@@ -266,14 +266,16 @@ def save_employer_feedback(
 ) -> dict | None:
     """Update employer feedback in-memory cache, flush to real storage, and write through to Supabase if connected."""
     if not _cache:
-        load_demo_data()
+        init_db()
     matched_record = None
     feedback_list = _cache.get("employer_feedback", [])
+    now_iso = datetime.now(timezone.utc).isoformat()
     for f in feedback_list:
         if f.get("id") == feedback_id:
             f["status"] = status
             f["source"] = "USER_SUBMITTED"
             f["is_demo"] = False
+            f["updated_at"] = now_iso
             if notes is not None:
                 f["notes"] = notes
             if proficiency_required is not None:
@@ -288,7 +290,7 @@ def save_employer_feedback(
     client = get_supabase_client()
     if client:
         try:
-            payload: dict[str, Any] = {"status": status}
+            payload: dict[str, Any] = {"status": status, "updated_at": now_iso}
             if notes is not None:
                 payload["notes"] = notes
             if proficiency_required is not None:
@@ -305,11 +307,19 @@ def save_employer_feedback(
 def save_employer_demand(demand_data: dict) -> dict:
     """Save new employer-submitted skill demand requirement to cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    demand_data.setdefault("created_at", now_iso)
+    demand_data["updated_at"] = now_iso
     demand_data.setdefault("source", "USER_SUBMITTED")
     demand_data["is_demo"] = False
     demands = _cache.setdefault("employer_demands", [])
-    demands.insert(0, demand_data)
+    did = demand_data.get("id")
+    existing_idx = next((i for i, d in enumerate(demands) if did and d.get("id") == did), None)
+    if existing_idx is not None:
+        demands[existing_idx] = demand_data
+    else:
+        demands.insert(0, demand_data)
     _flush_real_table("employer_demands")
 
     client = get_supabase_client()
@@ -331,12 +341,13 @@ def update_employer_demand_status(
 ) -> dict | None:
     """Update validation status of an employer demand record and flush to disk."""
     if not _cache:
-        load_demo_data()
+        init_db()
     demands = _cache.get("employer_demands", [])
     matched = None
     for d in demands:
         if d.get("id") == demand_id:
             d["validation_status"] = new_status
+            d["updated_at"] = datetime.now(timezone.utc).isoformat()
             if admin_notes is not None:
                 d["admin_notes"] = admin_notes
             if validated_by is not None:
@@ -349,7 +360,7 @@ def update_employer_demand_status(
         client = get_supabase_client()
         if client:
             try:
-                payload: dict[str, Any] = {"validation_status": new_status}
+                payload: dict[str, Any] = {"validation_status": new_status, "updated_at": d.get("updated_at")}
                 if admin_notes is not None:
                     payload["admin_notes"] = admin_notes
                 if validated_by is not None:
@@ -365,7 +376,7 @@ def update_employer_demand_status(
 def delete_employer_demand(demand_id: str) -> bool:
     """Delete employer demand record from in-memory cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
     demands = _cache.get("employer_demands", [])
     initial_len = len(demands)
     _cache["employer_demands"] = [d for d in demands if d.get("id") != demand_id]
@@ -387,7 +398,7 @@ def delete_employer_demand(demand_id: str) -> bool:
 def save_sync_log(log_entry: dict) -> bool:
     """Save or update sync audit log in memory and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
     sync_id = log_entry.get("id")
     logs = _cache.setdefault("sync_logs", [])
     updated = False
@@ -437,7 +448,10 @@ def persist_jobs_to_supabase(jobs: list[dict]):
 def save_student_assessment(assessment_data: dict) -> dict:
     """Save new student-submitted self-assessment record to memory cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    assessment_data.setdefault("created_at", now_iso)
+    assessment_data["updated_at"] = now_iso
     assessment_data.setdefault("source", "USER_SUBMITTED")
     assessment_data["is_demo"] = False
     assessments = _cache.setdefault("student_assessments", [])
@@ -470,7 +484,7 @@ def save_student_assessment(assessment_data: dict) -> dict:
 def delete_student_assessment(assessment_id: str) -> bool:
     """Delete student assessment from in-memory cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
     assessments = _cache.get("student_assessments", [])
     initial_len = len(assessments)
     _cache["student_assessments"] = [a for a in assessments if a.get("id") != assessment_id]
@@ -492,11 +506,19 @@ def delete_student_assessment(assessment_id: str) -> bool:
 def save_course(course_data: dict) -> dict:
     """Save new course or institute training program to cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    course_data.setdefault("created_at", now_iso)
+    course_data["updated_at"] = now_iso
     course_data.setdefault("source", "USER_SUBMITTED")
     course_data["is_demo"] = False
     courses = _cache.setdefault("courses", [])
-    courses.insert(0, course_data)
+    cid = course_data.get("id")
+    existing_idx = next((i for i, c in enumerate(courses) if cid and c.get("id") == cid), None)
+    if existing_idx is not None:
+        courses[existing_idx] = course_data
+    else:
+        courses.insert(0, course_data)
     _flush_real_table("courses")
 
     client = get_supabase_client()
@@ -513,12 +535,13 @@ def save_course(course_data: dict) -> dict:
 def update_course(course_id: str, updates: dict) -> dict | None:
     """Update fields on a course record and flush to disk."""
     if not _cache:
-        load_demo_data()
+        init_db()
     courses = _cache.get("courses", [])
     matched = None
     for c in courses:
         if c.get("id") == course_id:
             c.update(updates)
+            c["updated_at"] = datetime.now(timezone.utc).isoformat()
             matched = c
             break
 
@@ -538,7 +561,7 @@ def update_course(course_id: str, updates: dict) -> dict | None:
 def delete_course(course_id: str) -> bool:
     """Delete course record from cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
     courses = _cache.get("courses", [])
     initial_len = len(courses)
     _cache["courses"] = [c for c in courses if c.get("id") != course_id]
@@ -560,11 +583,19 @@ def delete_course(course_id: str) -> bool:
 def save_gov_opportunity(data: dict) -> dict:
     """Save new government opportunity record to cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    data.setdefault("created_at", now_iso)
+    data["updated_at"] = now_iso
     data.setdefault("source", "USER_SUBMITTED")
     data["is_demo"] = False
     records = _cache.setdefault("gov_opportunities", [])
-    records.insert(0, data)
+    gid = data.get("id")
+    existing_idx = next((i for i, g in enumerate(records) if gid and g.get("id") == gid), None)
+    if existing_idx is not None:
+        records[existing_idx] = data
+    else:
+        records.insert(0, data)
     _flush_real_table("gov_opportunities")
 
     client = get_supabase_client()
@@ -581,12 +612,13 @@ def save_gov_opportunity(data: dict) -> dict:
 def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
     """Update fields on a government opportunity record and flush to disk."""
     if not _cache:
-        load_demo_data()
+        init_db()
     records = _cache.get("gov_opportunities", [])
     matched = None
     for r in records:
         if r.get("id") == opp_id:
             r.update(updates)
+            r["updated_at"] = datetime.now(timezone.utc).isoformat()
             matched = r
             break
 
@@ -606,7 +638,7 @@ def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
 def delete_gov_opportunity(opp_id: str) -> bool:
     """Delete government opportunity record from cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
     records = _cache.get("gov_opportunities", [])
     initial_len = len(records)
     _cache["gov_opportunities"] = [r for r in records if r.get("id") != opp_id]
@@ -623,8 +655,6 @@ def delete_gov_opportunity(opp_id: str) -> bool:
                 logger.warning("[DB] Failed deleting gov opportunity from Supabase: %s", e)
 
     return deleted
-
-
 # ---------------------------------------------------------------------------
 # Phase 26: Industry Intelligence & Signals Persistence
 # ---------------------------------------------------------------------------
@@ -632,7 +662,10 @@ def delete_gov_opportunity(opp_id: str) -> bool:
 def save_industry_signal(signal_data: dict) -> dict:
     """Save or insert industry intelligence signal into cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    signal_data.setdefault("created_at", now_iso)
+    signal_data["updated_at"] = now_iso
     signal_data.setdefault("source", "USER_SUBMITTED")
     signal_data["is_demo"] = False
     signals = _cache.setdefault("industry_signals", [])
@@ -660,12 +693,13 @@ def save_industry_signal(signal_data: dict) -> dict:
 def update_industry_signal(sig_id: str, updates: dict) -> dict | None:
     """Update fields on an industry intelligence signal record and flush to disk."""
     if not _cache:
-        load_demo_data()
+        init_db()
     signals = _cache.get("industry_signals", [])
     matched = None
     for s in signals:
         if s.get("id") == sig_id:
             s.update(updates)
+            s["updated_at"] = datetime.now(timezone.utc).isoformat()
             matched = s
             break
 
@@ -685,7 +719,7 @@ def update_industry_signal(sig_id: str, updates: dict) -> dict | None:
 def delete_industry_signal(sig_id: str) -> bool:
     """Delete industry intelligence signal from cache, disk storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
     signals = _cache.get("industry_signals", [])
     initial_len = len(signals)
     _cache["industry_signals"] = [s for s in signals if s.get("id") != sig_id]
@@ -704,11 +738,10 @@ def delete_industry_signal(sig_id: str) -> bool:
     return deleted
 
 
-
 def get_industry_signal_by_id(sig_id: str) -> dict | None:
     """Find industry signal by ID."""
     if not _cache:
-        load_demo_data()
+        init_db()
     signals = _cache.get("industry_signals", [])
     for s in signals:
         if s.get("id") == sig_id:
@@ -722,8 +755,6 @@ def get_industry_signal_by_id(sig_id: str) -> dict | None:
 
 def init_demo_users():
     """Ensure baseline demo accounts exist for each role with bcrypt hashed passwords."""
-    if not _cache:
-        load_demo_data()
     users = _cache.setdefault("users", [])
     existing_emails = {u.get("email", "").lower() for u in users if isinstance(u, dict)}
 
@@ -742,7 +773,6 @@ def init_demo_users():
             "created_at": "2026-01-15T09:00:00Z",
             "updated_at": "2026-01-15T09:00:00Z",
         },
-
         {
             "id": "usr-employer-001",
             "email": "employer@skillsetu.gov.in",
@@ -822,11 +852,10 @@ def init_demo_users():
             existing_emails.add(acc["email"].lower())
 
 
-
 def get_user_by_email(email: str) -> dict | None:
     """Find user record by case-insensitive email address."""
     if not _cache:
-        load_demo_data()
+        init_db()
     users = _cache.get("users", [])
     clean_email = email.strip().lower()
     for u in users:
@@ -838,7 +867,7 @@ def get_user_by_email(email: str) -> dict | None:
 def get_user_by_id(user_id: str) -> dict | None:
     """Find user record by ID."""
     if not _cache:
-        load_demo_data()
+        init_db()
     users = _cache.get("users", [])
     for u in users:
         if u.get("id") == user_id:
@@ -849,14 +878,17 @@ def get_user_by_id(user_id: str) -> dict | None:
 def list_users() -> list[dict]:
     """Return all user accounts."""
     if not _cache:
-        load_demo_data()
+        init_db()
     return _cache.get("users", [])
 
 
 def save_user(user_data: dict) -> dict:
     """Save or update user record in memory cache, local real storage, and Supabase."""
     if not _cache:
-        load_demo_data()
+        init_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    user_data.setdefault("created_at", now_iso)
+    user_data["updated_at"] = now_iso
     user_data.setdefault("source", "USER_SUBMITTED")
     user_data["is_demo"] = False
     users = _cache.setdefault("users", [])

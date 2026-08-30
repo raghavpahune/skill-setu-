@@ -51,17 +51,36 @@ def compute_gaps(district: str | None = None) -> list[dict]:
     # Coverage: weighted by course enrolment
     # A skill taught in a course with 120 students at level 4/5 is better covered
     # than a skill in a course with 30 students at level 2/5
-    course_enrolment = {c["id"]: c.get("enrolment_count", 0) for c in courses}
+    courses_to_use = [c for c in courses if c.get("district", "").lower() == district.lower()] if district else courses
+    course_enrolment = {c["id"]: (c.get("enrolment_count") or c.get("enrolment_capacity", 60)) for c in courses_to_use}
     total_enrolment = sum(course_enrolment.values()) or 1
 
     # For each skill: sum(coverage_level/5 * course_enrolment) / total_enrolment
     skill_coverage_weighted = {}
+    existing_cs_course_ids = set()
     for cs in course_skills_data:
-        sid = cs["skill_id"]
-        lvl = cs.get("coverage_level", 0)
-        enrol = course_enrolment.get(cs["course_id"], 0)
-        weighted = (lvl / 5) * enrol
-        skill_coverage_weighted[sid] = skill_coverage_weighted.get(sid, 0) + weighted
+        cid = cs.get("course_id")
+        if cid in course_enrolment:
+            existing_cs_course_ids.add(cid)
+            sid = cs["skill_id"]
+            lvl = cs.get("coverage_level", 0)
+            enrol = course_enrolment.get(cid, 0)
+            weighted = (lvl / 5) * enrol
+            skill_coverage_weighted[sid] = skill_coverage_weighted.get(sid, 0) + weighted
+
+    # Phase 25: Incorporate first-party user-submitted courses not present in static course_skills
+    for c in courses_to_use:
+        cid = c.get("id")
+        c_skills = c.get("skills") or c.get("skills_taught") or []
+        if cid not in existing_cs_course_ids and c_skills:
+            enrol = c.get("enrolment_count") or c.get("enrolment_capacity", 60)
+            lvl = min(5, max(1, c.get("nsqf_level", 5) - 1))
+            for sk in c_skills:
+                sk_name = sk if isinstance(sk, str) else sk.get("name", "")
+                sid = sk if sk in skills_map else skills_by_name.get(str(sk_name).lower())
+                if sid:
+                    weighted = (lvl / 5) * enrol
+                    skill_coverage_weighted[sid] = skill_coverage_weighted.get(sid, 0) + weighted
 
     gaps = []
     for sid, count in demand_counts.items():

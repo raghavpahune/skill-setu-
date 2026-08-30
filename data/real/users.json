@@ -1,15 +1,29 @@
 [
   {
-    "id": "usr-student-d35a13f5",
+    "id": "usr-student-5ffb5a03",
+    "email": "new_student_unassessed@skillsetu.gov.in",
+    "hashed_password": "$2b$12$hnwFYmudsTimGrt9xJVOkeFkj9s9bVWeqxZkXAxujuWvmQxvBIGia",
+    "full_name": "Pooja Deshmukh",
+    "role": "STUDENT",
+    "organization_id": null,
+    "district": "Nagpur",
+    "is_active": true,
+    "created_at": "2026-08-30T16:22:48.644074+00:00",
+    "updated_at": "2026-08-30T16:22:48.880045+00:00",
+    "source": "USER_SUBMITTED",
+    "is_demo": false
+  },
+  {
+    "id": "usr-student-43f1ad95",
     "email": "student2.isolated@skillsetu.gov.in",
-    "hashed_password": "$2b$12$/NHS2uRkCwS0mAepZ0l4leICzevGZ7sTBOBaASb/XAt3KPe7UUZoW",
+    "hashed_password": "$2b$12$eOJ2qv6bD44jPfhSmgk6w.yo4zHLH0xPUaQbLMaZFxaFiBfV1reiu",
     "full_name": "Student Two",
     "role": "STUDENT",
     "organization_id": null,
     "district": null,
     "is_active": true,
-    "created_at": "2026-08-30T15:44:12.972682+00:00",
-    "updated_at": "2026-08-30T15:44:12.972682+00:00",
+    "created_at": "2026-08-30T16:28:27.066056+00:00",
+    "updated_at": "2026-08-30T16:28:27.300150+00:00",
     "source": "USER_SUBMITTED",
     "is_demo": false
   }

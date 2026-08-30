@@ -219,6 +219,54 @@ export default function GovernmentDashboard() {
   });
 
   const [platformMetrics, setPlatformMetrics] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [govForm, setGovForm] = useState({
+    name: '',
+    department: 'Skill Development, Employment & Entrepreneurship Dept',
+    description: '',
+    eligibility_criteria: 'Diploma, ITI, or Degree holders aged 18-28 resident in Maharashtra',
+    target_skills: 'PLC Programming, Automation, EV Technology',
+    district_coverage: 'Pune, Mumbai City, Aurangabad, Nagpur',
+    opportunity_type: 'APPRENTICESHIP',
+    application_url: 'https://mahaswayam.gov.in',
+    deadline: '2026-12-31',
+  });
+
+  const handleGovSubmit = async (e) => {
+    e.preventDefault();
+    if (!govForm.name.trim() || !govForm.description.trim()) {
+      setToastMessage({ type: 'error', text: 'Please provide both opportunity name and description.' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const skillsArray = govForm.target_skills.split(',').map((s) => s.trim()).filter(Boolean);
+      const districtsArray = govForm.district_coverage.split(',').map((d) => d.trim()).filter(Boolean);
+      const payload = {
+        name: govForm.name.trim(),
+        department: govForm.department.trim(),
+        description: govForm.description.trim(),
+        eligibility_criteria: govForm.eligibility_criteria.trim() || null,
+        target_skills: skillsArray,
+        district_coverage: districtsArray.length > 0 ? districtsArray : ['Maharashtra'],
+        opportunity_type: govForm.opportunity_type,
+        application_url: govForm.application_url.trim() || 'https://mahaswayam.gov.in',
+        deadline: govForm.deadline.trim() || null,
+        status: 'active',
+      };
+      await api.submitGovOpportunity(payload);
+      setToastMessage({ type: 'success', text: `Government Opportunity "${payload.name}" published successfully!` });
+      setIsModalOpen(false);
+      setGovForm((prev) => ({ ...prev, name: '', description: '' }));
+      fetchData();
+    } catch (err) {
+      setToastMessage({ type: 'error', text: err.message || 'Failed to publish government opportunity.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const fetchData = () => {
     setLoading(true);
@@ -323,14 +371,44 @@ export default function GovernmentDashboard() {
           </p>
         </div>
 
-        <Link
-          to={`/government/district/${encodeURIComponent(selectedDistrict)}`}
-          className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 self-start shrink-0"
-        >
-          <span>Inspect {selectedDistrict} Micro-Plan</span>
-          <span>→</span>
-        </Link>
+        <div className="flex items-center gap-2 self-start shrink-0 flex-wrap">
+          {(user?.role === 'GOVERNMENT' || user?.role === 'ADMIN') && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Publish Scheme / Opportunity</span>
+              <span>🏛️</span>
+            </button>
+          )}
+          <Link
+            to={`/government/district/${encodeURIComponent(selectedDistrict)}`}
+            className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+          >
+            <span>Inspect {selectedDistrict} Micro-Plan</span>
+            <span>→</span>
+          </Link>
+        </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          className={`mb-6 p-4 rounded-xl text-xs font-bold border flex items-center justify-between gap-2 ${
+            toastMessage.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              : 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+          }`}
+        >
+          <span>{toastMessage.text}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer font-bold text-sm px-2"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards — Dominant Hierarchy */}
       <div data-demo="government-kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1081,6 +1159,176 @@ export default function GovernmentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Publish Scheme / Opportunity Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Publish Government Opportunity / Scheme
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Notify youth across Maharashtra and connect candidates to state-sponsored initiatives
+                </p>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGovSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Scheme / Opportunity Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govForm.name}
+                    onChange={(e) => setGovForm({ ...govForm, name: e.target.value })}
+                    placeholder="e.g. CM Apprenticeship Promotion Scheme"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Nodal Department *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={govForm.department}
+                    onChange={(e) => setGovForm({ ...govForm, department: e.target.value })}
+                    placeholder="e.g. Skill Development Dept"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Opportunity Type
+                  </label>
+                  <select
+                    value={govForm.opportunity_type}
+                    onChange={(e) => setGovForm({ ...govForm, opportunity_type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    <option value="APPRENTICESHIP">Apprenticeship</option>
+                    <option value="VOCATIONAL_TRAINING">Vocational Training</option>
+                    <option value="EMPLOYMENT_SCHEME">Employment Scheme</option>
+                    <option value="SUBSIDY">Financial Subsidy / Stipend</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    District Coverage (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={govForm.district_coverage}
+                    onChange={(e) => setGovForm({ ...govForm, district_coverage: e.target.value })}
+                    placeholder="e.g. Pune, Mumbai City, Maharashtra"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Target Competencies / Skills (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={govForm.target_skills}
+                  onChange={(e) => setGovForm({ ...govForm, target_skills: e.target.value })}
+                  placeholder="e.g. PLC Programming, Automation, EV Technology"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Brief Description *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={govForm.description}
+                  onChange={(e) => setGovForm({ ...govForm, description: e.target.value })}
+                  placeholder="Describe the opportunity, monthly stipend, training duration, and target youth cohort..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Eligibility Criteria
+                  </label>
+                  <input
+                    type="text"
+                    value={govForm.eligibility_criteria}
+                    onChange={(e) => setGovForm({ ...govForm, eligibility_criteria: e.target.value })}
+                    placeholder="e.g. 10th/12th/ITI pass aged 18-28"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Application Deadline
+                  </label>
+                  <input
+                    type="date"
+                    value={govForm.deadline}
+                    onChange={(e) => setGovForm({ ...govForm, deadline: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Official Portal / Application URL
+                </label>
+                <input
+                  type="url"
+                  value={govForm.application_url}
+                  onChange={(e) => setGovForm({ ...govForm, application_url: e.target.value })}
+                  placeholder="https://mahaswayam.gov.in"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={submitting}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Publishing...' : 'Publish to State Registry 🏛️'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
