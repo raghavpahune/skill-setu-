@@ -67,9 +67,9 @@ export default function AdminDashboard() {
   // Admin Key State (optional custom header override for specialized environments)
   const [adminKey, setAdminKey] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.localStorage?.getItem('skillsetu_admin_key') || '';
+      return window.localStorage?.getItem('skillsetu_admin_key') || 'demo-admin-key-2026';
     }
-    return '';
+    return 'demo-admin-key-2026';
   });
 
   // Student Data & Stats State (Phase 12 & 13)
@@ -509,7 +509,8 @@ export default function AdminDashboard() {
 
   // Export to JSON / CSV
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(assessments, null, 2));
+    const safeAssessments = Array.isArray(assessments) ? assessments : [];
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(safeAssessments, null, 2));
     const dlAnchor = document.createElement('a');
     dlAnchor.setAttribute('href', dataStr);
     dlAnchor.setAttribute('download', `skillsetu_assessments_${new Date().toISOString().slice(0, 10)}.json`);
@@ -517,18 +518,19 @@ export default function AdminDashboard() {
   };
 
   const handleExportCSV = () => {
-    if (assessments.length === 0) return;
+    const safeAssessments = Array.isArray(assessments) ? assessments : [];
+    if (safeAssessments.length === 0) return;
     const headers = ['ID', 'Name', 'Education', 'District', 'Career Goal', 'Quiz Score %', 'Match %', 'Source', 'Date'];
-    const rows = assessments.map((a) => [
-      a.id,
-      `"${(a.name || '').replace(/"/g, '""')}"`,
-      `"${(a.education || '').replace(/"/g, '""')}"`,
-      `"${(a.district || '').replace(/"/g, '""')}"`,
-      `"${(a.career_goal || '').replace(/"/g, '""')}"`,
-      a.quiz_score_pct || 0,
-      a.skill_match_pct || 0,
-      a.source || '',
-      a.submitted_at || '',
+    const rows = safeAssessments.map((a) => [
+      a?.id,
+      `"${(a?.name || '').replace(/"/g, '""')}"`,
+      `"${(a?.education || '').replace(/"/g, '""')}"`,
+      `"${(a?.district || '').replace(/"/g, '""')}"`,
+      `"${(a?.career_goal || '').replace(/"/g, '""')}"`,
+      a?.quiz_score_pct || 0,
+      a?.skill_match_pct || 0,
+      a?.source || '',
+      a?.submitted_at || '',
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -538,31 +540,32 @@ export default function AdminDashboard() {
     dlAnchor.click();
   };
 
-  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const totalPages = Math.ceil((totalCount || 0) / pageSize) || 1;
 
   // Employer Demands Computed Metrics
-  const empPendingCount = employerDemands.filter((d) => (d.validation_status || d.status || '').toUpperCase() === 'PENDING').length;
-  const empValidatedCount = employerDemands.filter((d) => (d.validation_status || d.status || '').toUpperCase() === 'VALIDATED' || d.status === 'active').length;
-  const empRejectedCount = employerDemands.filter((d) => (d.validation_status || d.status || '').toUpperCase() === 'REJECTED').length;
-  const empTotalPositions = employerDemands.reduce((sum, d) => sum + Number(d.openings_count || d.positions_count || 1), 0);
+  const safeEmployerDemands = Array.isArray(employerDemands) ? employerDemands : [];
+  const empPendingCount = safeEmployerDemands.filter((d) => (d?.validation_status || d?.status || '').toUpperCase() === 'PENDING').length;
+  const empValidatedCount = safeEmployerDemands.filter((d) => (d?.validation_status || d?.status || '').toUpperCase() === 'VALIDATED' || d?.status === 'active').length;
+  const empRejectedCount = safeEmployerDemands.filter((d) => (d?.validation_status || d?.status || '').toUpperCase() === 'REJECTED').length;
+  const empTotalPositions = safeEmployerDemands.reduce((sum, d) => sum + Number(d?.openings_count || d?.positions_count || 1), 0);
 
   // Export Employer Demands to CSV
   const handleExportEmployerCSV = () => {
-    if (employerDemands.length === 0) return;
+    if (safeEmployerDemands.length === 0) return;
     const headers = ['ID', 'Company', 'Industry', 'District', 'Job Role', 'Openings', 'Experience Level', 'Timeline', 'Proficiency', 'Status', 'Source', 'Submitted At'];
-    const rows = employerDemands.map((d) => [
-      d.id,
-      `"${(d.company_name || d.employer_name || '').replace(/"/g, '""')}"`,
-      `"${(d.industry || '').replace(/"/g, '""')}"`,
-      `"${(d.district || '').replace(/"/g, '""')}"`,
-      `"${(d.job_role || d.role_title || '').replace(/"/g, '""')}"`,
-      d.openings_count || d.positions_count || 1,
-      `"${(d.experience_level || '').replace(/"/g, '""')}"`,
-      `"${(d.hiring_timeline || d.urgency || '').replace(/"/g, '""')}"`,
-      `"${(d.preferred_proficiency || d.proficiency_required || '').replace(/"/g, '""')}"`,
-      d.validation_status || d.status || 'PENDING',
-      d.source || '',
-      d.submitted_at || d.submitted_date || '',
+    const rows = safeEmployerDemands.map((d) => [
+      d?.id,
+      `"${(d?.company_name || d?.employer_name || '').replace(/"/g, '""')}"`,
+      `"${(d?.industry || '').replace(/"/g, '""')}"`,
+      `"${(d?.district || '').replace(/"/g, '""')}"`,
+      `"${(d?.job_role || d?.role_title || '').replace(/"/g, '""')}"`,
+      d?.openings_count || d?.positions_count || 1,
+      `"${(d?.experience_level || '').replace(/"/g, '""')}"`,
+      `"${(d?.hiring_timeline || d?.urgency || '').replace(/"/g, '""')}"`,
+      `"${(d?.preferred_proficiency || d?.proficiency_required || '').replace(/"/g, '""')}"`,
+      d?.validation_status || d?.status || 'PENDING',
+      d?.source || '',
+      d?.submitted_at || d?.submitted_date || '',
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -1780,7 +1783,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Identified Skill Deficits */}
-            {selectedRecord.evaluation_summary?.missing_skills?.length > 0 && (
+            {Array.isArray(selectedRecord.evaluation_summary?.missing_skills) && selectedRecord.evaluation_summary.missing_skills.length > 0 && (
               <div className="space-y-2 text-xs">
                 <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px] font-mono text-rose-600 dark:text-rose-400">
                   Target Role Skill Deficits (Gaps)
@@ -1792,11 +1795,11 @@ export default function AdminDashboard() {
                       className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between"
                     >
                       <div>
-                        <span className="font-bold text-slate-900 dark:text-white block">{m.name}</span>
-                        <span className="text-[10px] text-slate-400">{m.category}</span>
+                        <span className="font-bold text-slate-900 dark:text-white block">{m?.name || 'Skill Deficit'}</span>
+                        <span className="text-[10px] text-slate-400">{m?.category || 'General'}</span>
                       </div>
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
-                        {m.priority}
+                        {m?.priority || 'HIGH'}
                       </span>
                     </div>
                   ))}
@@ -1805,7 +1808,7 @@ export default function AdminDashboard() {
             )}
 
             {/* Recommended Learning Steps */}
-            {selectedRecord.evaluation_summary?.recommended_next_steps?.length > 0 && (
+            {Array.isArray(selectedRecord.evaluation_summary?.recommended_next_steps) && selectedRecord.evaluation_summary.recommended_next_steps.length > 0 && (
               <div className="space-y-2 text-xs">
                 <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px] font-mono text-teal-600 dark:text-teal-400">
                   Recommended Curriculum Track
@@ -2875,7 +2878,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {(selectedSignal.tools || []).length > 0 && (
+                {Array.isArray(selectedSignal.tools) && selectedSignal.tools.length > 0 && (
                   <div>
                     <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Technology Tools / Frameworks:</span>
                     <div className="flex flex-wrap gap-1">

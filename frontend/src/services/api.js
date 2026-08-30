@@ -376,6 +376,11 @@ export const api = {
       body: payload ? JSON.stringify(payload) : undefined,
     });
   },
+  getAdminIndustryIngestionStatus: (adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON('/admin/industry/ingestion-status', { headers });
+  },
   getAdminIndustrySignals: (params = {}, adminKey = '') => {
     const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
     const query = new URLSearchParams(params).toString();
