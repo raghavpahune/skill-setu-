@@ -272,7 +272,7 @@ export default function StudentDashboard() {
     return { items, acquired, gaps, additional };
   }, [passport, roadmap]);
 
-  const filteredComparisonItems = useMemo(() => {
+  const filteredItems = useMemo(() => {
     if (filterTab === 'acquired') return comparisonData.acquired;
     if (filterTab === 'gaps') return comparisonData.gaps;
     return comparisonData.items;
