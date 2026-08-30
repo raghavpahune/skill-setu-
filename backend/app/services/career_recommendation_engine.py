@@ -279,6 +279,27 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                     "is_demo": c.get("is_demo", True),
                 })
 
+        # Connect with active fresh industry signals (Phase 26)
+        all_signals = get_demo("industry_signals")
+        role_signals = []
+        for s in all_signals:
+            if not s.get("is_active", True) or s.get("validation_status", "APPROVED") != "APPROVED":
+                continue
+            sig_text = f"{s.get('title', '')} {s.get('description', '')} {s.get('summary', '')} {s.get('industry', '')} {s.get('technology', '')}".lower()
+            sig_skills = [sk.lower() for sk in (s.get("skills") or [])]
+            matches_domain = role_def["domain"].lower() in sig_text or role_name.lower() in sig_text
+            matches_skill = any(req.lower() in sig_skills or req.lower() in sig_text for req in role_def["required_skill_names"])
+            if matches_domain or matches_skill:
+                role_signals.append({
+                    "id": s.get("id"),
+                    "title": s.get("title"),
+                    "category": s.get("category", "INDUSTRY_DEMAND"),
+                    "source_name": s.get("source_name") or s.get("source"),
+                    "source_url": s.get("source_url") or "https://data.gov.in",
+                    "freshness": s.get("freshness", "NEW"),
+                    "skills": s.get("skills", []),
+                })
+
         # Generate Explainable Reasons (PROJECT_SPEC Requirement #2)
         reasons = []
         if matched_skills:
@@ -287,6 +308,8 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             reasons.append(f"Directly aligned with your stated career goal '{target_career_raw}'.")
         if total_openings > 0:
             reasons.append(f"{total_openings} verified vacancies available from validated employer submissions in Maharashtra.")
+        if role_signals:
+            reasons.append(f"Corroborated by verified industry signal: '{role_signals[0]['title']}' ({role_signals[0]['source_name']}).")
         if role_courses:
             reasons.append(f"Supported by {len(role_courses)} accredited training programs across Maharashtra institutes.")
         if role_gov_ops:
@@ -326,6 +349,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "validated_openings_count": total_openings,
             "validated_employer_signals": role_demands[:4],
             "matched_institute_training": role_courses[:3],
+            "matched_industry_signals": role_signals[:3],
             "matched_government_opportunities": role_gov_ops[:3],
             "explanation_reasons": reasons,
             "is_target_goal": bool(target_career_raw.lower() in role_name.lower() or role_name.lower() in target_career_raw.lower()),
@@ -363,6 +387,20 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                     "source": c.get("source", "DEMO_SYNTHETIC"),
                 })
 
+        # Match industry signals for this specific missing skill (Phase 26)
+        skill_signals = []
+        for s in all_signals:
+            if not s.get("is_active", True) or s.get("validation_status", "APPROVED") != "APPROVED":
+                continue
+            sig_skills = [sk.lower() for sk in (s.get("skills") or [])]
+            if any(skill.lower() in sk for sk in sig_skills) or skill.lower() in (s.get("title") or "").lower():
+                skill_signals.append({
+                    "id": s.get("id"),
+                    "title": s.get("title"),
+                    "source_name": s.get("source_name") or s.get("source"),
+                    "source_url": s.get("source_url") or "https://data.gov.in",
+                })
+
         roadmap_steps.append({
             "step": idx,
             "skill_name": skill,
@@ -372,6 +410,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence).",
             "action_item": f"Complete hands-on practical modules for {skill} through recommended vocational institutes.",
             "matched_institute_training": training_options[:2],
+            "matched_industry_signals": skill_signals[:2],
         })
 
     if not roadmap_steps:

@@ -329,3 +329,34 @@ CREATE INDEX IF NOT EXISTS idx_employer_demands_user ON employer_demands(user_id
 CREATE INDEX IF NOT EXISTS idx_courses_district ON courses(district);
 CREATE INDEX IF NOT EXISTS idx_courses_user ON courses(user_id);
 CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);
+
+-- ============================================================
+-- Phase 26: Industry Intelligence & Signal Ingestion Pipeline
+-- ============================================================
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'INDUSTRY_DEMAND';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS industry TEXT DEFAULT 'Cross-Sector Tech';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS skills TEXT[] DEFAULT '{}';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS tools TEXT[] DEFAULT '{}';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS source_name TEXT;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'INDUSTRY_ANNOUNCEMENT';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS validation_status TEXT DEFAULT 'APPROVED' CHECK (validation_status IN ('APPROVED', 'PENDING', 'REJECTED', 'ARCHIVED'));
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS data_provenance TEXT DEFAULT 'VERIFIED_EXTERNAL_FEED';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS freshness TEXT DEFAULT 'NEW';
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS is_ai_processed BOOLEAN DEFAULT FALSE;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS ai_metadata JSONB;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS signature TEXT;
+ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_signals_published ON industry_signals(published_at);
+CREATE INDEX IF NOT EXISTS idx_signals_collected ON industry_signals(collected_at);
+CREATE INDEX IF NOT EXISTS idx_signals_category ON industry_signals(category);
+CREATE INDEX IF NOT EXISTS idx_signals_industry ON industry_signals(industry);
+CREATE INDEX IF NOT EXISTS idx_signals_active ON industry_signals(is_active);
+CREATE INDEX IF NOT EXISTS idx_signals_status ON industry_signals(validation_status);

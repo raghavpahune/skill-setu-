@@ -1,40 +1,159 @@
-"""Industry Signals API."""
-from fastapi import APIRouter
+"""Industry Signals & Technology Intelligence API.
+
+Provides:
+- GET /api/industry/signals (Public: filters by category, industry, skill, tool, freshness, search)
+- GET /api/industry/signals/{id} (Public: detail of approved, active signal)
+- GET /api/signals & /api/signals/{id} (Backward compatibility aliases)
+"""
+from typing import Any
+from fastapi import APIRouter, HTTPException, Query, status
 from app.db import get_demo
+from app.ingestion.industry_intelligence import calculate_freshness, STATUS_APPROVED
 
 router = APIRouter()
 
 
-@router.get("/signals")
-async def list_signals():
-    signals = get_demo("industry_signals")
+def _normalize_signal_output(sig: dict[str, Any], skills_map: dict[str, str]) -> dict[str, Any]:
+    """Ensure consistent schema output across legacy demo records and freshly ingested records."""
+    published_at = sig.get("published_at") or (f"{sig['signal_date']}T00:00:00Z" if sig.get("signal_date") else "2026-01-01T00:00:00Z")
+    is_active = sig.get("is_active", True)
+    val_status = sig.get("validation_status", STATUS_APPROVED)
+    freshness = sig.get("freshness") or calculate_freshness(published_at, is_active, val_status)
+
+    # Resolve skills list if affected_skills format
+    skills = sig.get("skills", [])
+    if not skills and "affected_skills" in sig:
+        skills = [skills_map.get(sid, sid) for sid in sig.get("affected_skills", [])]
+
+    affected_legacy = [
+        {"skill_id": s, "skill_name": skills_map.get(s, s)}
+        for s in sig.get("affected_skills", [])
+    ] or [{"skill_id": s, "skill_name": s} for s in skills]
+
+    return {
+        "id": sig.get("id"),
+        "title": sig.get("title"),
+        "description": sig.get("description") or sig.get("summary") or "",
+        "summary": sig.get("summary") or sig.get("description") or "",
+        "category": sig.get("category", "INDUSTRY_DEMAND"),
+        "industry": sig.get("industry") or sig.get("technology") or "Cross-Sector Tech",
+        "technology": sig.get("technology") or sig.get("industry") or "Emerging Technology",
+        "skills": skills,
+        "tools": sig.get("tools", []),
+        "source_name": sig.get("source_name") or sig.get("source") or "Industry Intelligence",
+        "source": sig.get("source") or sig.get("source_name") or "Industry Intelligence",
+        "source_url": sig.get("source_url") or "https://data.gov.in",
+        "source_type": sig.get("source_type") or "INDUSTRY_ANNOUNCEMENT",
+        "published_at": published_at,
+        "collected_at": sig.get("collected_at") or published_at,
+        "updated_at": sig.get("updated_at") or published_at,
+        "signal_date": published_at[:10],
+        "impact_level": sig.get("impact_level", "high"),
+        "validation_status": val_status,
+        "is_active": is_active,
+        "is_demo": sig.get("is_demo", sig.get("source_label") == "DEMO_SYNTHETIC"),
+        "data_provenance": sig.get("data_provenance") or ("DEMO_SYNTHETIC" if sig.get("source_label") == "DEMO_SYNTHETIC" else "VERIFIED_EXTERNAL_FEED"),
+        "freshness": freshness,
+        "affected_skills": affected_legacy,
+        "is_ai_processed": sig.get("is_ai_processed", False),
+        "ai_metadata": sig.get("ai_metadata"),
+    }
+
+
+@router.get("/industry/signals")
+async def list_industry_signals(
+    category: str | None = Query(None, description="Category filter (e.g. EMERGING_SKILL, INDUSTRY_DEMAND)"),
+    industry: str | None = Query(None, description="Industry filter (e.g. IT, Automotive, EV)"),
+    skill: str | None = Query(None, description="Skill name filter"),
+    tool: str | None = Query(None, description="Tool name filter"),
+    freshness: str | None = Query(None, description="Freshness grade: NEW, RECENT, OLDER, EXPIRED"),
+    source: str | None = Query(None, description="Source name filter"),
+    search: str | None = Query(None, description="Search query across title, description, skills, tools"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Retrieve public, approved, active industry intelligence signals."""
+    raw_signals = get_demo("industry_signals")
     skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
 
-    result = []
-    for sig in signals:
-        affected = [
-            {"skill_id": sid, "skill_name": skills_map.get(sid, sid)}
-            for sid in sig.get("affected_skills", [])
-        ]
-        result.append({
-            "id": sig["id"],
-            "title": sig["title"],
-            "source": sig["source"],
-            "technology": sig["technology"],
-            "summary": sig["summary"],
-            "impact_level": sig["impact_level"],
-            "signal_date": sig["signal_date"],
-            "affected_skills": affected,
-        })
+    normalized = [_normalize_signal_output(s, skills_map) for s in raw_signals]
 
-    result.sort(key=lambda x: x["signal_date"], reverse=True)
-    return result
+    # Filter only approved and active for public view
+    results = [s for s in normalized if s.get("is_active") is True and s.get("validation_status") == STATUS_APPROVED]
+
+    if category and category.lower() != "all":
+        results = [s for s in results if s.get("category", "").lower() == category.lower()]
+
+    if industry and industry.lower() != "all":
+        results = [s for s in results if industry.lower() in s.get("industry", "").lower() or industry.lower() in s.get("technology", "").lower()]
+
+    if skill and skill.lower() != "all":
+        results = [s for s in results if any(skill.lower() in sk.lower() for sk in s.get("skills", []))]
+
+    if tool and tool.lower() != "all":
+        results = [s for s in results if any(tool.lower() in t.lower() for t in s.get("tools", []))]
+
+    if freshness and freshness.lower() != "all":
+        results = [s for s in results if s.get("freshness", "").lower() == freshness.lower()]
+
+    if source and source.lower() != "all":
+        results = [s for s in results if source.lower() in s.get("source_name", "").lower() or source.lower() in s.get("source", "").lower()]
+
+    if search and search.strip():
+        q = search.strip().lower()
+        results = [
+            s for s in results
+            if q in s.get("title", "").lower()
+            or q in s.get("description", "").lower()
+            or any(q in sk.lower() for sk in s.get("skills", []))
+            or any(q in tl.lower() for tl in s.get("tools", []))
+            or q in s.get("industry", "").lower()
+        ]
+
+    # Sort by published_at descending
+    results.sort(key=lambda x: x.get("published_at", ""), reverse=True)
+
+    return {
+        "status": "success",
+        "total": len(results),
+        "signals": results[offset : offset + limit],
+    }
+
+
+@router.get("/industry/signals/{signal_id}")
+async def get_industry_signal(signal_id: str):
+    """Retrieve detailed metadata for an approved active industry signal."""
+    raw_signals = get_demo("industry_signals")
+    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+
+    matched = next((s for s in raw_signals if s.get("id") == signal_id), None)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
+
+    normalized = _normalize_signal_output(matched, skills_map)
+    if not normalized.get("is_active") or normalized.get("validation_status") != STATUS_APPROVED:
+        raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' is not active or approved.")
+
+    return {"status": "success", "signal": normalized}
+
+
+# Backward Compatibility Endpoints
+@router.get("/signals")
+async def legacy_list_signals():
+    """Legacy backward-compatible endpoint for existing dashboard widgets."""
+    raw_signals = get_demo("industry_signals")
+    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    results = [_normalize_signal_output(s, skills_map) for s in raw_signals if s.get("is_active", True)]
+    results.sort(key=lambda x: x.get("published_at", ""), reverse=True)
+    return results
 
 
 @router.get("/signals/{signal_id}")
-async def get_signal(signal_id: str):
-    signals = get_demo("industry_signals")
-    for s in signals:
-        if s["id"] == signal_id:
-            return s
-    return {"error": "not found"}
+async def legacy_get_signal(signal_id: str):
+    """Legacy backward-compatible detail endpoint."""
+    raw_signals = get_demo("industry_signals")
+    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    matched = next((s for s in raw_signals if s.get("id") == signal_id), None)
+    if not matched:
+        return {"error": "not found"}
+    return _normalize_signal_output(matched, skills_map)

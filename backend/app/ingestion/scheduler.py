@@ -110,6 +110,13 @@ class IngestionScheduler:
             try:
                 # Run the sync engine (in thread executor to prevent blocking async event loop)
                 loop = asyncio.get_running_loop()
+                if source in ("industry_signals", "industry", "all"):
+                    from app.ingestion.industry_intelligence import industry_ingestor
+                    ind_res = await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
+                    if source != "all":
+                        self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        return {"status": "success", "source": source, "industry_sync": ind_res}
+
                 result = await loop.run_in_executor(None, self.engine.run_sync, source)
                 self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 return result

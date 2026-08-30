@@ -71,12 +71,13 @@ def test_sync_engine_and_deduplication():
 
     # Verify sync_logs table/cache has both entries
     sync_logs = get_demo("sync_logs")
-    assert len(sync_logs) >= 2
-    for log in sync_logs:
+    datagov_logs = [log for log in sync_logs if log.get("source_name") == "data.gov.in"]
+    assert len(datagov_logs) >= 2
+    for log in datagov_logs:
         assert log["source_name"] == "data.gov.in"
         assert log["status"] == "success"
         assert log["completed_at"] is not None
-    print(f"  OK: Verified sync_logs has {len(sync_logs)} valid audit records.")
+    print(f"  OK: Verified sync_logs has {len(datagov_logs)} valid audit records.")
 
 
 def test_sync_api_endpoints():

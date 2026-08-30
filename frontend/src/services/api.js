@@ -358,6 +358,52 @@ export const api = {
       body: JSON.stringify({ prompt }),
     });
   },
+
+  // Phase 26: Industry Intelligence & Automated Ingestion
+  getIndustrySignals: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/industry/signals${query ? `?${query}` : ''}`);
+  },
+  getIndustrySignalById: (id) => {
+    return fetchJSON(`/industry/signals/${encodeURIComponent(id)}`);
+  },
+  triggerAdminIndustryIngest: (payload = null, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON('/admin/industry/ingest', {
+      method: 'POST',
+      headers,
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+  },
+  getAdminIndustrySignals: (params = {}, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const query = new URLSearchParams(params).toString();
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/industry/signals${query ? `?${query}` : ''}`, { headers });
+  },
+  updateAdminIndustrySignal: (id, data, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/industry/signals/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+    });
+  },
+  deleteAdminIndustrySignal: (id, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/industry/signals/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers,
+    });
+  },
+  getAdminIndustryIngestionStatus: (adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON('/admin/industry/ingestion-status', { headers });
+  },
 };
 
 

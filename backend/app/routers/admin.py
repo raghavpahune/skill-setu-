@@ -16,7 +16,12 @@ from app.db import (
     delete_gov_opportunity,
     update_course,
     delete_course,
+    save_industry_signal,
+    update_industry_signal,
+    delete_industry_signal,
+    get_industry_signal_by_id,
 )
+from app.ingestion.industry_intelligence import industry_ingestor, calculate_freshness
 
 from app.core.security import verify_admin_access
 
@@ -600,3 +605,185 @@ async def delete_admin_course(course_id: str):
         }
 
     raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
+
+
+# ---------------------------------------------------------------------------
+# Phase 26: Industry Intelligence & Automated Ingestion Admin APIs
+# ---------------------------------------------------------------------------
+
+class IndustrySignalAdminUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    category: str | None = None
+    industry: str | None = None
+    skills: list[str] | None = None
+    tools: list[str] | None = None
+    validation_status: str | None = None  # APPROVED, PENDING, REJECTED, ARCHIVED
+    is_active: bool | None = None
+    admin_notes: str | None = None
+
+
+@router.post("/admin/industry/ingest", dependencies=[Depends(verify_admin_key)])
+async def trigger_admin_industry_ingestion(feeds: list[dict[str, Any]] | None = None):
+    """Admin endpoint to manually trigger automated ingestion across trusted industry feeds."""
+    result = industry_ingestor.ingest_from_feeds(feeds)
+    return {
+        "status": "success",
+        "message": f"Industry ingestion run finished: {result['records_added']} added, {result['records_updated']} updated, {result['records_duplicated']} duplicated, {result['records_rejected']} rejected.",
+        "summary": result,
+    }
+
+
+@router.get("/admin/industry/signals", dependencies=[Depends(verify_admin_key)])
+async def list_admin_industry_signals(
+    category: str | None = Query(None),
+    industry: str | None = Query(None),
+    status: str | None = Query(None),  # APPROVED, PENDING, REJECTED, ARCHIVED, all
+    freshness: str | None = Query(None),  # NEW, RECENT, OLDER, EXPIRED, all
+    source: str | None = Query(None),
+    search: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Admin endpoint to view, filter, and audit all industry signals including pending/rejected."""
+    raw_signals = get_demo("industry_signals")
+    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+
+    # Normalize all records for admin view
+    results = []
+    for s in raw_signals:
+        pub = s.get("published_at") or (f"{s['signal_date']}T00:00:00Z" if s.get("signal_date") else "2026-01-01T00:00:00Z")
+        is_act = s.get("is_active", True)
+        val_st = s.get("validation_status", "APPROVED")
+        fresh = s.get("freshness") or calculate_freshness(pub, is_act, val_st)
+
+        skills = s.get("skills", [])
+        if not skills and "affected_skills" in s:
+            skills = [skills_map.get(sid, sid) for sid in s.get("affected_skills", [])]
+
+        results.append({
+            "id": s.get("id"),
+            "title": s.get("title"),
+            "description": s.get("description") or s.get("summary") or "",
+            "category": s.get("category", "INDUSTRY_DEMAND"),
+            "industry": s.get("industry") or s.get("technology") or "Cross-Sector Tech",
+            "skills": skills,
+            "tools": s.get("tools", []),
+            "source_name": s.get("source_name") or s.get("source") or "Industry Analysis",
+            "source_url": s.get("source_url") or "https://data.gov.in",
+            "source_type": s.get("source_type") or "INDUSTRY_ANNOUNCEMENT",
+            "published_at": pub,
+            "collected_at": s.get("collected_at") or pub,
+            "updated_at": s.get("updated_at") or pub,
+            "validation_status": val_st,
+            "is_active": is_act,
+            "is_demo": s.get("is_demo", s.get("source_label") == "DEMO_SYNTHETIC"),
+            "data_provenance": s.get("data_provenance") or ("DEMO_SYNTHETIC" if s.get("source_label") == "DEMO_SYNTHETIC" else "VERIFIED_EXTERNAL_FEED"),
+            "freshness": fresh,
+            "admin_notes": s.get("admin_notes"),
+            "is_ai_processed": s.get("is_ai_processed", False),
+        })
+
+    # Total counts before query filtering
+    total_count = len(results)
+    approved_count = sum(1 for r in results if r["validation_status"] == "APPROVED")
+    pending_count = sum(1 for r in results if r["validation_status"] == "PENDING")
+    rejected_count = sum(1 for r in results if r["validation_status"] == "REJECTED")
+    active_count = sum(1 for r in results if r["is_active"] is True)
+    fresh_count = sum(1 for r in results if r["freshness"] == "NEW")
+
+    # Apply filters
+    if category and category.lower() != "all":
+        results = [r for r in results if r["category"].lower() == category.lower()]
+
+    if industry and industry.lower() != "all":
+        results = [r for r in results if industry.lower() in r["industry"].lower()]
+
+    if status and status.lower() != "all":
+        results = [r for r in results if r["validation_status"].lower() == status.lower()]
+
+    if freshness and freshness.lower() != "all":
+        results = [r for r in results if r["freshness"].lower() == freshness.lower()]
+
+    if source and source.lower() != "all":
+        results = [r for r in results if source.lower() in r["source_name"].lower()]
+
+    if search and search.strip():
+        q = search.strip().lower()
+        results = [
+            r for r in results
+            if q in r["title"].lower()
+            or q in r["description"].lower()
+            or any(q in sk.lower() for sk in r["skills"])
+            or any(q in tl.lower() for tl in r["tools"])
+            or q in r["industry"].lower()
+            or q in r["source_name"].lower()
+        ]
+
+    # Sort descending by published_at
+    results.sort(key=lambda x: x["published_at"], reverse=True)
+
+    return {
+        "status": "success",
+        "total": total_count,
+        "approved_count": approved_count,
+        "pending_count": pending_count,
+        "rejected_count": rejected_count,
+        "active_count": active_count,
+        "fresh_count": fresh_count,
+        "filtered_count": len(results),
+        "limit": limit,
+        "offset": offset,
+        "signals": results[offset : offset + limit],
+    }
+
+
+@router.patch("/admin/industry/signals/{signal_id}", dependencies=[Depends(verify_admin_key)])
+async def update_admin_industry_signal(signal_id: str, updates: IndustrySignalAdminUpdate):
+    """Admin endpoint to approve, reject, archive, activate, or edit an industry signal."""
+    matched = get_industry_signal_by_id(signal_id)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
+
+    patch_dict = {k: v for k, v in updates.model_dump().items() if v is not None}
+    if not patch_dict:
+        raise HTTPException(status_code=422, detail="No fields provided for update.")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    patch_dict["updated_at"] = now_iso
+
+    # Recalculate freshness if status or active flag updated
+    is_act = patch_dict.get("is_active", matched.get("is_active", True))
+    val_st = patch_dict.get("validation_status", matched.get("validation_status", "APPROVED"))
+    pub = matched.get("published_at") or now_iso
+    patch_dict["freshness"] = calculate_freshness(pub, is_act, val_st)
+
+    updated = update_industry_signal(signal_id, patch_dict)
+    return {
+        "status": "success",
+        "message": f"Industry signal '{signal_id}' updated.",
+        "signal": updated,
+    }
+
+
+@router.delete("/admin/industry/signals/{signal_id}", dependencies=[Depends(verify_admin_key)])
+async def delete_admin_industry_signal(signal_id: str):
+    """Admin endpoint to permanently delete an industry signal record."""
+    deleted = delete_industry_signal(signal_id)
+    if deleted:
+        return {
+            "status": "success",
+            "message": f"Industry signal '{signal_id}' removed.",
+            "deleted_id": signal_id,
+        }
+    raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
+
+
+@router.get("/admin/industry/ingestion-status", dependencies=[Depends(verify_admin_key)])
+async def get_admin_industry_ingestion_status():
+    """Admin endpoint to view overall status, registered feeds, and audit telemetry."""
+    status_data = industry_ingestor.get_ingestion_status()
+    return {
+        "status": "success",
+        "ingestion_status": status_data,
+    }

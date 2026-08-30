@@ -464,6 +464,90 @@ def delete_gov_opportunity(opp_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Phase 26: Industry Intelligence & Signals Persistence
+# ---------------------------------------------------------------------------
+
+def save_industry_signal(signal_data: dict) -> dict:
+    """Save or insert industry intelligence signal into cache and Supabase."""
+    if not _cache:
+        load_demo_data()
+    signals = _cache.setdefault("industry_signals", [])
+    
+    # Check if already exists
+    existing_idx = next((i for i, s in enumerate(signals) if s.get("id") == signal_data.get("id")), None)
+    if existing_idx is not None:
+        signals[existing_idx] = signal_data
+    else:
+        signals.insert(0, signal_data)
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("industry_signals").upsert(signal_data).execute()
+            logger.info("[DB] Persisted industry signal '%s' to Supabase.", signal_data.get("id"))
+        except Exception as e:
+            logger.warning("[DB] Failed persisting industry signal to Supabase: %s", e)
+
+    return signal_data
+
+
+def update_industry_signal(sig_id: str, updates: dict) -> dict | None:
+    """Update fields on an industry intelligence signal record."""
+    if not _cache:
+        load_demo_data()
+    signals = _cache.get("industry_signals", [])
+    matched = None
+    for s in signals:
+        if s.get("id") == sig_id:
+            s.update(updates)
+            matched = s
+            break
+
+    if matched:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("industry_signals").update(updates).eq("id", sig_id).execute()
+                logger.info("[DB] Updated industry signal '%s' in Supabase.", sig_id)
+            except Exception as e:
+                logger.warning("[DB] Failed updating industry signal in Supabase: %s", e)
+
+    return matched
+
+
+def delete_industry_signal(sig_id: str) -> bool:
+    """Delete industry intelligence signal from cache and Supabase."""
+    if not _cache:
+        load_demo_data()
+    signals = _cache.get("industry_signals", [])
+    initial_len = len(signals)
+    _cache["industry_signals"] = [s for s in signals if s.get("id") != sig_id]
+    deleted = len(_cache["industry_signals"]) < initial_len
+
+    if deleted:
+        client = get_supabase_client()
+        if client:
+            try:
+                client.table("industry_signals").delete().eq("id", sig_id).execute()
+                logger.info("[DB] Deleted industry signal '%s' from Supabase.", sig_id)
+            except Exception as e:
+                logger.warning("[DB] Failed deleting industry signal from Supabase: %s", e)
+
+    return deleted
+
+
+def get_industry_signal_by_id(sig_id: str) -> dict | None:
+    """Find industry signal by ID."""
+    if not _cache:
+        load_demo_data()
+    signals = _cache.get("industry_signals", [])
+    for s in signals:
+        if s.get("id") == sig_id:
+            return s
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Phase 23: User Identity & Authentication Persistence
 # ---------------------------------------------------------------------------
 

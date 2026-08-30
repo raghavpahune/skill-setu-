@@ -58,11 +58,11 @@ export default function AdminDashboard() {
   
   // Navigation Tab State
   const [adminTab, setAdminTab] = useState(
-    urlTab && ['overview', 'students', 'employers', 'institutes', 'gov'].includes(urlTab) ? urlTab : 'overview'
+    urlTab && ['overview', 'students', 'employers', 'institutes', 'gov', 'industry'].includes(urlTab) ? urlTab : 'overview'
   );
 
   useEffect(() => {
-    if (urlTab && ['overview', 'students', 'employers', 'institutes', 'gov'].includes(urlTab)) {
+    if (urlTab && ['overview', 'students', 'employers', 'institutes', 'gov', 'industry'].includes(urlTab)) {
       setAdminTab(urlTab);
     }
   }, [urlTab]);
@@ -107,7 +107,6 @@ export default function AdminDashboard() {
   // Employer Demands State (Phase 14)
   const [employerDemands, setEmployerDemands] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
-  const [empTotalCount, setEmpTotalCount] = useState(0);
   const [empDistrictFilter, setEmpDistrictFilter] = useState('All Districts');
   const [empIndustryFilter, setEmpIndustryFilter] = useState('All Industries');
   const [empStatusFilter, setEmpStatusFilter] = useState('all'); // 'all' | 'PENDING' | 'VALIDATED' | 'REJECTED'
@@ -119,14 +118,14 @@ export default function AdminDashboard() {
 
   // Institute Courses State (Phase 25)
   const [adminCourses, setAdminCourses] = useState([]);
-  const [courseStats, setCourseStats] = useState({ total: 0, user_submitted_count: 0, demo_synthetic_count: 0 });
   const [coursesLoading, setCoursesLoading] = useState(false);
+  const [courseStats, setCourseStats] = useState({ total: 0, user_submitted_count: 0, demo_synthetic_count: 0 });
   const [courseDistrictFilter, setCourseDistrictFilter] = useState('All Districts');
   const [courseCategoryFilter, setCourseCategoryFilter] = useState('all');
   const [courseSourceFilter, setCourseSourceFilter] = useState('all');
   const [courseStatusFilter, setCourseStatusFilter] = useState('all');
   const [courseSearchTerm, setCourseSearchTerm] = useState('');
-  const [selectedAdminCourse, setSelectedAdminCourse] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState(null);
   const [inspectCourseModalOpen, setInspectCourseModalOpen] = useState(false);
 
   // Government Opportunities State (Phase 15)
@@ -140,6 +139,28 @@ export default function AdminDashboard() {
   const [govAddModalOpen, setGovAddModalOpen] = useState(false);
   const [selectedGovOpp, setSelectedGovOpp] = useState(null);
   const [inspectGovModalOpen, setInspectGovModalOpen] = useState(false);
+
+  // Industry Signals & Intelligence State (Phase 26)
+  const [adminSignals, setAdminSignals] = useState([]);
+  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [signalStats, setSignalStats] = useState({
+    total: 0,
+    approved_count: 0,
+    pending_count: 0,
+    rejected_count: 0,
+    active_count: 0,
+    fresh_count: 0,
+  });
+  const [ingestionStatus, setIngestionStatus] = useState(null);
+  const [ingestRunning, setIngestRunning] = useState(false);
+  const [signalCategoryFilter, setSignalCategoryFilter] = useState('all');
+  const [signalIndustryFilter, setSignalIndustryFilter] = useState('all');
+  const [signalStatusFilter, setSignalStatusFilter] = useState('all');
+  const [signalFreshnessFilter, setSignalFreshnessFilter] = useState('all');
+  const [signalSearchTerm, setSignalSearchTerm] = useState('');
+  const [selectedSignal, setSelectedSignal] = useState(null);
+  const [inspectSignalModalOpen, setInspectSignalModalOpen] = useState(false);
+  const [signalAdminNotesInput, setSignalAdminNotesInput] = useState('');
 
   // Load Student Assessment Data
   const fetchData = useCallback(() => {
@@ -260,6 +281,40 @@ export default function AdminDashboard() {
       .finally(() => setGovLoading(false));
   }, [adminKey, govDistrictFilter, govTypeFilter, govStatusFilter, govSearchTerm]);
 
+  // Load Industry Signals & Ingestion Data (Phase 26)
+  const fetchAdminSignals = useCallback(() => {
+    setSignalsLoading(true);
+    const params = {};
+    if (signalCategoryFilter !== 'all') params.category = signalCategoryFilter;
+    if (signalIndustryFilter !== 'all') params.industry = signalIndustryFilter;
+    if (signalStatusFilter !== 'all') params.status = signalStatusFilter;
+    if (signalFreshnessFilter !== 'all') params.freshness = signalFreshnessFilter;
+    if (signalSearchTerm.trim()) params.search = signalSearchTerm.trim();
+
+    Promise.allSettled([
+      api.getAdminIndustrySignals(params, adminKey),
+      api.getAdminIndustryIngestionStatus(adminKey),
+    ]).then(([signalsRes, statusRes]) => {
+      if (signalsRes.status === 'fulfilled' && signalsRes.value?.status === 'success') {
+        setAdminSignals(signalsRes.value.signals || []);
+        setSignalStats({
+          total: signalsRes.value.total || 0,
+          approved_count: signalsRes.value.approved_count || 0,
+          pending_count: signalsRes.value.pending_count || 0,
+          rejected_count: signalsRes.value.rejected_count || 0,
+          active_count: signalsRes.value.active_count || 0,
+          fresh_count: signalsRes.value.fresh_count || 0,
+        });
+      }
+      if (statusRes.status === 'fulfilled' && statusRes.value?.status === 'success') {
+        setIngestionStatus(statusRes.value.ingestion_status || null);
+      }
+      setSignalsLoading(false);
+    }).catch(() => {
+      setSignalsLoading(false);
+    });
+  }, [adminKey, signalCategoryFilter, signalIndustryFilter, signalStatusFilter, signalFreshnessFilter, signalSearchTerm]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -269,14 +324,77 @@ export default function AdminDashboard() {
       fetchEmployerData();
       fetchAdminCourses();
       fetchGovData();
+      fetchAdminSignals();
     } else if (adminTab === 'employers') {
       fetchEmployerData();
     } else if (adminTab === 'institutes') {
       fetchAdminCourses();
     } else if (adminTab === 'gov') {
       fetchGovData();
+    } else if (adminTab === 'industry') {
+      fetchAdminSignals();
     }
-  }, [adminTab, fetchEmployerData, fetchAdminCourses, fetchGovData]);
+  }, [adminTab, fetchEmployerData, fetchAdminCourses, fetchGovData, fetchAdminSignals]);
+
+  // Trigger Automated Ingestion Handler (Phase 26)
+  const handleTriggerIndustryIngest = async () => {
+    setIngestRunning(true);
+    try {
+      const res = await api.triggerAdminIndustryIngest(null, adminKey);
+      setActionMessage(res.message || 'Industry intelligence ingestion completed successfully.');
+      setTimeout(() => setActionMessage(null), 5000);
+      fetchAdminSignals();
+    } catch (err) {
+      alert(`Ingestion run failed: ${err?.message || err}`);
+    } finally {
+      setIngestRunning(false);
+    }
+  };
+
+  // Update Industry Signal Status Handler (Phase 26)
+  const handleUpdateSignalStatus = async (id, status, notes = '') => {
+    try {
+      await api.updateAdminIndustrySignal(id, { validation_status: status, admin_notes: notes }, adminKey);
+      setActionMessage(`Industry signal '${id}' status updated to ${status}.`);
+      setTimeout(() => setActionMessage(null), 4000);
+      if (selectedSignal?.id === id) {
+        setInspectSignalModalOpen(false);
+      }
+      fetchAdminSignals();
+    } catch (err) {
+      alert(`Failed to update signal status: ${err?.message || err}`);
+    }
+  };
+
+  // Toggle Industry Signal Active State Handler (Phase 26)
+  const handleToggleSignalActive = async (id, currentActive) => {
+    try {
+      await api.updateAdminIndustrySignal(id, { is_active: !currentActive }, adminKey);
+      setActionMessage(`Industry signal '${id}' is now ${!currentActive ? 'Active' : 'Inactive'}.`);
+      setTimeout(() => setActionMessage(null), 4000);
+      fetchAdminSignals();
+    } catch (err) {
+      alert(`Failed to toggle signal active state: ${err?.message || err}`);
+    }
+  };
+
+  // Delete Industry Signal Handler (Phase 26)
+  const handleDeleteSignal = async (id, title) => {
+    if (!window.confirm(`Are you sure you want to permanently remove signal '${title}' (${id})?`)) {
+      return;
+    }
+    try {
+      await api.deleteAdminIndustrySignal(id, adminKey);
+      setActionMessage(`Signal '${id}' permanently removed.`);
+      setTimeout(() => setActionMessage(null), 4000);
+      if (selectedSignal?.id === id) {
+        setInspectSignalModalOpen(false);
+      }
+      fetchAdminSignals();
+    } catch (err) {
+      alert(`Failed to delete signal: ${err?.message || err}`);
+    }
+  };
 
   // Delete Assessment Record Handler
   const handleDelete = async (id, name) => {
@@ -571,6 +689,21 @@ export default function AdminDashboard() {
               {govStats.total}
             </span>
           </button>
+
+          <button
+            onClick={() => handleTabChange('industry')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+              adminTab === 'industry'
+                ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>📡</span>
+            <span>Industry Intelligence</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-700 dark:bg-teal-800 text-slate-200">
+              {signalStats.total || adminSignals.length}
+            </span>
+          </button>
         </div>
 
         {actionMessage && (
@@ -600,8 +733,8 @@ export default function AdminDashboard() {
         {/* ========================================================================= */}
         {adminTab === 'overview' && (
           <div className="space-y-8 animate-fadeIn">
-            {/* Top KPI Cards (6 metrics) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+            {/* Top KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
               <StatCard
                 title="Total Submissions"
                 value={stats?.total_submissions ?? assessments.length}
@@ -642,6 +775,13 @@ export default function AdminDashboard() {
                 subtitle={`${govStats.active_count || govOpportunities.length} active programs`}
                 icon="🏛️"
                 color="blue"
+              />
+              <StatCard
+                title="Industry Signals"
+                value={signalStats.total || adminSignals.length}
+                subtitle={`${signalStats.fresh_count} fresh (<7d)`}
+                icon="📡"
+                color="indigo"
               />
             </div>
 
@@ -2372,69 +2512,488 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* GOV OPPORTUNITY DETAIL MODAL (Phase 15) */}
-      {inspectGovModalOpen && selectedGovOpp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[85vh]">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">🏛️ Opportunity Detail</h3>
-              <button onClick={() => setInspectGovModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer">✕</button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Name:</span> <span className="text-slate-900 dark:text-white">{selectedGovOpp.name}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Department:</span> <span className="text-slate-900 dark:text-white">{selectedGovOpp.department}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Description:</span> <span className="text-slate-600 dark:text-slate-300">{selectedGovOpp.description || '—'}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Eligibility:</span> <span className="text-slate-600 dark:text-slate-300">{selectedGovOpp.eligibility_criteria || '—'}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Type:</span> <span className="uppercase font-mono">{(selectedGovOpp.opportunity_type || '').replace('_', ' ')}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">District:</span> <span>{typeof selectedGovOpp.district_coverage === 'object' ? (selectedGovOpp.district_coverage || []).join(', ') : (selectedGovOpp.district_coverage || '—')}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Target Skills:</span> <span>{(selectedGovOpp.target_skills || []).join(', ') || '—'}</span></div>
-              <div><span className="font-bold text-slate-700 dark:text-slate-300">Status:</span> <span className={`font-bold uppercase ${selectedGovOpp.status === 'active' ? 'text-emerald-600' : 'text-amber-600'}`}>{selectedGovOpp.status}</span></div>
-              <div className="flex items-center gap-3">
-                <div><span className="font-bold text-slate-700 dark:text-slate-300">Source:</span> <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800">{selectedGovOpp.source || 'DEMO_SYNTHETIC'}</span></div>
-                <div><span className="font-bold text-slate-700 dark:text-slate-300">Updated:</span> <span className="font-mono text-[10px]">{selectedGovOpp.last_updated || '—'}</span></div>
+      {/* ========================================================================= */}
+      {/* 5. INDUSTRY INTELLIGENCE & AUTOMATED INGESTION TAB (Phase 26)             */}
+      {/* ========================================================================= */}
+      {adminTab === 'industry' && (
+        <>
+          {/* Header & Ingestion Trigger Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-lg">
+                  📡 Industry Intelligence & Automated Ingestion
+                </h3>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  Phase 26 Pipeline
+                </span>
               </div>
-              {selectedGovOpp.application_url && (
-                <div><span className="font-bold text-slate-700 dark:text-slate-300">Portal:</span> <a href={selectedGovOpp.application_url} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline">{selectedGovOpp.application_url}</a></div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Continuous ingestion pipeline across trusted government, industry association, and tech documentation registries.
+              </p>
+            </div>
+
+            <button
+              onClick={handleTriggerIndustryIngest}
+              disabled={ingestRunning}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+            >
+              {ingestRunning ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Running Ingestion Sync...</span>
+                </>
+              ) : (
+                <>
+                  <span>🔄</span>
+                  <span>Ingest Industry Intelligence Now</span>
+                </>
               )}
-              {selectedGovOpp.deadline && (
-                <div><span className="font-bold text-slate-700 dark:text-slate-300">Deadline:</span> <span>{selectedGovOpp.deadline}</span></div>
+            </button>
+          </div>
+
+          {/* KPI Statistics Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+            <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Total Ingested Signals</span>
+              <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{signalStats.total}</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">Deduplicated pool</span>
+            </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/40 shadow-xs">
+                <span className="text-[10px] uppercase font-mono font-bold text-emerald-600 dark:text-emerald-400 block mb-1">Fresh Signals (&lt; 7 Days)</span>
+                <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{signalStats.fresh_count}</span>
+                <span className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 block mt-0.5 font-mono">High priority feed</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Approved &amp; Active</span>
+                <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">
+                  {signalStats.approved_count} <span className="text-xs text-slate-400">/ {signalStats.active_count} active</span>
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">Visible to students</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 shadow-xs">
+                <span className="text-[10px] uppercase font-mono font-bold text-amber-600 dark:text-amber-400 block mb-1">Pending Calibration</span>
+                <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{signalStats.pending_count}</span>
+                <span className="text-[10px] text-amber-700/70 dark:text-amber-400/70 block mt-0.5 font-mono">Requires admin review</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs col-span-2 lg:col-span-1">
+                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Trusted Source Registries</span>
+                <span className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                  {ingestionStatus?.registered_sources_count || 8}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">Gov, NASSCOM, SIAM, CNCF</span>
+              </div>
+            </div>
+
+            {/* Ingestion Engine Audit Status Card */}
+            {ingestionStatus?.last_ingestion && (
+              <div className="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Ingestion Telemetry Status:</span>
+                    <span className="font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold uppercase text-[10px]">
+                      {ingestionStatus.last_ingestion.status}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    Last Sync Run: {ingestionStatus.last_ingestion.last_run ? new Date(ingestionStatus.last_ingestion.last_run).toLocaleString() : 'Idle'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-[11px] font-mono">
+                  <div>Fetched: <strong className="text-slate-900 dark:text-white">{ingestionStatus.last_ingestion.records_fetched}</strong></div>
+                  <div>Added: <strong className="text-emerald-600 dark:text-emerald-400">{ingestionStatus.last_ingestion.records_added}</strong></div>
+                  <div>Updated: <strong className="text-indigo-600 dark:text-indigo-400">{ingestionStatus.last_ingestion.records_updated}</strong></div>
+                  <div>Deduplicated: <strong className="text-slate-500">{ingestionStatus.last_ingestion.records_duplicated}</strong></div>
+                </div>
+              </div>
+            )}
+
+            {/* Multi-Parameter Filters */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 mb-4 shadow-xs space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={signalCategoryFilter}
+                    onChange={(e) => setSignalCategoryFilter(e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="NEW_TECHNOLOGY">New Technology</option>
+                    <option value="EMERGING_SKILL">Emerging Skill</option>
+                    <option value="INDUSTRY_DEMAND">Industry Demand</option>
+                    <option value="JOB_MARKET">Job Market</option>
+                    <option value="GOVERNMENT_UPDATE">Government Update</option>
+                    <option value="CERTIFICATION">Certification</option>
+                    <option value="TRAINING">Training</option>
+                    <option value="TOOL_RELEASE">Tool Release</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                    Validation Status
+                  </label>
+                  <select
+                    value={signalStatusFilter}
+                    onChange={(e) => setSignalStatusFilter(e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="PENDING">Pending Review</option>
+                    <option value="REJECTED">Rejected</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                    Freshness Classification
+                  </label>
+                  <select
+                    value={signalFreshnessFilter}
+                    onChange={(e) => setSignalFreshnessFilter(e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="all">All Freshness</option>
+                    <option value="NEW">NEW (&lt; 7 Days)</option>
+                    <option value="RECENT">RECENT (7–30 Days)</option>
+                    <option value="OLDER">OLDER (30–180 Days)</option>
+                    <option value="EXPIRED">EXPIRED / ARCHIVED</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                    Search Keywords
+                  </label>
+                  <input
+                    type="text"
+                    value={signalSearchTerm}
+                    onChange={(e) => setSignalSearchTerm(e.target.value)}
+                    placeholder="Search title, skills, tools, source..."
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Signals Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+              {signalsLoading ? (
+                <div className="py-12 text-center">
+                  <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-xs text-slate-500">Loading industry signals...</p>
+                </div>
+              ) : adminSignals.length === 0 ? (
+                <div className="py-12 text-center space-y-3">
+                  <p className="text-xs text-slate-500">No industry signals match the current filters.</p>
+                  <button
+                    onClick={handleTriggerIndustryIngest}
+                    className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs rounded-lg border border-indigo-200 dark:border-indigo-800"
+                  >
+                    Trigger Fresh Ingestion Run
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        <th className="py-3 px-4">Title &amp; Category</th>
+                        <th className="py-3 px-4">Source &amp; Provenance</th>
+                        <th className="py-3 px-4">Skills &amp; Tools</th>
+                        <th className="py-3 px-4">Published &amp; Freshness</th>
+                        <th className="py-3 px-4">Status &amp; Visibility</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {adminSignals.map((sig) => (
+                        <tr key={sig.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-4 max-w-xs">
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 block mb-1 w-fit">
+                              {sig.category}
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-white block leading-snug">
+                              {sig.title}
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate block mt-0.5">
+                              {sig.industry}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                              {sig.source_name}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mt-1 inline-block">
+                              {sig.data_provenance}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 max-w-[180px]">
+                            <div className="flex flex-wrap gap-1">
+                              {(sig.skills || []).slice(0, 3).map((sk, idx) => (
+                                <span key={idx} className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                                  {sk}
+                                </span>
+                              ))}
+                              {(sig.skills || []).length > 3 && (
+                                <span className="text-[10px] text-slate-400 font-mono">+{sig.skills.length - 3}</span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 block">
+                              {sig.published_at ? sig.published_at.slice(0, 10) : '—'}
+                            </span>
+                            <span
+                              className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full inline-block mt-1 ${
+                                sig.freshness === 'NEW'
+                                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                  : sig.freshness === 'RECENT'
+                                  ? 'bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {sig.freshness}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                                  sig.validation_status === 'APPROVED'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                    : sig.validation_status === 'PENDING'
+                                    ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                    : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                }`}
+                              >
+                                {sig.validation_status}
+                              </span>
+                              <span className={`text-[10px] font-bold ${sig.is_active ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                {sig.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setSelectedSignal(sig);
+                                  setSignalAdminNotesInput(sig.admin_notes || '');
+                                  setInspectSignalModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Audit / Edit
+                              </button>
+                              <button
+                                onClick={() => handleToggleSignalActive(sig.id, sig.is_active)}
+                                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-colors cursor-pointer ${
+                                  sig.is_active
+                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200'
+                                    : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 hover:bg-emerald-100'
+                                }`}
+                              >
+                                {sig.is_active ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSignal(sig.id, sig.title)}
+                                className="px-2 py-1 text-[10px] font-bold bg-rose-50 dark:bg-rose-950 hover:bg-rose-100 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-              <button onClick={() => setInspectGovModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">Close</button>
-              <button onClick={() => handleDeleteGov(selectedGovOpp.id, selectedGovOpp.name)} className="px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900 cursor-pointer">Delete</button>
+          </>
+        )}
+
+        {/* ========================================================================= */}
+        {/* INDUSTRY SIGNAL DETAIL & MODERATION MODAL (Phase 26)                       */}
+        {/* ========================================================================= */}
+        {inspectSignalModalOpen && selectedSignal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📡</span>
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold block">
+                      {selectedSignal.category} • {selectedSignal.data_provenance}
+                    </span>
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                      {selectedSignal.title}
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setInspectSignalModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Signal Summary &amp; Description:</span>
+                  <p className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {selectedSignal.description || selectedSignal.summary}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="font-bold text-slate-700 dark:text-slate-300 block">Industry Sector:</span>
+                    <span className="text-slate-900 dark:text-white font-semibold">{selectedSignal.industry}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-700 dark:text-slate-300 block">Freshness Grade:</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{selectedSignal.freshness}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Target Competencies / Skills:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {(selectedSignal.skills || []).map((sk, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-medium text-xs border border-indigo-200 dark:border-indigo-800">
+                        {sk}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {(selectedSignal.tools || []).length > 0 && (
+                  <div>
+                    <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Technology Tools / Frameworks:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedSignal.tools.map((t, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1.5">
+                  <div className="flex justify-between font-mono text-[11px]">
+                    <span>Originating Source:</span>
+                    <strong className="text-slate-900 dark:text-white">{selectedSignal.source_name}</strong>
+                  </div>
+                  {selectedSignal.source_url && (
+                    <div className="flex justify-between font-mono text-[11px] truncate">
+                      <span>Canonical URL:</span>
+                      <a href={selectedSignal.source_url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 underline truncate max-w-[65%]">
+                        {selectedSignal.source_url}
+                      </a>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-mono text-[11px]">
+                    <span>Published Date:</span>
+                    <span>{selectedSignal.published_at ? selectedSignal.published_at.slice(0, 10) : '—'}</span>
+                  </div>
+                </div>
+
+                {/* Moderation Controls */}
+                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Admin Verification Notes &amp; Calibration:
+                  </label>
+                  <textarea
+                    value={signalAdminNotesInput}
+                    onChange={(e) => setSignalAdminNotesInput(e.target.value)}
+                    placeholder="e.g. Verified with state curriculum board; priority elective for Pune polytechnics..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 h-16"
+                  />
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSignal(selectedSignal.id, selectedSignal.title)}
+                      className="text-rose-600 hover:text-rose-700 font-bold cursor-pointer text-xs"
+                    >
+                      Delete Signal ✕
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSignalStatus(selectedSignal.id, 'REJECTED', signalAdminNotesInput)}
+                        className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 dark:bg-rose-950 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Reject ✕
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSignalStatus(selectedSignal.id, 'ARCHIVED', signalAdminNotesInput)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Archive 📁
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSignalStatus(selectedSignal.id, 'APPROVED', signalAdminNotesInput)}
+                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-xs"
+                      >
+                        Approve &amp; Publish ✓
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ADD GOV OPPORTUNITY MODAL (Phase 15) */}
-      {govAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[85vh]">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">🏛️ Add Government Opportunity</h3>
-              <button onClick={() => setGovAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer">✕</button>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.target);
-                handleAddGovOpportunity({
-                  name: fd.get('name'),
-                  department: fd.get('department'),
-                  description: fd.get('description'),
-                  eligibility_criteria: fd.get('eligibility'),
-                  target_skills: (fd.get('skills') || '').split(',').map((s) => s.trim()).filter(Boolean),
-                  district_coverage: fd.get('district') || 'State-wide (Maharashtra)',
-                  opportunity_type: fd.get('type'),
-                  application_url: fd.get('url') || null,
-                  deadline: fd.get('deadline') || null,
-                  status: 'active',
-                });
-              }}
-              className="space-y-3"
-            >
+        {/* ADD GOV OPPORTUNITY MODAL (Phase 15) */}
+        {govAddModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[85vh]">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base">🏛️ Add Government Opportunity</h3>
+                <button onClick={() => setGovAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer">✕</button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.target);
+                  handleAddGovOpportunity({
+                    name: fd.get('name'),
+                    department: fd.get('department'),
+                    description: fd.get('description'),
+                    eligibility_criteria: fd.get('eligibility'),
+                    target_skills: (fd.get('skills') || '').split(',').map((s) => s.trim()).filter(Boolean),
+                    district_coverage: fd.get('district') || 'State-wide (Maharashtra)',
+                    opportunity_type: fd.get('type'),
+                    application_url: fd.get('url') || null,
+                    deadline: fd.get('deadline') || null,
+                    status: 'active',
+                  });
+                }}
+                className="space-y-3"
+              >
               <div><label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Name *</label><input name="name" required minLength={3} className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" /></div>
               <div><label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Department *</label><input name="department" required minLength={3} className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" /></div>
               <div><label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Description</label><textarea name="description" rows={2} className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" /></div>

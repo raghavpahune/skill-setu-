@@ -159,23 +159,48 @@ export default function StudentAlertsFeed({ studentId, onOpenExplainability }) {
                       </div>
                     </div>
 
-                    <span
-                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 border ${
-                        impact.level === 'CRITICAL'
-                          ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
-                          : impact.level === 'HIGH'
-                          ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                          : 'bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800'
-                      }`}
-                    >
-                      Impact: {impact.level} ({impact.score_out_of_10}/10)
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                          impact.level === 'CRITICAL'
+                            ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                            : impact.level === 'HIGH'
+                            ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                            : 'bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800'
+                        }`}
+                      >
+                        Impact: {impact.level} ({impact.score_out_of_10}/10)
+                      </span>
+                      {sig.freshness && (
+                        <span
+                          className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full border ${
+                            sig.freshness === 'NEW'
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          {sig.freshness}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Summary */}
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-                    {sig.summary}
+                    {sig.summary || sig.description}
                   </p>
+
+                  {/* Tools & Frameworks Chips if present */}
+                  {sig.tools && sig.tools.length > 0 && (
+                    <div className="mb-3 flex items-center gap-1 overflow-x-auto text-[10px]">
+                      <span className="font-bold text-slate-400 font-mono">Tools:</span>
+                      {sig.tools.map((t, idx) => (
+                        <span key={idx} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Job Demand Signal Bar */}
                   <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs mb-3">
@@ -229,9 +254,18 @@ export default function StudentAlertsFeed({ studentId, onOpenExplainability }) {
                   </div>
                 </div>
 
-                {/* Card Footer: Related Courses & Explain Trigger */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                  {alert.related_courses.length > 0 ? (
+                {/* Card Footer: Related Courses & Source Link */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  {sig.source_url ? (
+                    <a
+                      href={sig.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline truncate max-w-[65%]"
+                    >
+                      🔗 {sig.source_name || sig.source}
+                    </a>
+                  ) : alert.related_courses.length > 0 ? (
                     <span className="text-[11px] text-slate-500 truncate max-w-[65%]">
                       Related: <strong>{alert.related_courses[0].name}</strong> ({alert.related_courses[0].district})
                     </span>
@@ -244,7 +278,7 @@ export default function StudentAlertsFeed({ studentId, onOpenExplainability }) {
                   {alert.affected_skills.length > 0 && (
                     <button
                       onClick={() => onOpenExplainability && onOpenExplainability(alert.affected_skills[0].skill_id, alert.affected_skills[0].name)}
-                      className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100 cursor-pointer"
+                      className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100 cursor-pointer self-end sm:self-auto"
                     >
                       Why Learn {alert.affected_skills[0].name}? →
                     </button>
