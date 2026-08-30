@@ -548,31 +548,13 @@ export default function EmployerDashboard() {
         customSkillInput: '',
       }));
     } catch (err) {
-      console.warn('Backend demand submit fallback:', err);
-      const fallbackDemand = {
-        ...newDemandData,
-        id: `ed-${Date.now()}`,
-        source: 'EMPLOYER_SUBMITTED',
-        validation_status: 'PENDING',
-        provenance_label: 'Employer Submitted — Pending Validation',
-        is_demo: false,
-        submitted_date: new Date().toISOString().split('T')[0],
-        status: 'pending',
-      };
-      setDemands((prev) => [fallbackDemand, ...prev]);
-      showToast('success', `Demand recorded locally — Status: Pending Validation (Offline Ready)`);
-      setDemandForm((prev) => ({
-        ...prev,
-        role_title: '',
-        job_role: '',
-        hiring_challenge: '',
-        additional_requirements: '',
-        customSkillInput: '',
-      }));
+      console.error('Backend demand submit error:', err);
+      showToast('error', `Failed to submit hiring demand: ${err?.message || 'Server error'}`);
     } finally {
       setSubmittingDemand(false);
     }
   };
+
 
 
   const handleAddSkillToForm = (skill) => {

@@ -32,6 +32,37 @@ def _find_data_dir() -> Path:
     return candidates[0]
 
 
+def _find_real_data_dir() -> Path:
+    """Find or create the data/real directory for persistent first-party user submissions."""
+    demo_dir = _find_data_dir()
+    real_dir = demo_dir.parent / "real"
+    try:
+        real_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return real_dir
+
+
+def _flush_real_table(table: str):
+    """Write all user-submitted and real ingested records for a table to data/real/{table}.json."""
+    try:
+        real_dir = _find_real_data_dir()
+        records = _cache.get(table, [])
+        real_records = [
+            r for r in records
+            if isinstance(r, dict) and (
+                r.get("source") in ("USER_SUBMITTED", "EMPLOYER_SUBMITTED", "INSTITUTE_SUBMITTED", "REAL_INGESTED", "LIVE_API")
+                or (r.get("is_demo") is False and r.get("source") != "DEMO_SYNTHETIC")
+            )
+        ]
+
+        out_file = real_dir / f"{table}.json"
+        out_file.write_text(json.dumps(real_records, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info("[DB] Flushed %d real records to %s", len(real_records), out_file)
+    except Exception as e:
+        logger.warning("[DB] Failed flushing real table '%s' to disk: %s", table, e)
+
+
 def get_supabase_client():
     """Return Supabase client if configured on Render/backend, else None."""
     global _supabase_connected
@@ -59,7 +90,7 @@ def is_supabase_connected() -> bool:
 
 
 def load_demo_data() -> int:
-    """Load all demo JSON files into memory cache."""
+    """Load all demo JSON files into memory cache, normalizing DEMO_SYNTHETIC provenance."""
     data_dir = _find_data_dir()
     loaded_count = 0
     if not data_dir.is_dir():
@@ -70,24 +101,76 @@ def load_demo_data() -> int:
         try:
             records = json.loads(f.read_text(encoding="utf-8"))
             if isinstance(records, list):
+                for r in records:
+                    if isinstance(r, dict):
+                        if "source" not in r:
+                            r["source"] = "DEMO_SYNTHETIC"
+                        if "is_demo" not in r:
+                            r["is_demo"] = True
                 _cache[f.stem] = records
                 loaded_count += len(records)
             elif isinstance(records, dict):
+                if "source" not in records:
+                    records["source"] = "DEMO_SYNTHETIC"
+                if "is_demo" not in records:
+                    records["is_demo"] = True
                 _cache[f.stem] = [records]
                 loaded_count += 1
         except Exception as e:
             logger.warning("[DB] Failed loading demo file %s: %s", f.name, e)
 
-    logger.info("[DB] Loaded %d records across %d tables from %s", loaded_count, len(_cache), data_dir)
+    logger.info("[DB] Loaded %d baseline demo records across %d tables from %s", loaded_count, len(_cache), data_dir)
+    return loaded_count
+
+
+def load_real_data() -> int:
+    """Load and overlay real user-submitted records from data/real directory into _cache."""
+    real_dir = _find_real_data_dir()
+    loaded_count = 0
+    if not real_dir.is_dir():
+        return 0
+
+    for f in real_dir.glob("*.json"):
+        if f.name == "README.md":
+            continue
+        try:
+            records = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(records, list) and len(records) > 0:
+                table = f.stem
+                existing = _cache.setdefault(table, [])
+                existing_ids = {r.get("id") for r in existing if isinstance(r, dict) and r.get("id")}
+                # Prepend / merge real records
+                for r in records:
+                    if not isinstance(r, dict):
+                        continue
+                    r["source"] = r.get("source") or "USER_SUBMITTED"
+                    r["is_demo"] = False
+                    rid = r.get("id")
+                    if rid and rid in existing_ids:
+                        for idx, item in enumerate(existing):
+                            if isinstance(item, dict) and item.get("id") == rid:
+                                existing[idx] = r
+                                break
+                    else:
+                        existing.insert(0, r)
+                loaded_count += len(records)
+        except Exception as e:
+            logger.warning("[DB] Failed loading real data file %s: %s", f.name, e)
+
+    if loaded_count > 0:
+        logger.info("[DB] Loaded %d real user records across tables from %s", loaded_count, real_dir)
     return loaded_count
 
 
 def init_db():
-    """Initialize data layer: load baseline dataset, overlay Supabase data if connected."""
-    # 1. Always load baseline dataset first so system is never empty
+    """Initialize hybrid data layer: load synthetic baseline, overlay real submissions, then Supabase if configured."""
+    # 1. Always load baseline synthetic dataset first so system is never empty
     demo_count = load_demo_data()
 
-    # 2. If Supabase is configured, overlay table data
+    # 2. Overlay persistent first-party user submissions from disk
+    real_count = load_real_data()
+
+    # 3. If Supabase is configured, overlay table data
     client = get_supabase_client()
     if client:
         logger.info("[DB] Supabase configured at %s. Syncing tables...", settings.supabase_url)
@@ -107,8 +190,53 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
-    # 3. Ensure baseline demo users exist for local testing and demonstration
+    # 4. Ensure baseline demo users exist for local testing and demonstration
     init_demo_users()
+
+
+def get_data_governance_summary() -> dict[str, Any]:
+    """Return data governance breakdown of real user submissions vs synthetic demo baseline."""
+    if not _cache:
+        init_db()
+
+    tables = [
+        "student_assessments", "student_profiles", "employer_demands",
+        "employer_feedback", "courses", "industry_signals",
+        "gov_opportunities", "users", "jobs", "skills"
+    ]
+    summary = {}
+    total_real = 0
+    total_demo = 0
+
+    for tbl in tables:
+        records = _cache.get(tbl, [])
+        real_count = sum(
+            1 for r in records
+            if isinstance(r, dict) and (
+                r.get("source") in ("USER_SUBMITTED", "EMPLOYER_SUBMITTED", "INSTITUTE_SUBMITTED", "REAL_INGESTED", "LIVE_API")
+                or (r.get("is_demo") is False and r.get("source") != "DEMO_SYNTHETIC")
+            )
+        )
+        demo_count = len(records) - real_count
+
+        total_real += real_count
+        total_demo += demo_count
+        summary[tbl] = {
+            "total": len(records),
+            "real_user_submitted": real_count,
+            "demo_synthetic": demo_count,
+            "has_live_data": real_count > 0,
+        }
+
+    return {
+        "status": "success",
+        "total_records": total_real + total_demo,
+        "total_real_user_submitted": total_real,
+        "total_demo_synthetic": total_demo,
+        "live_data_active": total_real > 0,
+        "tables": summary,
+    }
+
 
 
 def get_demo(table: str) -> list[dict]:
@@ -136,7 +264,7 @@ def save_employer_feedback(
     notes: str | None = None,
     proficiency_required: str | None = None,
 ) -> dict | None:
-    """Update employer feedback in-memory cache and write through to Supabase if connected."""
+    """Update employer feedback in-memory cache, flush to real storage, and write through to Supabase if connected."""
     if not _cache:
         load_demo_data()
     matched_record = None
@@ -144,12 +272,17 @@ def save_employer_feedback(
     for f in feedback_list:
         if f.get("id") == feedback_id:
             f["status"] = status
+            f["source"] = "USER_SUBMITTED"
+            f["is_demo"] = False
             if notes is not None:
                 f["notes"] = notes
             if proficiency_required is not None:
                 f["proficiency_required"] = proficiency_required
             matched_record = f
             break
+
+    if matched_record:
+        _flush_real_table("employer_feedback")
 
     # Write-through to Supabase
     client = get_supabase_client()
@@ -170,11 +303,14 @@ def save_employer_feedback(
 
 
 def save_employer_demand(demand_data: dict) -> dict:
-    """Save new employer-submitted skill demand requirement to cache and Supabase if connected."""
+    """Save new employer-submitted skill demand requirement to cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
+    demand_data.setdefault("source", "USER_SUBMITTED")
+    demand_data["is_demo"] = False
     demands = _cache.setdefault("employer_demands", [])
     demands.insert(0, demand_data)
+    _flush_real_table("employer_demands")
 
     client = get_supabase_client()
     if client:
@@ -193,7 +329,7 @@ def update_employer_demand_status(
     admin_notes: str | None = None,
     validated_by: str | None = None,
 ) -> dict | None:
-    """Update validation status of an employer demand record."""
+    """Update validation status of an employer demand record and flush to disk."""
     if not _cache:
         load_demo_data()
     demands = _cache.get("employer_demands", [])
@@ -209,6 +345,7 @@ def update_employer_demand_status(
             break
 
     if matched:
+        _flush_real_table("employer_demands")
         client = get_supabase_client()
         if client:
             try:
@@ -226,7 +363,7 @@ def update_employer_demand_status(
 
 
 def delete_employer_demand(demand_id: str) -> bool:
-    """Delete employer demand record from in-memory cache and Supabase."""
+    """Delete employer demand record from in-memory cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
     demands = _cache.get("employer_demands", [])
@@ -235,6 +372,7 @@ def delete_employer_demand(demand_id: str) -> bool:
     deleted = len(_cache["employer_demands"]) < initial_len
 
     if deleted:
+        _flush_real_table("employer_demands")
         client = get_supabase_client()
         if client:
             try:
@@ -244,8 +382,6 @@ def delete_employer_demand(demand_id: str) -> bool:
                 logger.warning("[DB] Failed deleting employer demand from Supabase: %s", e)
 
     return deleted
-
-
 
 
 def save_sync_log(log_entry: dict) -> bool:
@@ -299,11 +435,26 @@ def persist_jobs_to_supabase(jobs: list[dict]):
 
 
 def save_student_assessment(assessment_data: dict) -> dict:
-    """Save new student-submitted self-assessment record to memory cache and write-through to Supabase if connected."""
+    """Save new student-submitted self-assessment record to memory cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
+    assessment_data.setdefault("source", "USER_SUBMITTED")
+    assessment_data["is_demo"] = False
     assessments = _cache.setdefault("student_assessments", [])
-    assessments.insert(0, assessment_data)
+    
+    # Check if this student already submitted, update or prepend
+    aid = assessment_data.get("id")
+    uid = assessment_data.get("user_id")
+    existing_idx = next(
+        (i for i, a in enumerate(assessments) if (aid and a.get("id") == aid) or (uid and a.get("user_id") == uid)),
+        None
+    )
+    if existing_idx is not None:
+        assessments[existing_idx] = assessment_data
+    else:
+        assessments.insert(0, assessment_data)
+
+    _flush_real_table("student_assessments")
 
     client = get_supabase_client()
     if client:
@@ -317,7 +468,7 @@ def save_student_assessment(assessment_data: dict) -> dict:
 
 
 def delete_student_assessment(assessment_id: str) -> bool:
-    """Delete student assessment from in-memory cache and Supabase if connected."""
+    """Delete student assessment from in-memory cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
     assessments = _cache.get("student_assessments", [])
@@ -326,6 +477,7 @@ def delete_student_assessment(assessment_id: str) -> bool:
     deleted = len(_cache["student_assessments"]) < initial_len
 
     if deleted:
+        _flush_real_table("student_assessments")
         client = get_supabase_client()
         if client:
             try:
@@ -338,11 +490,14 @@ def delete_student_assessment(assessment_id: str) -> bool:
 
 
 def save_course(course_data: dict) -> dict:
-    """Save new course or institute training program to cache and Supabase if connected."""
+    """Save new course or institute training program to cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
+    course_data.setdefault("source", "USER_SUBMITTED")
+    course_data["is_demo"] = False
     courses = _cache.setdefault("courses", [])
     courses.insert(0, course_data)
+    _flush_real_table("courses")
 
     client = get_supabase_client()
     if client:
@@ -356,7 +511,7 @@ def save_course(course_data: dict) -> dict:
 
 
 def update_course(course_id: str, updates: dict) -> dict | None:
-    """Update fields on a course record."""
+    """Update fields on a course record and flush to disk."""
     if not _cache:
         load_demo_data()
     courses = _cache.get("courses", [])
@@ -368,6 +523,7 @@ def update_course(course_id: str, updates: dict) -> dict | None:
             break
 
     if matched:
+        _flush_real_table("courses")
         client = get_supabase_client()
         if client:
             try:
@@ -380,7 +536,7 @@ def update_course(course_id: str, updates: dict) -> dict | None:
 
 
 def delete_course(course_id: str) -> bool:
-    """Delete course record from cache and Supabase."""
+    """Delete course record from cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
     courses = _cache.get("courses", [])
@@ -389,6 +545,7 @@ def delete_course(course_id: str) -> bool:
     deleted = len(_cache["courses"]) < initial_len
 
     if deleted:
+        _flush_real_table("courses")
         client = get_supabase_client()
         if client:
             try:
@@ -401,11 +558,14 @@ def delete_course(course_id: str) -> bool:
 
 
 def save_gov_opportunity(data: dict) -> dict:
-    """Save new government opportunity record to cache and Supabase if connected."""
+    """Save new government opportunity record to cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
+    data.setdefault("source", "USER_SUBMITTED")
+    data["is_demo"] = False
     records = _cache.setdefault("gov_opportunities", [])
     records.insert(0, data)
+    _flush_real_table("gov_opportunities")
 
     client = get_supabase_client()
     if client:
@@ -419,7 +579,7 @@ def save_gov_opportunity(data: dict) -> dict:
 
 
 def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
-    """Update fields on a government opportunity record."""
+    """Update fields on a government opportunity record and flush to disk."""
     if not _cache:
         load_demo_data()
     records = _cache.get("gov_opportunities", [])
@@ -431,6 +591,7 @@ def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
             break
 
     if matched:
+        _flush_real_table("gov_opportunities")
         client = get_supabase_client()
         if client:
             try:
@@ -443,7 +604,7 @@ def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
 
 
 def delete_gov_opportunity(opp_id: str) -> bool:
-    """Delete government opportunity record from cache and Supabase."""
+    """Delete government opportunity record from cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
     records = _cache.get("gov_opportunities", [])
@@ -452,6 +613,7 @@ def delete_gov_opportunity(opp_id: str) -> bool:
     deleted = len(_cache["gov_opportunities"]) < initial_len
 
     if deleted:
+        _flush_real_table("gov_opportunities")
         client = get_supabase_client()
         if client:
             try:
@@ -468,9 +630,11 @@ def delete_gov_opportunity(opp_id: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def save_industry_signal(signal_data: dict) -> dict:
-    """Save or insert industry intelligence signal into cache and Supabase."""
+    """Save or insert industry intelligence signal into cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
+    signal_data.setdefault("source", "USER_SUBMITTED")
+    signal_data["is_demo"] = False
     signals = _cache.setdefault("industry_signals", [])
     
     # Check if already exists
@@ -479,6 +643,8 @@ def save_industry_signal(signal_data: dict) -> dict:
         signals[existing_idx] = signal_data
     else:
         signals.insert(0, signal_data)
+
+    _flush_real_table("industry_signals")
 
     client = get_supabase_client()
     if client:
@@ -492,7 +658,7 @@ def save_industry_signal(signal_data: dict) -> dict:
 
 
 def update_industry_signal(sig_id: str, updates: dict) -> dict | None:
-    """Update fields on an industry intelligence signal record."""
+    """Update fields on an industry intelligence signal record and flush to disk."""
     if not _cache:
         load_demo_data()
     signals = _cache.get("industry_signals", [])
@@ -504,6 +670,7 @@ def update_industry_signal(sig_id: str, updates: dict) -> dict | None:
             break
 
     if matched:
+        _flush_real_table("industry_signals")
         client = get_supabase_client()
         if client:
             try:
@@ -516,7 +683,7 @@ def update_industry_signal(sig_id: str, updates: dict) -> dict | None:
 
 
 def delete_industry_signal(sig_id: str) -> bool:
-    """Delete industry intelligence signal from cache and Supabase."""
+    """Delete industry intelligence signal from cache, disk storage, and Supabase."""
     if not _cache:
         load_demo_data()
     signals = _cache.get("industry_signals", [])
@@ -525,6 +692,7 @@ def delete_industry_signal(sig_id: str) -> bool:
     deleted = len(_cache["industry_signals"]) < initial_len
 
     if deleted:
+        _flush_real_table("industry_signals")
         client = get_supabase_client()
         if client:
             try:
@@ -534,6 +702,7 @@ def delete_industry_signal(sig_id: str) -> bool:
                 logger.warning("[DB] Failed deleting industry signal from Supabase: %s", e)
 
     return deleted
+
 
 
 def get_industry_signal_by_id(sig_id: str) -> dict | None:
@@ -556,8 +725,7 @@ def init_demo_users():
     if not _cache:
         load_demo_data()
     users = _cache.setdefault("users", [])
-    if users:
-        return
+    existing_emails = {u.get("email", "").lower() for u in users if isinstance(u, dict)}
 
     from app.core.security import hash_password
 
@@ -574,6 +742,7 @@ def init_demo_users():
             "created_at": "2026-01-15T09:00:00Z",
             "updated_at": "2026-01-15T09:00:00Z",
         },
+
         {
             "id": "usr-employer-001",
             "email": "employer@skillsetu.gov.in",
@@ -647,7 +816,11 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
     ]
-    users.extend(demo_accounts)
+    for acc in demo_accounts:
+        if acc["email"].lower() not in existing_emails:
+            users.append(acc)
+            existing_emails.add(acc["email"].lower())
+
 
 
 def get_user_by_email(email: str) -> dict | None:
@@ -681,15 +854,19 @@ def list_users() -> list[dict]:
 
 
 def save_user(user_data: dict) -> dict:
-    """Save or update user record in memory cache and Supabase write-through."""
+    """Save or update user record in memory cache, local real storage, and Supabase."""
     if not _cache:
         load_demo_data()
+    user_data.setdefault("source", "USER_SUBMITTED")
+    user_data["is_demo"] = False
     users = _cache.setdefault("users", [])
     existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
     if existing_idx is not None:
         users[existing_idx] = user_data
     else:
         users.append(user_data)
+
+    _flush_real_table("users")
 
     client = get_supabase_client()
     if client:
@@ -700,6 +877,7 @@ def save_user(user_data: dict) -> dict:
             logger.warning("[DB] Failed persisting user to Supabase: %s", e)
 
     return user_data
+
 
 
 

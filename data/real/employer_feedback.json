@@ -1,0 +1,13 @@
+[
+  {
+    "id": "ef-001",
+    "employer_id": "emp-001",
+    "skill_id": "sk-005",
+    "demand_level": "critical",
+    "proficiency_required": "advanced",
+    "status": "corrected",
+    "notes": "Requires production RAG pipeline capstone.",
+    "source": "USER_SUBMITTED",
+    "is_demo": false
+  }
+]

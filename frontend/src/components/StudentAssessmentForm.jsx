@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+
 
 const POPULAR_ROLES = [
   'AI Engineer',
@@ -53,7 +55,8 @@ const SUGGESTED_SKILLS = [
   'Electrical Maintenance', 'DevOps', 'Kubernetes', 'Power BI', 'AutoCAD',
 ];
 
-export default function StudentAssessmentForm({ onOpenExplainability }) {
+export default function StudentAssessmentForm({ onOpenExplainability, onAssessmentSubmitted }) {
+  const { user } = useAuth();
   const [step, setStep] = useState(1); // 1: Demographics, 2: Goal & Interests, 3: Skills, 4: Quiz, 5: Result
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
@@ -69,9 +72,9 @@ export default function StudentAssessmentForm({ onOpenExplainability }) {
 
   // Form State
   const [form, setForm] = useState({
-    name: '',
+    name: user?.full_name || '',
     education: '',
-    district: 'Pune',
+    district: user?.district || 'Pune',
     career_goal: 'AI Engineer',
     custom_career_goal: '',
     interests: ['AI / ML', 'Data Science'],
@@ -81,6 +84,17 @@ export default function StudentAssessmentForm({ onOpenExplainability }) {
     ],
     quiz_answers: {},
   });
+
+  useEffect(() => {
+    if (user?.full_name && !form.name) {
+      setForm((prev) => ({
+        ...prev,
+        name: user.full_name,
+        district: user.district || prev.district,
+      }));
+    }
+  }, [user]);
+
 
   const [skillInput, setSkillInput] = useState('');
   const [skillProficiency, setSkillProficiency] = useState('intermediate');
@@ -197,6 +211,9 @@ export default function StudentAssessmentForm({ onOpenExplainability }) {
         setSelectedHistoryItem(null);
         setStep(5); // Jump to Results view
         loadAssessmentHistory();
+        if (typeof onAssessmentSubmitted === 'function') {
+          onAssessmentSubmitted(res.assessment);
+        }
       } else {
         throw new Error(res?.error || 'Failed to evaluate assessment submission.');
       }

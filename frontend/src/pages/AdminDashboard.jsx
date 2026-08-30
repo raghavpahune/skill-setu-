@@ -152,8 +152,9 @@ export default function AdminDashboard() {
   const [selectedSignal, setSelectedSignal] = useState(null);
   const [inspectSignalModalOpen, setInspectSignalModalOpen] = useState(false);
   const [signalAdminNotesInput, setSignalAdminNotesInput] = useState('');
+  const [governanceData, setGovernanceData] = useState(null);
 
-  // Load Student Assessment Data
+  // Load Student Assessment Data & Data Governance
   const fetchData = useCallback(() => {
     setLoading(true);
     setAuthError(null);
@@ -173,7 +174,8 @@ export default function AdminDashboard() {
     Promise.allSettled([
       api.getAdminAssessmentStats(adminKey),
       api.getAdminAssessments(params, adminKey),
-    ]).then(([statsRes, listRes]) => {
+      api.getDataGovernance(adminKey),
+    ]).then(([statsRes, listRes, govRes]) => {
       if (statsRes.status === 'fulfilled' && statsRes.value?.status === 'success') {
         setStats(statsRes.value);
       } else if (statsRes.status === 'rejected' && statsRes.reason?.message?.includes('401')) {
@@ -186,9 +188,15 @@ export default function AdminDashboard() {
       } else if (listRes.status === 'rejected' && listRes.reason?.message?.includes('401')) {
         setAuthError('Unauthorized: Invalid or missing administrator key.');
       }
+
+      if (govRes.status === 'fulfilled' && govRes.value?.status === 'success') {
+        setGovernanceData(govRes.value);
+      }
+
       setLoading(false);
     });
   }, [adminKey, sourceFilter, districtFilter, careerGoalFilter, dateFrom, dateTo, searchTerm, page]);
+
 
   // Load Employer Demands Data (Phase 14)
   const fetchEmployerData = useCallback(() => {
@@ -877,8 +885,68 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* Real Data vs Demo Data Governance Card (§30) */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      Data Governance & Hybrid Provenance Architecture
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      Live Telemetry Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Real first-party user submissions persisted to disk and database alongside the immutable DEMO_SYNTHETIC benchmark baseline.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <span className="text-slate-700 dark:text-slate-200 font-bold">
+                      {governanceData?.total_real_user_submitted ?? assessments.filter((a) => a.source === 'USER_SUBMITTED').length} Live
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">
+                      {governanceData?.total_demo_synthetic ?? assessments.filter((a) => a.source === 'DEMO_SYNTHETIC').length} Demo Baseline
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {governanceData?.tables && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {Object.entries(governanceData.tables).slice(0, 5).map(([tbl, tinfo]) => (
+                    <div key={tbl} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold truncate">
+                        {tbl.replace('_', ' ')}
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-sm font-black text-slate-900 dark:text-white">
+                          {tinfo.total} total
+                        </span>
+                        {tinfo.real_user_submitted > 0 ? (
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                            {tinfo.real_user_submitted} Real
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-slate-400">
+                            Demo Only
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Recent Submissions Feed */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+
               <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">

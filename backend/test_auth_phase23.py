@@ -12,6 +12,13 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_db():
     init_db()
+    from app.db import _cache
+    if "users" in _cache:
+        _cache["users"] = [
+            u for u in _cache["users"]
+            if not any(k in u.get("email", "") for k in ("test@", ".test", "isolated@", "dup.test", "newstudent", "fakeadmin"))
+        ]
+
 
 
 # ---------------------------------------------------------------------------

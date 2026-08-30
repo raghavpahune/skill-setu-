@@ -177,6 +177,7 @@ async def submit_demand(
         "nsqf_level": submission.nsqf_level,
         "source": "EMPLOYER_SUBMITTED",
         "validation_status": "PENDING",
+
         "provenance_label": "Employer Submitted — Pending Validation",
         "is_demo": False,
         "submitted_at": now_iso,
@@ -194,6 +195,7 @@ async def submit_demand(
     }
 
 
+@router.get("/employer/me/demands")
 @router.get("/employer/my-demands")
 @router.get("/employer/demands/mine")
 async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER", "ADMIN"]))):
@@ -201,13 +203,14 @@ async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER"
     all_demands = get_demo("employer_demands")
     user_id = current_user.get("id")
     org_id = current_user.get("organization_id")
+    email = current_user.get("email")
 
     if current_user.get("role", "").upper() == "ADMIN":
-        my_demands = [d for d in all_demands if d.get("source") == "EMPLOYER_SUBMITTED"]
+        my_demands = [d for d in all_demands if d.get("source") in ("USER_SUBMITTED", "EMPLOYER_SUBMITTED") or d.get("is_demo") is False]
     else:
         my_demands = [
             d for d in all_demands
-            if d.get("user_id") == user_id or (org_id and d.get("employer_id") == org_id)
+            if d.get("user_id") == user_id or (org_id and d.get("employer_id") == org_id) or (email and d.get("user_email") == email)
         ]
 
     return {
@@ -215,6 +218,7 @@ async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER"
         "total": len(my_demands),
         "demands": my_demands,
     }
+
 
 
 @router.patch("/employer/demands/{demand_id}")

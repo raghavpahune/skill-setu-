@@ -30,7 +30,15 @@ router = APIRouter()
 verify_admin_key = verify_admin_access
 
 
+@router.get("/admin/data-governance", dependencies=[Depends(verify_admin_key)])
+async def get_admin_data_governance():
+    """Retrieve platform-wide data governance breakdown: real user submissions vs synthetic demo baseline."""
+    from app.db import get_data_governance_summary
+    return get_data_governance_summary()
+
+
 class DemandValidationUpdate(BaseModel):
+
     status: str | None = Field(None, description="'VALIDATED' | 'REJECTED' | 'PENDING'")
     validation_status: str | None = Field(None, description="'VALIDATED' | 'REJECTED' | 'PENDING'")
     admin_notes: str | None = None

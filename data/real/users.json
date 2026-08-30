@@ -1,0 +1,16 @@
+[
+  {
+    "id": "usr-student-d35a13f5",
+    "email": "student2.isolated@skillsetu.gov.in",
+    "hashed_password": "$2b$12$/NHS2uRkCwS0mAepZ0l4leICzevGZ7sTBOBaASb/XAt3KPe7UUZoW",
+    "full_name": "Student Two",
+    "role": "STUDENT",
+    "organization_id": null,
+    "district": null,
+    "is_active": true,
+    "created_at": "2026-08-30T15:44:12.972682+00:00",
+    "updated_at": "2026-08-30T15:44:12.972682+00:00",
+    "source": "USER_SUBMITTED",
+    "is_demo": false
+  }
+]

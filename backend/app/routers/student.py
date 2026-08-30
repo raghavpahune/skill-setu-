@@ -1,7 +1,10 @@
 """Student API — Skill Passport, learning roadmap, personalized industry alerts, skill explainability, and student self-assessment."""
 from fastapi import APIRouter, Query, HTTPException, Depends, status
 from pydantic import BaseModel, Field
+from app.core.security import get_current_user, get_optional_current_user
 from app.db import get_demo, save_student_assessment
+
+
 from app.services.student_service import (
     list_alert_domains,
     get_personalized_industry_alerts,
@@ -52,48 +55,127 @@ async def skill_explainability(
     return get_skill_explainability(skill_query=skill, student_id=student_id)
 
 
+@router.get("/student/me/passport")
+async def my_skill_passport(
+    current_user: dict = Depends(get_current_user),
+):
+    """Retrieve the authenticated student's personalized Skill Passport from their real assessment."""
+    user_id = current_user.get("id")
+    user_email = current_user.get("email")
+    skills_map = {s["id"]: s for s in get_demo("skills")}
+    skills_name_map = {s["name"].lower(): s for s in get_demo("skills")}
+
+    # 1. Check for real student assessment submission
+    assessments = get_demo("student_assessments")
+    matched_assessment = next(
+        (a for a in assessments if a.get("user_id") == user_id or a.get("id") == user_id or (user_email and a.get("user_email") == user_email)),
+        None
+    )
+
+    if matched_assessment:
+        target_role = matched_assessment.get("career_goal", "AI Engineer")
+        from app.services.student_service import ROLE_REQUIREMENTS_MAP
+        req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"])
+
+        curr_skills = []
+        curr_sids = set()
+        for cs in matched_assessment.get("current_skills", []):
+            s_name = cs.get("skill_name", "")
+            sid = cs.get("skill_id")
+            if not sid and s_name.lower() in skills_name_map:
+                sid = skills_name_map[s_name.lower()]["id"]
+            if sid:
+                curr_sids.add(sid)
+            sk_obj = skills_map.get(sid, {})
+            curr_skills.append({
+                "skill_id": sid or f"sk-custom-{len(curr_skills)+1}",
+                "skill_name": s_name or sk_obj.get("name", "Custom Skill"),
+                "proficiency": cs.get("proficiency", "intermediate"),
+                "category": cs.get("category") or sk_obj.get("category", "General"),
+                "nsqf_level": cs.get("nsqf_level") or sk_obj.get("nsqf_level", 5),
+            })
+
+        required = [
+            {
+                "skill_id": sid,
+                "skill_name": skills_map.get(sid, {}).get("name", sid),
+                "category": skills_map.get(sid, {}).get("category", "General"),
+                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
+            }
+            for sid in req_sids
+        ]
+        missing = [r for r in required if r["skill_id"] not in curr_sids]
+
+        return {
+            "user_id": user_id,
+            "name": matched_assessment.get("name") or current_user.get("full_name", "Student Candidate"),
+            "target_role": target_role,
+            "skill_match_pct": matched_assessment.get("skill_match_pct", 65),
+            "current_skills": curr_skills,
+            "required_skills": required,
+            "missing_skills": missing,
+            "source": "USER_SUBMITTED",
+            "is_personalized": True,
+        }
+
+    # 2. Check for student profile
+    profiles = get_demo("student_profiles")
+    matched_profile = next((p for p in profiles if p.get("user_id") == user_id or p.get("id") == user_id), None)
+    if not matched_profile and profiles:
+        # Graceful fallback to baseline profile for new accounts that haven't taken assessment
+        matched_profile = profiles[0]
+
+    if matched_profile:
+        current = [
+            {
+                **sk,
+                "skill_name": skills_map.get(sk["skill_id"], {}).get("name", ""),
+                "category": skills_map.get(sk["skill_id"], {}).get("category", ""),
+                "nsqf_level": skills_map.get(sk["skill_id"], {}).get("nsqf_level"),
+            }
+            for sk in matched_profile.get("skills", [])
+        ]
+        required = [
+            {
+                "skill_id": sid,
+                "skill_name": skills_map.get(sid, {}).get("name", ""),
+                "category": skills_map.get(sid, {}).get("category", ""),
+                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level"),
+            }
+            for sid in matched_profile.get("required_skills", [])
+        ]
+        missing = [
+            r for r in required
+            if r["skill_id"] not in {s["skill_id"] for s in matched_profile.get("skills", [])}
+        ]
+        return {
+            "user_id": user_id,
+            "name": current_user.get("full_name") or matched_profile["name"],
+            "target_role": matched_profile["target_role"],
+            "skill_match_pct": matched_profile["skill_match_pct"],
+            "current_skills": current,
+            "required_skills": required,
+            "missing_skills": missing,
+            "source": matched_profile.get("source", "DEMO_SYNTHETIC"),
+            "is_personalized": False,
+        }
+
+    return {"error": "no profile found"}
+
+
 @router.get("/student/{student_id}/passport")
-async def skill_passport(student_id: str):
+async def skill_passport(
+    student_id: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    if student_id == "me" and current_user:
+        return await my_skill_passport(current_user=current_user)
+
     profiles = get_demo("student_profiles")
     skills_map = {s["id"]: s for s in get_demo("skills")}
     skills_name_map = {s["name"].lower(): s for s in get_demo("skills")}
 
-    for p in profiles:
-        if p.get("user_id") == student_id or p.get("id") == student_id:
-            current = [
-                {
-                    **sk,
-                    "skill_name": skills_map.get(sk["skill_id"], {}).get("name", ""),
-                    "category": skills_map.get(sk["skill_id"], {}).get("category", ""),
-                    "nsqf_level": skills_map.get(sk["skill_id"], {}).get("nsqf_level"),
-                }
-                for sk in p.get("skills", [])
-            ]
-            required = [
-                {
-                    "skill_id": sid,
-                    "skill_name": skills_map.get(sid, {}).get("name", ""),
-                    "category": skills_map.get(sid, {}).get("category", ""),
-                    "nsqf_level": skills_map.get(sid, {}).get("nsqf_level"),
-                }
-                for sid in p.get("required_skills", [])
-            ]
-            missing = [
-                r for r in required
-                if r["skill_id"] not in {s["skill_id"] for s in p.get("skills", [])}
-            ]
-            return {
-                "user_id": p.get("user_id") or p.get("id"),
-                "name": p["name"],
-                "target_role": p["target_role"],
-                "skill_match_pct": p["skill_match_pct"],
-                "current_skills": current,
-                "required_skills": required,
-                "missing_skills": missing,
-                "source": p.get("source", "DEMO_SYNTHETIC"),
-            }
-
-    # Check student_assessments cache for user-submitted profiles
+    # First check student_assessments cache for user-submitted profiles
     assessments = get_demo("student_assessments")
     for a in assessments:
         if a.get("id") == student_id or a.get("user_id") == student_id:
@@ -139,13 +221,64 @@ async def skill_passport(student_id: str):
                 "required_skills": required,
                 "missing_skills": missing,
                 "source": a.get("source", "USER_SUBMITTED"),
+                "is_personalized": True,
+            }
+
+    for p in profiles:
+        if p.get("user_id") == student_id or p.get("id") == student_id:
+            current = [
+                {
+                    **sk,
+                    "skill_name": skills_map.get(sk["skill_id"], {}).get("name", ""),
+                    "category": skills_map.get(sk["skill_id"], {}).get("category", ""),
+                    "nsqf_level": skills_map.get(sk["skill_id"], {}).get("nsqf_level"),
+                }
+                for sk in p.get("skills", [])
+            ]
+            required = [
+                {
+                    "skill_id": sid,
+                    "skill_name": skills_map.get(sid, {}).get("name", ""),
+                    "category": skills_map.get(sid, {}).get("category", ""),
+                    "nsqf_level": skills_map.get(sid, {}).get("nsqf_level"),
+                }
+                for sid in p.get("required_skills", [])
+            ]
+            missing = [
+                r for r in required
+                if r["skill_id"] not in {s["skill_id"] for s in p.get("skills", [])}
+            ]
+            return {
+                "user_id": p.get("user_id") or p.get("id"),
+                "name": p["name"],
+                "target_role": p["target_role"],
+                "skill_match_pct": p["skill_match_pct"],
+                "current_skills": current,
+                "required_skills": required,
+                "missing_skills": missing,
+                "source": p.get("source", "DEMO_SYNTHETIC"),
+                "is_personalized": False,
             }
 
     return {"error": "student not found"}
 
 
+
+@router.get("/student/me/roadmap")
+async def my_learning_roadmap(
+    current_user: dict = Depends(get_current_user),
+):
+    """Retrieve the authenticated student's personalized learning roadmap."""
+    return await learning_roadmap(student_id=current_user.get("id"), current_user=current_user)
+
+
 @router.get("/student/{student_id}/roadmap")
-async def learning_roadmap(student_id: str):
+async def learning_roadmap(
+    student_id: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    if student_id == "me" and current_user:
+        student_id = current_user.get("id")
     profiles = get_demo("student_profiles")
     skills_map = {s["id"]: s for s in get_demo("skills")}
     forecasts = get_demo("skill_forecasts")
@@ -155,37 +288,10 @@ async def learning_roadmap(student_id: str):
         if f["skill_id"] not in forecast_map:
             forecast_map[f["skill_id"]] = f
 
-    for p in profiles:
-        if p.get("user_id") == student_id or p.get("id") == student_id:
-            roadmap = []
-            for idx, sid in enumerate(p.get("roadmap", []), start=1):
-                skill = skills_map.get(sid, {})
-                fc = forecast_map.get(sid, {})
-                roadmap.append({
-                    "step": idx,
-                    "skill_id": sid,
-                    "skill_name": skill.get("name", ""),
-                    "category": skill.get("category", ""),
-                    "nsqf_level": skill.get("nsqf_level"),
-                    "future_demand": fc.get("future_demand", "high"),
-                    "trend": fc.get("trend", "rising"),
-                    "confidence": fc.get("confidence", 85),
-                    "timeframe": fc.get("timeframe", "2025-2027"),
-                    "key_drivers": fc.get("key_drivers", []),
-                    "why": f"Recommended because {skill.get('name', 'this skill')} has "
-                           f"{fc.get('future_demand', 'growing')} future demand with "
-                           f"{fc.get('trend', 'rising')} trend and {fc.get('confidence', '85')}% confidence.",
-                })
-            return {
-                "user_id": p.get("user_id") or p.get("id"),
-                "target_role": p["target_role"],
-                "roadmap": roadmap,
-            }
-
-    # Check student_assessments for user-submitted assessments
+    # First check student_assessments for real user submissions
     assessments = get_demo("student_assessments")
     for a in assessments:
-        if a.get("id") == student_id or a.get("user_id") == student_id:
+        if a.get("id") == student_id or a.get("user_id") == student_id or (current_user and a.get("user_id") == current_user.get("id")):
             target_role = a.get("career_goal", "AI Engineer")
             from app.services.student_service import ROLE_REQUIREMENTS_MAP
             req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-003", "sk-004", "sk-006", "sk-005"])
@@ -215,7 +321,36 @@ async def learning_roadmap(student_id: str):
                 "roadmap": roadmap,
             }
 
+    # Then check demo profiles
+    for p in profiles:
+        if p.get("user_id") == student_id or p.get("id") == student_id:
+            roadmap = []
+            for idx, sid in enumerate(p.get("roadmap", []), start=1):
+                skill = skills_map.get(sid, {})
+                fc = forecast_map.get(sid, {})
+                roadmap.append({
+                    "step": idx,
+                    "skill_id": sid,
+                    "skill_name": skill.get("name", ""),
+                    "category": skill.get("category", ""),
+                    "nsqf_level": skill.get("nsqf_level"),
+                    "future_demand": fc.get("future_demand", "high"),
+                    "trend": fc.get("trend", "rising"),
+                    "confidence": fc.get("confidence", 85),
+                    "timeframe": fc.get("timeframe", "2025-2027"),
+                    "key_drivers": fc.get("key_drivers", []),
+                    "why": f"Recommended because {skill.get('name', 'this skill')} has "
+                           f"{fc.get('future_demand', 'growing')} future demand with "
+                           f"{fc.get('trend', 'rising')} trend and {fc.get('confidence', '85')}% confidence.",
+                })
+            return {
+                "user_id": p.get("user_id") or p.get("id"),
+                "target_role": p["target_role"],
+                "roadmap": roadmap,
+            }
+
     return {"error": "student not found"}
+
 
 
 @router.get("/students")
@@ -346,11 +481,17 @@ class ExplainAiQuery(BaseModel):
 
 @router.get("/student/recommendations/{student_id}")
 @router.get("/student/{student_id}/recommendations")
-async def get_student_recommendations(student_id: str):
+async def get_student_recommendations(
+    student_id: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
     """Generate explainable career recommendations connecting student assessment, validated employer demand, and gov opportunities."""
     from app.services.career_recommendation_engine import compute_career_recommendations
+    resolved_id = student_id
+    if student_id == "me" and current_user:
+        resolved_id = current_user.get("id") or "me"
     try:
-        recommendations = compute_career_recommendations(student_id)
+        recommendations = compute_career_recommendations(resolved_id)
         return recommendations
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -359,17 +500,25 @@ async def get_student_recommendations(student_id: str):
 
 
 @router.post("/student/recommendations/{student_id}/explain-ai")
-async def explain_student_recommendations_ai(student_id: str, query: ExplainAiQuery | None = None):
+async def explain_student_recommendations_ai(
+    student_id: str,
+    query: ExplainAiQuery | None = None,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
     """Generate conversational, encouraging AI Copilot explanation for the student's career recommendation."""
     from app.services.career_recommendation_engine import generate_ai_copilot_explanation
+    resolved_id = student_id
+    if student_id == "me" and current_user:
+        resolved_id = current_user.get("id") or "me"
     try:
         custom_prompt = query.prompt if query else None
-        res = await generate_ai_copilot_explanation(student_id, custom_prompt)
+        res = await generate_ai_copilot_explanation(resolved_id, custom_prompt)
         return res
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI explanation error: {e}")
+
 
 
 

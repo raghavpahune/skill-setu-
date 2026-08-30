@@ -94,18 +94,25 @@ CAREER_ROLES_BENCHMARK = [
 
 
 def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
-    """Lookup student from student_profiles demo dataset or user assessments."""
-    profiles = get_demo("student_profiles")
-    for p in profiles:
-        if p.get("user_id") == student_id or p.get("id") == student_id:
-            return p
-
+    """Lookup student from user assessments first (real data), then student_profiles (demo dataset)."""
     assessments = get_demo("student_assessments")
     for a in assessments:
         if a.get("id") == student_id or a.get("user_id") == student_id:
             return a
 
+    profiles = get_demo("student_profiles")
+    for p in profiles:
+        if p.get("user_id") == student_id or p.get("id") == student_id:
+            return p
+
+    if student_id == "me":
+        if assessments:
+            return assessments[0]
+        if profiles:
+            return profiles[0]
+
     return None
+
 
 
 def _get_validated_employer_demands() -> list[dict[str, Any]]:

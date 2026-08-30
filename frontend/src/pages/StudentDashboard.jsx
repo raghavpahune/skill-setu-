@@ -8,6 +8,8 @@ import SkillExplainabilityModal from '../components/SkillExplainabilityModal';
 import StudentAssessmentForm from '../components/StudentAssessmentForm';
 import CareerRecommendationsView from '../components/CareerRecommendationsView';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+
 
 const DEFAULT_STUDENTS = [
   { user_id: 'stu-001', name: 'Aarav Patil', target_role: 'AI Engineer', skill_match_pct: 52 },
@@ -111,6 +113,7 @@ function OpportunitySkeleton() {
 const VALID_STUDENT_TABS = ['passport', 'assessment', 'recommendations', 'roadmap', 'signals'];
 
 export default function StudentDashboard() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
   const mainTab = urlTab && VALID_STUDENT_TABS.includes(urlTab) ? urlTab : 'passport';
@@ -148,21 +151,47 @@ export default function StudentDashboard() {
     setExplainModalOpen(true);
   };
 
-  // Load students on mount
+  // Load students & check personal student profile on mount / auth change
   useEffect(() => {
+    // 1. If user is logged in as a student, check if they already have personal assessment
+    if (user?.id) {
+      api.getMyPassport()
+        .then((myPass) => {
+          if (myPass && (myPass.is_personalized || myPass.source === 'USER_SUBMITTED')) {
+            setSelectedStudentId('me');
+            setPassport(myPass);
+            setStudents((prev) => {
+              const alreadyHasMe = prev.some((s) => s.user_id === 'me');
+              if (alreadyHasMe) return prev;
+              const meItem = {
+                user_id: 'me',
+                name: `${myPass.name || user.full_name || 'My Profile'} (Live Profile)`,
+                target_role: myPass.target_role,
+                skill_match_pct: myPass.skill_match_pct,
+                source: 'USER_SUBMITTED',
+              };
+              return [meItem, ...prev];
+            });
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 2. Load candidates directory
     api.getStudents()
       .then((res) => {
         if (Array.isArray(res) && res.length > 0) {
-          setStudents(res);
-          if (!res.some((s) => s.user_id === selectedStudentId)) {
-            setSelectedStudentId(res[0].user_id);
-          }
+          setStudents((prev) => {
+            const hasMe = prev.some((s) => s.user_id === 'me');
+            const meItem = prev.find((s) => s.user_id === 'me');
+            return hasMe ? [meItem, ...res.filter((r) => r.user_id !== 'me')] : res;
+          });
         }
       })
       .catch((err) => {
         console.warn('Failed to load candidate list:', err);
       });
-  }, []);
+  }, [user]);
 
   // Load personalized recommendations when student changes (Phase 15)
   useEffect(() => {
@@ -202,10 +231,15 @@ export default function StudentDashboard() {
     setPassportError(null);
     setRoadmapError(null);
 
-    Promise.allSettled([
-      api.getStudentPassport(selectedStudentId),
-      api.getStudentRoadmap(selectedStudentId),
-    ]).then(([pRes, rRes]) => {
+    const passportPromise = selectedStudentId === 'me'
+      ? api.getMyPassport()
+      : api.getStudentPassport(selectedStudentId);
+
+    const roadmapPromise = selectedStudentId === 'me'
+      ? api.getMyRoadmap()
+      : api.getStudentRoadmap(selectedStudentId);
+
+    Promise.allSettled([passportPromise, roadmapPromise]).then(([pRes, rRes]) => {
       if (pRes.status === 'fulfilled' && pRes.value && !pRes.value.error) {
         setPassport(pRes.value);
       } else {
@@ -230,6 +264,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     fetchStudentData();
   }, [selectedStudentId]);
+
 
   // Derived calculations for Comparison Flow
   const comparisonData = useMemo(() => {
@@ -434,6 +469,16 @@ export default function StudentDashboard() {
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-[11px] text-teal-400 font-semibold uppercase tracking-wider font-mono">
                 <span>Career Pathway Sequence</span>
+                <span>•</span>
+                {passport?.source === 'USER_SUBMITTED' || passport?.is_personalized ? (
+                  <span className="px-2 py-0.5 rounded bg-emerald-900/80 border border-emerald-500 text-emerald-300 text-[10px] font-bold">
+                    🟢 Live Personalized Data
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-blue-900/80 border border-blue-500 text-blue-300 text-[10px] font-bold">
+                    🔵 Demo Baseline Preview
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium">
                 <span className="bg-slate-800/90 border border-slate-700 px-2.5 py-1 rounded text-slate-200">
@@ -453,6 +498,7 @@ export default function StudentDashboard() {
                 </span>
               </div>
             </div>
+
 
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -696,9 +742,28 @@ export default function StudentDashboard() {
       {/* VIEW 2: PHASE 12 DIAGNOSTIC ASSESSMENT & QUIZ */}
       {mainTab === 'assessment' && (
         <div data-demo="student-assessment-section" className="animate-fadeIn">
-          <StudentAssessmentForm onOpenExplainability={handleOpenExplainability} />
+          <StudentAssessmentForm
+            onOpenExplainability={handleOpenExplainability}
+            onAssessmentSubmitted={(newAssessment) => {
+              api.getMyPassport().then((myPass) => {
+                if (myPass) {
+                  setPassport(myPass);
+                  setSelectedStudentId('me');
+                }
+              }).catch(() => {});
+              api.getStudents().then((res) => {
+                if (Array.isArray(res) && res.length > 0) {
+                  setStudents(res);
+                }
+              });
+              setSelectedStudentId('me');
+              fetchStudentData();
+            }}
+          />
+
         </div>
       )}
+
 
       {/* VIEW 3: PHASE 16 CAREER RECOMMENDATIONS */}
       {mainTab === 'recommendations' && (

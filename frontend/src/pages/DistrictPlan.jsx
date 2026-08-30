@@ -505,7 +505,7 @@ export default function DistrictPlan() {
         )}
       </div>
 
-      {/* Recommended Government Action Section */}
+      {/* Recommended Government Action Directives Section */}
       <div data-demo="district-micro-plan" className="bg-slate-900 dark:bg-slate-850 p-6 sm:p-7 rounded-xl mb-8 text-white border border-slate-800 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-3 border-b border-slate-800">
           <div>
@@ -602,6 +602,210 @@ export default function DistrictPlan() {
           />
         )}
       </div>
+
+      {/* Grid: Required Equipment & Required Trainers (§13) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Required Equipment Grants & Budget */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Required Lab Equipment Grants
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Targeted laboratory apparatus needed to close high-gap competencies in {districtName}
+                </p>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">
+                ₹{((plan?.total_equipment_budget_inr || 0) / 100000).toFixed(1)}L Est.
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3 py-1 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 bg-slate-50 dark:bg-slate-800/60 rounded-lg"></div>
+                ))}
+              </div>
+            ) : plan?.required_equipment && plan.required_equipment.length > 0 ? (
+              <div className="space-y-3">
+                {plan.required_equipment.slice(0, 4).map((eq, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white text-xs">{eq.item}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Domain: <span className="font-medium text-slate-700 dark:text-slate-300">{eq.domain || eq.category}</span> • Qty: <span className="font-mono font-bold text-teal-600 dark:text-teal-400">{eq.units} units</span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 px-2 py-1 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 shrink-0">
+                      ₹{((eq.total_cost_inr || eq.units * eq.unit_cost_inr) / 100000).toFixed(1)}L
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="Standard Labs Sufficient"
+                message={`No specialized high-cost machinery required for current ${districtName} programs.`}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Required Trainers & Certified Instructors */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Trainer & Master Instructor Needs
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Certified faculty upskilling programs to support {plan?.required_training_seats || 180} additional training seats
+                </p>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
+                {plan?.required_trainers_count || 4} Trainers Needed
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3 py-1 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 bg-slate-50 dark:bg-slate-800/60 rounded-lg"></div>
+                ))}
+              </div>
+            ) : plan?.trainer_programs && plan.trainer_programs.length > 0 ? (
+              <div className="space-y-3">
+                {plan.trainer_programs.slice(0, 3).map((tp, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white text-xs">{tp.program}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Duration: <span className="font-medium text-slate-700 dark:text-slate-300">{tp.duration}</span> • Certifier: <span className="font-medium text-teal-600 dark:text-teal-400">{tp.certifying_body}</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded self-start sm:self-auto border border-blue-200 dark:border-blue-800">
+                      {tp.target_trainers || 2} Seats
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="Faculty Ratio Balanced"
+                message={`Current institutional instructor capacity meets teaching guidelines for ${districtName}.`}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Grid: Courses Needing Review & Expected Impact (§13 & §11) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Courses Needing Human Review */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Courses Flagged for Review in {districtName}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Trades facing high obsolescence risk or labor oversupply for human administrative review
+                </p>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-rose-50 dark:bg-rose-950 text-rose-800 dark:text-rose-300 rounded border border-rose-200 dark:border-rose-800">
+                Human Review Gate
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3 py-1 animate-pulse">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-16 bg-slate-50 dark:bg-slate-800/60 rounded-lg"></div>
+                ))}
+              </div>
+            ) : plan?.courses_needing_review && plan.courses_needing_review.length > 0 ? (
+              <div className="space-y-3">
+                {plan.courses_needing_review.map((cr, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 flex flex-col justify-between"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white text-xs">{cr.name}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{cr.institute}</div>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200">
+                        {cr.obsolescence_risk.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-rose-700 dark:text-rose-400 mt-1">
+                      Placement: <span className="font-bold">{cr.placement_rate}%</span> • Health Score: <span className="font-bold">{cr.health_score}/100</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No Stagnant Courses"
+                message={`All active vocational trades in ${districtName} maintain healthy placement conversion rates.`}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Expected District Workforce Impact (§13) */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Expected Impact Projections
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Data-backed placement lift and deficit reduction if district action directives are executed
+                </p>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800">
+                SIMULATED ESTIMATE
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 py-1">
+              <div className="p-3.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-[11px] text-emerald-800 dark:text-emerald-300 font-semibold">Placement Rate Lift</div>
+                <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1">
+                  +{plan?.expected_impact?.projected_placement_lift_pct || 18.5}%
+                </div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Target: {plan?.expected_impact?.target_placed_students || 150} candidates</div>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800">
+                <div className="text-[11px] text-teal-800 dark:text-teal-300 font-semibold">Skill Deficit Reduction</div>
+                <div className="text-2xl font-black text-teal-700 dark:text-teal-400 mt-1">
+                  -{plan?.expected_impact?.projected_skill_deficit_reduction_pct || 42.0}%
+                </div>
+                <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Across {plan?.skill_gaps?.length || 4} critical domains</div>
+              </div>
+            </div>
+
+            <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+              <span className="font-bold text-slate-900 dark:text-white">Estimated Budget Package:</span> ₹{(((plan?.expected_impact?.total_budget_estimate_inr || 2400000)) / 100000).toFixed(1)} Lakhs allocated for laboratory rigs and trainer certifications across {districtName}.
+            </div>
+          </div>
+        </div>
+      </div>
     </Layout>
   );
 }
+

@@ -115,15 +115,19 @@ export const api = {
   getSignals: () => fetchJSON('/signals'),
   getForecasts: (skillId) => fetchJSON(skillId ? `/forecast/skill/${skillId}` : '/forecast'),
 
-  // Districts
+  // Districts & Platform Metrics (§13 & §33)
   getDistricts: () => fetchJSON('/districts'),
   getDistrictPlan: (name) => fetchJSON(`/districts/${name}/plan`),
+  getPlatformMetrics: () => fetchJSON('/districts/metrics/summary'),
 
   // Student & Passport
   getStudents: () => fetchJSON('/students'),
+  getMyPassport: () => fetchJSON('/student/me/passport'),
+  getMyRoadmap: () => fetchJSON('/student/me/roadmap'),
   getStudentPassport: (id) => fetchJSON(`/student/${id}/passport`),
   getStudentRoadmap: (id) => fetchJSON(`/student/${id}/roadmap`),
   getStudentAlertDomains: () => fetchJSON('/student/alert-domains'),
+
   getStudentIndustryAlerts: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/student/industry-alerts${query ? `?${query}` : ''}`);
@@ -170,6 +174,12 @@ export const api = {
       headers,
     });
   },
+  getDataGovernance: (adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON('/admin/data-governance', { headers });
+  },
+
 
   // AI Copilot
   askCopilot: (question, role = 'student', district = null, studentId = null) => fetchJSON('/copilot/ask', {

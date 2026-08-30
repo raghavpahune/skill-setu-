@@ -100,6 +100,7 @@ async def create_institute_course(
     }
 
 
+@router.get("/institute/me/courses")
 @router.get("/institute/my-courses")
 @router.get("/institute/courses/mine")
 async def list_my_courses(current_user: dict = Depends(require_roles(["INSTITUTE", "ADMIN"]))):
@@ -107,13 +108,14 @@ async def list_my_courses(current_user: dict = Depends(require_roles(["INSTITUTE
     all_courses = get_demo("courses")
     user_id = current_user.get("id")
     org_id = current_user.get("organization_id")
+    email = current_user.get("email")
 
     if current_user.get("role", "").upper() == "ADMIN":
-        my_courses = [c for c in all_courses if c.get("source") == "USER_SUBMITTED"]
+        my_courses = [c for c in all_courses if c.get("source") in ("USER_SUBMITTED", "INSTITUTE_SUBMITTED") or c.get("is_demo") is False]
     else:
         my_courses = [
             c for c in all_courses
-            if c.get("user_id") == user_id or (org_id and c.get("institute_id") == org_id)
+            if c.get("user_id") == user_id or (org_id and c.get("institute_id") == org_id) or (email and c.get("user_email") == email)
         ]
 
     return {
@@ -121,6 +123,7 @@ async def list_my_courses(current_user: dict = Depends(require_roles(["INSTITUTE
         "total": len(my_courses),
         "courses": my_courses,
     }
+
 
 
 @router.get("/institute/courses")

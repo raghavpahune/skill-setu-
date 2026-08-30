@@ -65,9 +65,12 @@ def get_auth_header(user_id: str, email: str, role: str) -> dict[str, str]:
 
 def test_automated_ingestion_idempotency_and_deduplication():
     """Verify that running ingestion multiple times is idempotent and deduplicates records."""
+    from app.db import _cache
+    _cache["industry_signals"] = []
     summary_1 = industry_ingestor.ingest_from_feeds()
     assert summary_1["status"] in ("success", "partial_success")
     assert summary_1["records_added"] > 0
+
 
     total_added_first = summary_1["records_added"]
 
