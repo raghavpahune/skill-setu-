@@ -36,17 +36,59 @@ export default function Layout({ children }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const allNavLinks = [
-    { path: '/government', label: 'Government', desc: 'State & District Intelligence' },
-    { path: '/institute', label: 'Institutes', desc: 'Curriculum & Course Health' },
-    { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway' },
-    { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
-    { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
-    { path: '/admin', label: 'Admin Data', desc: 'Assessment Data Management', adminOnly: true },
-  ];
+  // Role-focused navigation items with clean separation
+  const getNavLinksForRole = (userRole, isAuth) => {
+    if (!isAuth) {
+      return [
+        { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway' },
+        { path: '/institute', label: 'Institutes', desc: 'Curriculum & Course Health' },
+        { path: '/government', label: 'Government', desc: 'State & District Intelligence' },
+        { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
+        { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
+      ];
+    }
+    switch (userRole) {
+      case 'STUDENT':
+        return [
+          { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway & Roadmap' },
+          { path: '/student/copilot', label: 'AI Career Copilot', desc: 'Evidence-Based Q&A & Guidance' },
+        ];
+      case 'EMPLOYER':
+        return [
+          { path: '/employer', label: 'Employer Hub', desc: 'Post Demands & Validate Signals' },
+          { path: '/student/copilot', label: 'AI Copilot', desc: 'Talent Market Insights' },
+        ];
+      case 'INSTITUTE':
+        return [
+          { path: '/institute', label: 'Institute Portal', desc: 'Curriculum Modernization & Course Health' },
+          { path: '/student/copilot', label: 'AI Copilot', desc: 'Syllabus & NSQF Insights' },
+        ];
+      case 'GOVERNMENT':
+        return [
+          { path: '/government', label: 'Government Command', desc: 'State & District Intelligence' },
+          { path: '/student/copilot', label: 'AI Copilot', desc: 'Policy & Workforce Guidance' },
+        ];
+      case 'ADMIN':
+        return [
+          { path: '/admin', label: 'Admin Board', desc: 'Assessment & Moderation Center' },
+          { path: '/government', label: 'Government', desc: 'State Intelligence' },
+          { path: '/institute', label: 'Institutes', desc: 'Curriculum Modernization' },
+          { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
+          { path: '/student', label: 'Student Registry', desc: 'Personal Skill Pathways' },
+          { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
+        ];
+      default:
+        return [
+          { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway' },
+          { path: '/institute', label: 'Institutes', desc: 'Curriculum & Course Health' },
+          { path: '/government', label: 'Government', desc: 'State & District Intelligence' },
+          { path: '/employer', label: 'Employer Hub', desc: 'Signal Validation' },
+          { path: '/student/copilot', label: 'AI Copilot', desc: 'Evidence-Based Q&A' },
+        ];
+    }
+  };
 
-  // Only render Admin navigation link if the user has role ADMIN
-  const navLinks = allNavLinks.filter((link) => !link.adminOnly || role === 'ADMIN');
+  const navLinks = getNavLinksForRole(role, isAuthenticated);
 
   const isActive = (path) => {
     if (path === '/student/copilot') return location.pathname === path;

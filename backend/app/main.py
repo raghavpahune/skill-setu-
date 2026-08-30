@@ -57,11 +57,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Import and mount routers
 from app.routers import (
     auth, skills, jobs, gaps, courses, signals, forecast,
     districts, student, copilot, employer, schemes, opportunities, sync,
-    simulator, admin, gov_opportunities, institute,
+    simulator, admin, gov_opportunities, institute, curriculum,
 )
 
 app.include_router(auth.router, prefix="/api", tags=["Authentication"])
@@ -70,6 +69,7 @@ app.include_router(skills.router, prefix="/api", tags=["Skills"])
 app.include_router(jobs.router, prefix="/api", tags=["Jobs"])
 app.include_router(gaps.router, prefix="/api", tags=["Skill Gaps"])
 app.include_router(courses.router, prefix="/api", tags=["Courses"])
+app.include_router(curriculum.router, prefix="/api", tags=["Curriculum Modernization"])
 app.include_router(institute.router, prefix="/api", tags=["Institute"])
 app.include_router(signals.router, prefix="/api", tags=["Industry Signals"])
 app.include_router(forecast.router, prefix="/api", tags=["Forecast"])

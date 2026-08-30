@@ -399,10 +399,26 @@ export const api = {
       headers,
     });
   },
-  getAdminIndustryIngestionStatus: (adminKey = '') => {
-    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
-    const headers = key ? { 'X-Admin-Key': key } : {};
-    return fetchJSON('/admin/industry/ingestion-status', { headers });
+  // Phase 27: Multi-Horizon Forecasting & Curriculum Modernization
+  getMultiHorizonForecasts: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/forecast${query ? `?${query}` : ''}`);
+  },
+  getFutureSkillsRadar: () => {
+    return fetchJSON('/forecast/radar');
+  },
+  getSkillForecastTrajectory: (skillId) => {
+    return fetchJSON(`/forecast/skill/${encodeURIComponent(skillId)}`);
+  },
+  getCurriculumAudit: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/curriculum/audit${query ? `?${query}` : ''}`);
+  },
+  getCurriculumSummary: () => {
+    return fetchJSON('/curriculum/summary');
+  },
+  getCourseModernizationBlueprint: (courseId) => {
+    return fetchJSON(`/curriculum/recommendations/${encodeURIComponent(courseId)}`);
   },
 };
 
