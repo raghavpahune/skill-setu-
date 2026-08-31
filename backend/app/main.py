@@ -85,6 +85,16 @@ app.include_router(admin.router, prefix="/api", tags=["Admin Data Management"])
 app.include_router(gov_opportunities.router, prefix="/api", tags=["Government Opportunities"])
 
 
+@app.get("/")
+async def root():
+    """Simple service endpoint for Render health probes and browser checks."""
+    return {
+        "status": "ok",
+        "service": "SkillSetu API",
+        "health": "/api/health",
+    }
+
+
 @app.get("/api/health")
 async def health():
     import os
