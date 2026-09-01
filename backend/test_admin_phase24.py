@@ -208,3 +208,159 @@ def test_admin_employer_demand_validation_lifecycle():
     del_res = client.delete(f"/api/admin/employer/demands/{demand_id}", headers=headers)
     assert del_res.status_code == 200
     assert del_res.json()["deleted_id"] == demand_id
+
+
+def test_admin_employer_demand_status_variations_and_rbac():
+    """Detailed coverage of Employer Demand status updates:
+    1. VALIDATED status
+    2. REJECTED status
+    3. admin_notes present
+    4. admin_notes empty
+    5. unauthorized / non-admin request
+    6. malformed payload rejection
+    """
+    admin_token = get_token_for("usr-admin-001", "ADMIN", "admin@skillsetu.gov.in")
+    student_token = get_token_for("usr-student-001", "STUDENT", "student@skillsetu.gov.in")
+    admin_headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
+    student_headers = {"Authorization": f"Bearer {student_token}", "Content-Type": "application/json"}
+    x_admin_headers = {"X-Admin-Key": "demo-admin-key-2026", "Content-Type": "application/json"}
+
+    # Create demand
+    d_res = client.post("/api/employer/demands", json={
+        "employer_name": "Mahindra Electric Test",
+        "district": "Nashik",
+        "industry": "Automotive",
+        "job_role": "High Voltage Power Specialist",
+        "openings_count": 5,
+        "required_skills": ["Power Electronics", "Inverter Design"],
+    }, headers=admin_headers)
+    assert d_res.status_code == 200
+    demand_id = d_res.json()["demand"]["id"]
+
+    # 1. Unauthorized / non-admin request -> 401 / 403
+    unauth_res = client.patch(f"/api/admin/employer/demands/{demand_id}/status", json={"status": "VALIDATED"})
+    assert unauth_res.status_code == 401
+
+    stu_res = client.patch(f"/api/admin/employer/demands/{demand_id}/status", headers=student_headers, json={"status": "VALIDATED"})
+    assert stu_res.status_code == 403
+
+    # 2. VALIDATED with admin_notes present (via X-Admin-Key)
+    val_res = client.patch(
+        f"/api/admin/employer/demands/{demand_id}/status",
+        headers=x_admin_headers,
+        json={"status": "VALIDATED", "admin_notes": "Validated via quick admin action"},
+    )
+    assert val_res.status_code == 200
+    assert val_res.json()["status"] == "success"
+    assert val_res.json()["demand"]["validation_status"] == "VALIDATED"
+    assert val_res.json()["demand"]["admin_notes"] == "Validated via quick admin action"
+
+    # 3. REJECTED with admin_notes empty (via Bearer token)
+    rej_res = client.patch(
+        f"/api/admin/employer/demands/{demand_id}/status",
+        headers=admin_headers,
+        json={"status": "REJECTED", "admin_notes": ""},
+    )
+    assert rej_res.status_code == 200
+    assert rej_res.json()["demand"]["validation_status"] == "REJECTED"
+    assert rej_res.json()["demand"]["admin_notes"] == ""
+
+    # 4. validation_status field synonym support
+    syn_res = client.patch(
+        f"/api/admin/employer/demands/{demand_id}/status",
+        headers=admin_headers,
+        json={"validation_status": "VALIDATED", "admin_notes": "Re-validated via synonym"},
+    )
+    assert syn_res.status_code == 200
+    assert syn_res.json()["demand"]["validation_status"] == "VALIDATED"
+
+    # 5. Malformed payload: invalid status value -> 422
+    bad_val_res = client.patch(
+        f"/api/admin/employer/demands/{demand_id}/status",
+        headers=admin_headers,
+        json={"status": "INVALID_STATUS_VALUE"},
+    )
+    assert bad_val_res.status_code == 422
+
+    # 6. Malformed payload: missing status fields -> 422
+    empty_body_res = client.patch(
+        f"/api/admin/employer/demands/{demand_id}/status",
+        headers=admin_headers,
+        json={"admin_notes": "notes only without status"},
+    )
+    assert empty_body_res.status_code == 422
+
+
+def test_admin_industry_signal_moderation_variations_and_rbac():
+    """Detailed coverage of Industry Signal status updates:
+    1. APPROVED validation status
+    2. REJECTED validation status
+    3. admin_notes present
+    4. admin_notes empty
+    5. unauthorized / non-admin request
+    6. malformed payload rejection
+    """
+    admin_token = get_token_for("usr-admin-001", "ADMIN", "admin@skillsetu.gov.in")
+    student_token = get_token_for("usr-student-001", "STUDENT", "student@skillsetu.gov.in")
+    admin_headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
+    student_headers = {"Authorization": f"Bearer {student_token}", "Content-Type": "application/json"}
+    x_admin_headers = {"X-Admin-Key": "demo-admin-key-2026", "Content-Type": "application/json"}
+
+    # Get an existing signal or create one
+    list_res = client.get("/api/admin/industry/signals", headers=admin_headers)
+    assert list_res.status_code == 200
+    signals = list_res.json()["signals"]
+    assert len(signals) > 0
+    signal_id = signals[0]["id"]
+
+    # 1. Unauthorized / non-admin request -> 401 / 403
+    unauth_res = client.patch(f"/api/admin/industry/signals/{signal_id}", json={"validation_status": "APPROVED"})
+    assert unauth_res.status_code == 401
+
+    stu_res = client.patch(f"/api/admin/industry/signals/{signal_id}", headers=student_headers, json={"validation_status": "APPROVED"})
+    assert stu_res.status_code == 403
+
+    # 2. APPROVED validation_status with empty admin_notes (via X-Admin-Key)
+    app_res = client.patch(
+        f"/api/admin/industry/signals/{signal_id}",
+        headers=x_admin_headers,
+        json={"validation_status": "APPROVED", "admin_notes": ""},
+    )
+    assert app_res.status_code == 200
+    assert app_res.json()["status"] == "success"
+    assert app_res.json()["signal"]["validation_status"] == "APPROVED"
+
+    # 3. REJECTED validation_status with admin_notes present (via Bearer token)
+    rej_res = client.patch(
+        f"/api/admin/industry/signals/{signal_id}",
+        headers=admin_headers,
+        json={"validation_status": "REJECTED", "admin_notes": "Outdated industry trend."},
+    )
+    assert rej_res.status_code == 200
+    assert rej_res.json()["signal"]["validation_status"] == "REJECTED"
+    assert rej_res.json()["signal"]["admin_notes"] == "Outdated industry trend."
+
+    # 4. is_active toggle
+    toggle_res = client.patch(
+        f"/api/admin/industry/signals/{signal_id}",
+        headers=admin_headers,
+        json={"is_active": False},
+    )
+    assert toggle_res.status_code == 200
+    assert toggle_res.json()["signal"]["is_active"] is False
+
+    # 5. Malformed payload: completely empty update dictionary -> 422
+    empty_res = client.patch(
+        f"/api/admin/industry/signals/{signal_id}",
+        headers=admin_headers,
+        json={},
+    )
+    assert empty_res.status_code == 422
+
+    # 6. Non-existent signal ID -> 404
+    not_found_res = client.patch(
+        "/api/admin/industry/signals/non-existent-signal-id-99999",
+        headers=admin_headers,
+        json={"validation_status": "APPROVED"},
+    )
+    assert not_found_res.status_code == 404

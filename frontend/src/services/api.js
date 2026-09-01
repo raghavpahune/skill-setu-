@@ -1,6 +1,6 @@
 function getApiBase() {
   // 1. Explicit Vite environment variable (baked in at build time)
-  const envUrl = import.meta.env.VITE_API_URL;
+  const envUrl = import.meta.env?.VITE_API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
     const clean = envUrl.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
@@ -34,14 +34,35 @@ async function fetchJSON(endpoint, options = {}) {
   const token = typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_auth_token') : null;
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const isBlob = typeof Blob !== 'undefined' && options.body instanceof Blob;
+
+  const defaultHeaders = (!isFormData && !isBlob)
+    ? { 'Content-Type': 'application/json', ...authHeaders }
+    : { ...authHeaders };
+
+  const mergedHeaders = {
+    ...defaultHeaders,
+    ...(options.headers || {}),
+  };
+
+  // If body is a plain JS object (not a string, not FormData/Blob), serialize it safely
+  let finalBody = options.body;
+  if (
+    finalBody !== undefined &&
+    finalBody !== null &&
+    typeof finalBody === 'object' &&
+    !isFormData &&
+    !isBlob
+  ) {
+    finalBody = JSON.stringify(finalBody);
+  }
+
   try {
     const res = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...options.headers,
-      },
       ...options,
+      headers: mergedHeaders,
+      body: finalBody,
     });
 
     if (!res.ok) {
@@ -275,17 +296,29 @@ export const api = {
   deleteInstituteCourse: (id) => fetchJSON(`/institute/courses/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   }),
-  getAdminCourses: (params = {}) => {
+  getAdminCourses: (params = {}, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
     const query = new URLSearchParams(params).toString();
-    return fetchJSON(`/admin/institute/courses${query ? `?${query}` : ''}`);
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/institute/courses${query ? `?${query}` : ''}`, { headers });
   },
-  updateAdminCourse: (id, updates) => fetchJSON(`/admin/institute/courses/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  }),
-  deleteAdminCourse: (id) => fetchJSON(`/admin/institute/courses/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  }),
+  updateAdminCourse: (id, updates, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/institute/courses/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(updates),
+    });
+  },
+  deleteAdminCourse: (id, adminKey = '') => {
+    const key = adminKey || (typeof window !== 'undefined' ? window.localStorage?.getItem('skillsetu_admin_key') : '');
+    const headers = key ? { 'X-Admin-Key': key } : {};
+    return fetchJSON(`/admin/institute/courses/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers,
+    });
+  },
 
   // Admin Employer Demand Management & Validation (Phase 14)
   getAdminEmployerDemands: (params = {}, adminKey = '') => {
