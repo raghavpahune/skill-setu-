@@ -43,7 +43,7 @@ def compute_gaps(district: str | None = None) -> list[dict]:
         req_skills = ed.get("required_skills") or ed.get("skills") or []
         for sk in req_skills:
             sk_name = sk if isinstance(sk, str) else sk.get("name", "")
-            sid = skills_by_name.get(sk_name.lower())
+            sid = sk if sk in skills_map else skills_by_name.get(str(sk_name).lower())
             if sid:
                 demand_counts[sid] += weight
                 total_jobs += weight

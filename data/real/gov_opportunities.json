@@ -1,6 +1,6 @@
 [
   {
-    "id": "gov-f1ff23b7",
+    "id": "gov-1405fff7",
     "name": "Maharashtra Green Hydrogen Apprenticeship Scheme 2026",
     "department": "Department of Skills & Renewable Energy",
     "description": "Comprehensive statewide training in green hydrogen safety.",
@@ -21,9 +21,9 @@
     "source": "USER_SUBMITTED",
     "data_provenance": "GOVERNMENT_OFFICIAL",
     "is_demo": false,
-    "last_updated": "2026-08-30",
-    "created_at": "2026-08-30T17:55:36.074686+00:00",
-    "updated_at": "2026-08-30T17:55:36.074713+00:00",
+    "last_updated": "2026-09-01",
+    "created_at": "2026-09-01T16:21:33.690713+00:00",
+    "updated_at": "2026-09-01T16:21:33.690746+00:00",
     "user_id": "usr-gov-001",
     "user_email": "government@skillsetu.gov.in"
   }

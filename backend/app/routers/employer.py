@@ -254,7 +254,8 @@ async def update_my_demand(
 
     matched.update(patch_data)
     matched["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    return {"status": "success", "message": "Employer demand updated.", "demand": matched}
+    saved = save_employer_demand(matched)
+    return {"status": "success", "message": "Employer demand updated.", "demand": saved}
 
 
 @router.delete("/employer/demands/{demand_id}")

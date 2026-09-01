@@ -248,7 +248,7 @@ async def recommended_gov_opportunities(
     if not profile:
         assessments = get_demo("student_assessments")
         for a in assessments:
-            if a.get("id") == student_id:
+            if a.get("id") == student_id or a.get("user_id") == student_id:
                 profile = a
                 break
 

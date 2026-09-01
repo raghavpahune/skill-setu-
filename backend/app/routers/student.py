@@ -486,6 +486,13 @@ async def list_student_assessments(
     }
 
 
+def _is_private_user_record(record: dict) -> bool:
+    """A record is private if it is explicitly owned by a registered user account."""
+    if record.get("source") in ("DEMO_SYNTHETIC", "BENCHMARK_NATIONAL") or record.get("is_demo") is True:
+        return False
+    return bool(record.get("user_id"))
+
+
 @router.get("/student/assessment/{assessment_id}")
 async def get_student_assessment(
     assessment_id: str,
@@ -495,14 +502,26 @@ async def get_student_assessment(
     assessments = get_demo("student_assessments")
     for a in assessments:
         if a.get("id") == assessment_id:
-            # If the record is private to a specific user, ensure only owner or admin can view
-            record_user_id = a.get("user_id")
-            if record_user_id and current_user:
+            if _is_private_user_record(a):
+                if not current_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Authentication required to view candidate assessment report.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                user_id = current_user.get("id")
+                user_email = current_user.get("email")
                 user_role = (current_user.get("role") or "").upper()
-                if user_role != "ADMIN" and current_user.get("id") != record_user_id:
+                record_user_id = a.get("user_id")
+                is_owner = (
+                    (record_user_id and user_id == record_user_id)
+                    or (a.get("id") and user_id == a.get("id"))
+                    or (user_email and a.get("user_email") == user_email)
+                )
+                if not is_owner and user_role != "ADMIN":
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Forbidden: You do not have permission to view another student's assessment report",
+                        detail="Forbidden: You do not have permission to view another student's assessment report.",
                     )
             return {"status": "success", "assessment": a}
 
@@ -517,6 +536,35 @@ class ExplainAiQuery(BaseModel):
     prompt: str | None = None
 
 
+def _verify_student_recommendations_access(target_id: str, current_user: dict | None) -> None:
+    """Ensure that access to private registered student recommendations requires ownership or admin role."""
+    assessments = get_demo("student_assessments")
+    for a in assessments:
+        if a.get("id") == target_id or a.get("user_id") == target_id:
+            if _is_private_user_record(a):
+                if not current_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Authentication required to view personalized career recommendations.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                user_id = current_user.get("id")
+                user_email = current_user.get("email")
+                user_role = (current_user.get("role") or "").upper()
+                record_user_id = a.get("user_id")
+                is_owner = (
+                    (record_user_id and user_id == record_user_id)
+                    or (a.get("id") and user_id == a.get("id"))
+                    or (user_email and a.get("user_email") == user_email)
+                )
+                if not is_owner and user_role != "ADMIN":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: You cannot view another candidate's recommendations.",
+                    )
+            break
+
+
 @router.get("/student/recommendations/{student_id}")
 @router.get("/student/{student_id}/recommendations")
 async def get_student_recommendations(
@@ -528,6 +576,9 @@ async def get_student_recommendations(
     resolved_id = student_id
     if student_id == "me" and current_user:
         resolved_id = current_user.get("id") or "me"
+    
+    _verify_student_recommendations_access(resolved_id, current_user)
+
     try:
         recommendations = compute_career_recommendations(resolved_id)
         return recommendations
@@ -555,6 +606,9 @@ async def explain_student_recommendations_ai(
     resolved_id = student_id
     if student_id == "me" and current_user:
         resolved_id = current_user.get("id") or "me"
+
+    _verify_student_recommendations_access(resolved_id, current_user)
+
     try:
         custom_prompt = query.prompt if query else None
         res = await generate_ai_copilot_explanation(resolved_id, custom_prompt)

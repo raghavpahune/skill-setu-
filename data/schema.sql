@@ -273,12 +273,20 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS district TEXT DEFAULT 'Maharashtra';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'USER_SUBMITTED';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+-- EMPLOYER_FEEDBACK Table extensions
+ALTER TABLE employer_feedback ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'USER_SUBMITTED';
+ALTER TABLE employer_feedback ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE employer_feedback ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
 -- EMPLOYER_DEMANDS Table for Phase 14 & 25
 CREATE TABLE IF NOT EXISTS employer_demands (
     id TEXT PRIMARY KEY,
     user_id TEXT,
+    user_email TEXT,
     employer_id TEXT,
     company_name TEXT,
     employer_name TEXT,
@@ -306,6 +314,7 @@ CREATE TABLE IF NOT EXISTS employer_demands (
     submitted_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+ALTER TABLE employer_demands ADD COLUMN IF NOT EXISTS user_email TEXT;
 
 -- COURSES Table extensions for Phase 25 Institute Pipeline
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Vocational & Technical';

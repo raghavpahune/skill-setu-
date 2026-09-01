@@ -56,8 +56,8 @@ def get_district_plan(district: str) -> dict[str, Any]:
     for ed in employer_demands:
         ed_dist = (ed.get("district") or "").strip().lower()
         if ed_dist == d_clean or not ed_dist:
-            role = ed.get("target_role") or ed.get("job_title") or ed.get("title")
-            openings = ed.get("openings_count") or ed.get("openings") or 5
+            role = ed.get("job_role") or ed.get("role_title") or ed.get("target_role") or ed.get("job_title") or ed.get("title")
+            openings = ed.get("openings_count") or ed.get("positions_count") or ed.get("openings") or 5
             if role:
                 role_counts[role] += openings
             for sk in ed.get("required_skills") or ed.get("skills") or []:

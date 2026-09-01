@@ -7,7 +7,9 @@ from app.services.career_recommendation_engine import (
     _get_validated_employer_demands,
     _match_skills,
 )
+from app.db import load_demo_data
 
+load_demo_data()
 client = TestClient(app)
 
 

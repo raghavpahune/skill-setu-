@@ -12,9 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.security import create_access_token
-from app.db import init_demo_users
+from app.db import init_demo_users, load_demo_data
 
 client = TestClient(app)
+load_demo_data()
 init_demo_users()
 ADMIN_KEY = "demo-admin-key-2026"
 EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "employer@skillsetu.gov.in", "role": "EMPLOYER"})
