@@ -86,12 +86,66 @@ def test_api_student_recommendations_endpoint():
 
 
 def test_strictly_validated_employer_demands():
-    """Verify that only VALIDATED employer submissions influence recommendations."""
-    validated = _get_validated_employer_demands()
-    assert len(validated) > 0
-    for d in validated:
-        status = (d.get("validation_status") or d.get("status") or "").upper()
-        assert status in ("VALIDATED", "APPROVED") or d.get("status") == "active"
+    """Verify that only real VALIDATED employer submissions influence recommendations and DEMO_SYNTHETIC is excluded."""
+    # 1. Baseline demo records (TCS, Quick Heal, etc.) must be strictly excluded from live recommendations
+    validated_before = _get_validated_employer_demands()
+    for d in validated_before:
+        assert d.get("source") != "DEMO_SYNTHETIC"
+        assert d.get("is_demo") is not True
+
+    # 2. Add a real employer submission with validation_status=PENDING
+    from app.db import save_employer_demand, update_employer_demand_status, delete_employer_demand
+    real_demand = {
+        "id": "ed-real-test-001",
+        "company_name": "Authentic Tech India Ltd",
+        "industry": "IT & Software",
+        "district": "Pune",
+        "job_role": "AI Engineer",
+        "required_skills": ["Generative AI", "Python", "RAG"],
+        "openings_count": 500,
+        "source": "EMPLOYER_SUBMITTED",
+        "is_demo": False,
+        "validation_status": "PENDING",
+    }
+    save_employer_demand(real_demand)
+
+    # 3. PENDING real demand must NOT appear in live validated demands or recommendations
+    assert not any(d["id"] == "ed-real-test-001" for d in _get_validated_employer_demands())
+    recs_pending = compute_career_recommendations("stu-001")
+    top_ai = recs_pending["top_recommendation"]
+    assert not any(e.get("id") == "ed-real-test-001" for e in top_ai.get("validated_employer_signals", []))
+
+    # 4. Admin validates the real demand -> MUST now appear with full 500 openings
+    update_employer_demand_status("ed-real-test-001", "VALIDATED", admin_notes="Verified real company credentials.")
+    validated_after = _get_validated_employer_demands()
+    assert any(d["id"] == "ed-real-test-001" for d in validated_after)
+
+    recs_validated = compute_career_recommendations("stu-001")
+    top_ai_val = recs_validated["top_recommendation"]
+    matched_signal = next((e for e in top_ai_val.get("validated_employer_signals", []) if e.get("id") == "ed-real-test-001"), None)
+    assert matched_signal is not None
+    assert matched_signal["company_name"] == "Authentic Tech India Ltd"
+    assert matched_signal["openings_count"] == 500
+    assert matched_signal["validation_status"] == "VALIDATED"
+
+    # 5. Admin rejects the real demand -> MUST immediately disappear
+    update_employer_demand_status("ed-real-test-001", "REJECTED", admin_notes="Positions closed.")
+    assert not any(d["id"] == "ed-real-test-001" for d in _get_validated_employer_demands())
+    recs_rejected = compute_career_recommendations("stu-001")
+    assert not any(e.get("id") == "ed-real-test-001" for e in recs_rejected["top_recommendation"].get("validated_employer_signals", []))
+
+    # Clean up test record
+    delete_employer_demand("ed-real-test-001")
+
+
+def test_demo_synthetic_demands_never_leak_into_student_recommendations():
+    """Verify that synthetic demo demands (TCS, Quick Heal, etc.) are excluded from student career recommendations."""
+    recs = compute_career_recommendations("stu-001")
+    for career in recs.get("recommended_careers", []):
+        for sig in career.get("validated_employer_signals", []):
+            assert sig.get("source") != "DEMO_SYNTHETIC"
+            assert sig.get("is_demo") is not True
+
 
 
 def test_skill_matching_logic():

@@ -115,14 +115,33 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
 
 
 
+def _is_live_employer_demand(demand: dict[str, Any]) -> bool:
+    """Check if an employer demand is a live, non-synthetic record.
+
+    Excludes records with is_demo=True or source in ('DEMO_SYNTHETIC', 'DEMO').
+    Includes authentic employer/user submissions (source='EMPLOYER_SUBMITTED', 'USER_SUBMITTED', etc. with is_demo=False).
+    """
+    if not isinstance(demand, dict):
+        return False
+    if demand.get("is_demo") is True:
+        return False
+    source = (demand.get("source") or "").upper()
+    if source in ("DEMO_SYNTHETIC", "DEMO"):
+        return False
+    if source in ("EMPLOYER_SUBMITTED", "USER_SUBMITTED", "FIRST_PARTY") or demand.get("is_demo") is False:
+        return True
+    return False
+
+
 def _get_validated_employer_demands() -> list[dict[str, Any]]:
-    """Retrieve only employer demands that are strictly VALIDATED (Phase 14 rule)."""
+    """Retrieve only real employer demands that are strictly VALIDATED (Phase 14 rule)."""
     demands = get_demo("employer_demands")
     validated = []
     for d in demands:
-        # Check validation_status or status
+        if not _is_live_employer_demand(d):
+            continue
         status = (d.get("validation_status") or d.get("status") or "").upper()
-        if status in ("VALIDATED", "APPROVED") or d.get("status") == "active":
+        if status in ("VALIDATED", "APPROVED"):
             validated.append(d)
     return validated
 
