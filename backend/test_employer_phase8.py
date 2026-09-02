@@ -2,8 +2,9 @@ import pytest
 from starlette.testclient import TestClient
 from app.main import app
 from app.core.security import create_access_token
-from app.db import init_demo_users
+from app.db import init_db, init_demo_users
 
+init_db()
 init_demo_users()
 client = TestClient(app)
 EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "employer@skillsetu.gov.in", "role": "EMPLOYER"})
@@ -52,7 +53,7 @@ def test_employer_feedback_submission():
         "status": "confirmed",
         "notes": "Verified by industrial hiring committee.",
     }
-    res_confirm = client.post("/api/employer/feedback", json=payload_confirm)
+    res_confirm = client.post("/api/employer/feedback", json=payload_confirm, headers=AUTH_HEADERS)
     assert res_confirm.status_code == 200
     data_confirm = res_confirm.json()
     assert data_confirm.get("status") == "updated"
@@ -65,7 +66,7 @@ def test_employer_feedback_submission():
         "notes": "Requires production RAG pipeline capstone.",
         "proficiency_required": "advanced",
     }
-    res_correct = client.post("/api/employer/feedback", json=payload_correct)
+    res_correct = client.post("/api/employer/feedback", json=payload_correct, headers=AUTH_HEADERS)
     assert res_correct.status_code == 200
     data_correct = res_correct.json()
     assert data_correct.get("status") == "updated"
@@ -76,6 +77,7 @@ def test_employer_feedback_submission():
     res_404 = client.post(
         "/api/employer/feedback",
         json={"feedback_id": "non-existent-999", "status": "confirmed"},
+        headers=AUTH_HEADERS,
     )
     assert res_404.status_code == 200
     assert "error" in res_404.json()

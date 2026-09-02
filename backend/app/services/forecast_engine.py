@@ -9,6 +9,7 @@ by combining:
 """
 from typing import Any
 from app.db import get_demo
+from app.services.career_recommendation_engine import is_live_employer_demand
 
 
 def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
@@ -29,16 +30,22 @@ def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
         if sid:
             skill_job_counts[sid] = skill_job_counts.get(sid, 0) + 1
 
-    # 2. Calculate Employer Demand Pull
+    # 2. Calculate Employer Demand Pull (strictly live validated/approved records)
     employer_pull: dict[str, float] = {}
     for ed in employer_demands:
-        if ed.get("is_active", True) and ed.get("status") in ("VALIDATED", "APPROVED", "PENDING"):
-            demand_weight = {"HIGH": 3.0, "CRITICAL": 4.0, "MEDIUM": 1.5, "LOW": 0.5}.get(
-                str(ed.get("hiring_demand", "")).upper(), 1.0
-            )
-            for req_skill in ed.get("required_skills", []):
-                s_name = req_skill.lower()
-                employer_pull[s_name] = employer_pull.get(s_name, 0.0) + demand_weight
+        if not is_live_employer_demand(ed):
+            continue
+        status = (ed.get("validation_status") or ed.get("status") or "").upper()
+        if status not in ("VALIDATED", "APPROVED"):
+            continue
+        if ed.get("is_active") is False:
+            continue
+        demand_weight = {"HIGH": 3.0, "CRITICAL": 4.0, "MEDIUM": 1.5, "LOW": 0.5}.get(
+            str(ed.get("hiring_demand", "")).upper(), 1.0
+        )
+        for req_skill in ed.get("required_skills", []) or ed.get("skills", []):
+            s_name = req_skill.lower()
+            employer_pull[s_name] = employer_pull.get(s_name, 0.0) + demand_weight
 
     # 3. Calculate Industry Signal Acceleration
     signal_impact: dict[str, dict[str, Any]] = {}

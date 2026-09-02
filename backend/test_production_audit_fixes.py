@@ -164,7 +164,7 @@ def test_district_service_and_gap_engine_integration():
     token = get_token("employer@skillsetu.gov.in")
     headers = {"Authorization": f"Bearer {token}"}
 
-    client.post("/api/employer/demands", json={
+    post_res = client.post("/api/employer/demands", json={
         "company_name": "District Audit Motors",
         "industry": "Automotive",
         "district": "Pune",
@@ -172,6 +172,18 @@ def test_district_service_and_gap_engine_integration():
         "required_skills": ["sk-018", "PLC Programming"],
         "openings_count": 50,
     }, headers=headers)
+    assert post_res.status_code == 200
+    did = post_res.json()["demand"]["id"]
+
+    # In Phase 6 hardening, employer demand must be VALIDATED to influence district plan
+    admin_token = get_token("admin@skillsetu.gov.in", "AdminPass@2026")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    val_res = client.patch(
+        f"/api/admin/employer/demands/{did}/status",
+        json={"status": "VALIDATED"},
+        headers=admin_headers,
+    )
+    assert val_res.status_code == 200
 
     plan_res = client.get("/api/districts/Pune/plan")
     assert plan_res.status_code == 200

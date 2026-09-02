@@ -258,6 +258,7 @@ def test_district_plan_incorporates_employer_demands():
         "openings": 40,
         "openings_count": 40,
         "required_skills": ["Solar PV Systems"],
+        "validation_status": "VALIDATED",
         "source": "USER_SUBMITTED",
         "is_demo": False,
         "created_at": now_iso,

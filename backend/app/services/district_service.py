@@ -3,6 +3,7 @@ from collections import Counter
 import math
 from typing import Any
 from app.db import get_demo
+from app.services.career_recommendation_engine import is_live_employer_demand
 from app.services.gap_engine import compute_gaps
 from app.services.curriculum_engine import audit_all_courses, EQUIPMENT_CATALOG, TRAINER_UPGRADE_CATALOG
 
@@ -54,6 +55,11 @@ def get_district_plan(district: str) -> dict[str, Any]:
     skill_counts = Counter(js["skill_id"] for js in district_js if js.get("skill_id"))
 
     for ed in employer_demands:
+        if not is_live_employer_demand(ed):
+            continue
+        status = (ed.get("validation_status") or ed.get("status") or "").upper()
+        if status not in ("VALIDATED", "APPROVED"):
+            continue
         ed_dist = (ed.get("district") or "").strip().lower()
         if ed_dist == d_clean or not ed_dist:
             role = ed.get("job_role") or ed.get("role_title") or ed.get("target_role") or ed.get("job_title") or ed.get("title")

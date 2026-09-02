@@ -146,6 +146,10 @@ def _get_validated_employer_demands() -> list[dict[str, Any]]:
     return validated
 
 
+is_live_employer_demand = _is_live_employer_demand
+get_validated_employer_demands = _get_validated_employer_demands
+
+
 def _match_skills(student_skills: list[dict[str, Any]], required_skill_names: list[str]) -> tuple[list[str], list[str], int]:
     """Calculate matched skills, missing skills, and match percentage."""
     normalized_student = {}

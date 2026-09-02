@@ -275,6 +275,8 @@ def save_employer_feedback(
     status: str,
     notes: str | None = None,
     proficiency_required: str | None = None,
+    user_id: str | None = None,
+    user_email: str | None = None,
 ) -> dict | None:
     """Update employer feedback in-memory cache, flush to real storage, and write through to Supabase if connected."""
     if not _cache:
@@ -292,6 +294,10 @@ def save_employer_feedback(
                 f["notes"] = notes
             if proficiency_required is not None:
                 f["proficiency_required"] = proficiency_required
+            if user_id is not None:
+                f["user_id"] = user_id
+            if user_email is not None:
+                f["user_email"] = user_email
             matched_record = f
             break
 

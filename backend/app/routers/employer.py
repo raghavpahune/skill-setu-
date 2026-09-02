@@ -2,7 +2,8 @@
 import datetime
 import uuid
 from collections import Counter
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from app.core.security import get_current_user, require_roles
 from pydantic import BaseModel, Field, model_validator
 from app.db import get_demo, save_employer_feedback, save_employer_demand, delete_employer_demand
 
@@ -98,13 +99,50 @@ async def list_validations(
 
 
 @router.post("/employer/feedback")
-async def submit_feedback(submission: FeedbackSubmission):
-    """Submit employer validation (confirm/correct/reject) and persist to database."""
+async def submit_feedback(
+    submission: FeedbackSubmission,
+    current_user: dict = Depends(get_current_user),
+):
+    """Submit employer validation (confirm/correct/reject) with authentication, role enforcement, and ownership isolation."""
+    user_role = (current_user.get("role") or "").upper()
+    if user_role not in ("EMPLOYER", "ADMIN"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Insufficient role permissions. Required one of: ['EMPLOYER', 'ADMIN']",
+        )
+
+    all_feedback = get_demo("employer_feedback")
+    matched = next((f for f in all_feedback if f.get("id") == submission.feedback_id), None)
+    if not matched:
+        return {"error": "feedback not found"}
+
+    if user_role == "EMPLOYER":
+        user_org = current_user.get("organization_id")
+        user_id = current_user.get("id")
+        user_email = current_user.get("email")
+        f_employer_id = matched.get("employer_id")
+        f_user_id = matched.get("user_id")
+        f_user_email = matched.get("user_email")
+
+        is_authorized = (
+            (user_org and f_employer_id and user_org.lower() == f_employer_id.lower())
+            or (user_id and f_user_id and user_id == f_user_id)
+            or (user_email and f_user_email and user_email.lower() == f_user_email.lower())
+            or (f_employer_id and user_id and f_employer_id == f"emp-{user_id}")
+        )
+        if not is_authorized:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You do not have permission to modify another employer's feedback.",
+            )
+
     updated = save_employer_feedback(
         feedback_id=submission.feedback_id,
         status=submission.status,
         notes=submission.notes,
         proficiency_required=submission.proficiency_required,
+        user_id=current_user.get("id"),
+        user_email=current_user.get("email"),
     )
     if updated:
         return {"status": "updated", "feedback": updated}

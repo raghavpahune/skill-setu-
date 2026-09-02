@@ -1,6 +1,7 @@
 """Skill Gap Engine — computes demand vs. coverage gaps."""
 from collections import Counter
 from app.db import get_demo
+from app.services.career_recommendation_engine import is_live_employer_demand
 
 
 def compute_gaps(district: str | None = None) -> list[dict]:
@@ -33,7 +34,7 @@ def compute_gaps(district: str | None = None) -> list[dict]:
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     validated_demands = [
         d for d in employer_demands
-        if (d.get("validation_status") or "").upper() == "VALIDATED" or d.get("status") == "active"
+        if is_live_employer_demand(d) and (d.get("validation_status") or d.get("status") or "").upper() in ("VALIDATED", "APPROVED")
     ]
     if district:
         validated_demands = [d for d in validated_demands if d.get("district", "").lower() == district.lower()]
