@@ -66,6 +66,13 @@ def _flush_real_table(table: str):
 def get_supabase_client():
     """Return Supabase client if configured on Render/backend, else None."""
     global _supabase_connected
+    try:
+        from app.repositories.supabase_repository import _client_override
+        if _client_override is not None:
+            _supabase_connected = True
+            return _client_override
+    except Exception:
+        pass
     if not settings.supabase_url:
         _supabase_connected = False
         return None
@@ -358,59 +365,62 @@ def update_employer_demand_status(
     validated_by: str | None = None,
 ) -> dict | None:
     """Update validation status of an employer demand record and flush to disk."""
+    payload: dict[str, Any] = {
+        "validation_status": new_status,
+        "status": new_status.lower(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if admin_notes is not None:
+        payload["admin_notes"] = admin_notes
+    if validated_by is not None:
+        payload["validated_by"] = validated_by
+
+    matched = None
+    try:
+        from app.repositories.supabase_repository import update_employer_demand
+        matched = update_employer_demand(demand_id, payload)
+    except Exception:
+        pass
+
     if not _cache:
         init_db()
     demands = _cache.get("employer_demands", [])
-    matched = None
+    cache_matched = False
     for d in demands:
         if d.get("id") == demand_id:
-            d["validation_status"] = new_status
-            d["updated_at"] = datetime.now(timezone.utc).isoformat()
-            if admin_notes is not None:
-                d["admin_notes"] = admin_notes
-            if validated_by is not None:
-                d["validated_by"] = validated_by
+            d.update(payload)
             matched = d
+            cache_matched = True
             break
 
-    if matched:
+    if cache_matched:
         _flush_real_table("employer_demands")
-        client = get_supabase_client()
-        if client:
-            try:
-                payload: dict[str, Any] = {"validation_status": new_status, "updated_at": d.get("updated_at")}
-                if admin_notes is not None:
-                    payload["admin_notes"] = admin_notes
-                if validated_by is not None:
-                    payload["validated_by"] = validated_by
-                client.table("employer_demands").update(payload).eq("id", demand_id).execute()
-                logger.info("[DB] Updated employer demand '%s' status to %s in Supabase.", demand_id, new_status)
-            except Exception as e:
-                logger.warning("[DB] Failed updating employer demand in Supabase: %s", e)
+    elif matched is not None and "employer_demands" in _cache:
+        _cache["employer_demands"].insert(0, matched)
 
     return matched
 
 
 def delete_employer_demand(demand_id: str) -> bool:
     """Delete employer demand record from in-memory cache, disk storage, and Supabase."""
+    repo_deleted = False
+    try:
+        from app.repositories.supabase_repository import delete_employer_demand_repo
+        repo_deleted = delete_employer_demand_repo(demand_id)
+    except Exception:
+        pass
+
     if not _cache:
         init_db()
     demands = _cache.get("employer_demands", [])
     initial_len = len(demands)
     _cache["employer_demands"] = [d for d in demands if d.get("id") != demand_id]
-    deleted = len(_cache["employer_demands"]) < initial_len
+    cache_deleted = len(_cache["employer_demands"]) < initial_len
 
-    if deleted:
+    if cache_deleted:
         _flush_real_table("employer_demands")
-        client = get_supabase_client()
-        if client:
-            try:
-                client.table("employer_demands").delete().eq("id", demand_id).execute()
-                logger.info("[DB] Deleted employer demand '%s' from Supabase.", demand_id)
-            except Exception as e:
-                logger.warning("[DB] Failed deleting employer demand from Supabase: %s", e)
 
-    return deleted
+    return repo_deleted or cache_deleted
 
 
 def save_sync_log(log_entry: dict) -> bool:

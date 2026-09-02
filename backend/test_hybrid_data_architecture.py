@@ -135,12 +135,21 @@ def test_real_employer_demand_submission_and_scoping():
     assert post_data["demand"]["is_demo"] is False
 
 
-    # Check disk persistence
-    real_dir = _find_real_data_dir()
-    real_file = real_dir / "employer_demands.json"
-    assert real_file.exists()
-    demands_on_disk = json.loads(real_file.read_text(encoding="utf-8"))
-    assert any(d["id"] == demand_id for d in demands_on_disk)
+    # Check persistence: Supabase repository is authoritative for employer_demands in Phase 32B
+    try:
+        from app.repositories.supabase_repository import get_employer_demand
+        persisted_demand = get_employer_demand(demand_id)
+    except Exception:
+        persisted_demand = None
+
+    if persisted_demand is not None:
+        assert persisted_demand["id"] == demand_id
+    else:
+        real_dir = _find_real_data_dir()
+        real_file = real_dir / "employer_demands.json"
+        assert real_file.exists()
+        demands_on_disk = json.loads(real_file.read_text(encoding="utf-8"))
+        assert any(d["id"] == demand_id for d in demands_on_disk)
 
     # Scoped GET /employer/me/demands
     res_mine = client.get("/api/employer/me/demands", headers=headers)

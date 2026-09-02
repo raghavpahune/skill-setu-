@@ -223,7 +223,11 @@ async def list_admin_employer_demands(
     offset: int = Query(0, ge=0),
 ):
     """List employer demands for administrative audit and validation with aggregate counts."""
-    all_demands = get_demo("employer_demands")
+    try:
+        from app.repositories.supabase_repository import list_employer_demands
+        all_demands = list_employer_demands()
+    except Exception:
+        all_demands = get_demo("employer_demands")
 
     # Calculate overall KPIs
     total_demands = len(all_demands)

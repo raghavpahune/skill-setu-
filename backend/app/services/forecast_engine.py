@@ -17,7 +17,11 @@ def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
     skills = get_demo("skills")
     jobs = get_demo("jobs")
     job_skills = get_demo("job_skills")
-    employer_demands = get_demo("employer_demands")
+    try:
+        from app.repositories.supabase_repository import list_employer_demands
+        employer_demands = list_employer_demands()
+    except Exception:
+        employer_demands = get_demo("employer_demands")
     industry_signals = get_demo("industry_signals")
     placements = get_demo("placements")
     stored_forecasts = {f["skill_id"]: f for f in get_demo("skill_forecasts")}

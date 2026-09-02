@@ -135,7 +135,11 @@ def _is_live_employer_demand(demand: dict[str, Any]) -> bool:
 
 def _get_validated_employer_demands() -> list[dict[str, Any]]:
     """Retrieve only real employer demands that are strictly VALIDATED (Phase 14 rule)."""
-    demands = get_demo("employer_demands")
+    try:
+        from app.repositories.supabase_repository import list_employer_demands
+        demands = list_employer_demands()
+    except Exception:
+        demands = get_demo("employer_demands")
     validated = []
     for d in demands:
         if not _is_live_employer_demand(d):

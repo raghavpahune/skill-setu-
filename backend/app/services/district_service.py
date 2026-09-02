@@ -49,7 +49,11 @@ def get_district_plan(district: str) -> dict[str, Any]:
     role_counts = Counter(j["title"] for j in district_jobs if j.get("title"))
 
     # Incorporate user-submitted employer demands
-    employer_demands = get_demo("employer_demands")
+    try:
+        from app.repositories.supabase_repository import list_employer_demands
+        employer_demands = list_employer_demands()
+    except Exception:
+        employer_demands = get_demo("employer_demands")
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     district_js = [js for js in job_skills if js.get("job_id") in district_job_ids]
     skill_counts = Counter(js["skill_id"] for js in district_js if js.get("skill_id"))

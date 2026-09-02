@@ -5,12 +5,18 @@ from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.security import get_current_user, require_roles
 from pydantic import BaseModel, Field, model_validator
-from app.db import get_demo, save_employer_demand, delete_employer_demand
+from app.db import get_demo
 from app.repositories.supabase_repository import (
     get_employer_feedback,
     list_employer_feedback,
     update_employer_feedback,
     FeedbackNotFoundError,
+    get_employer_demand,
+    list_employer_demands,
+    create_employer_demand,
+    update_employer_demand,
+    delete_employer_demand_repo,
+    DemandNotFoundError,
     SupabaseRepositoryError,
 )
 
@@ -203,7 +209,23 @@ async def submit_demand(
     current_user: dict = Depends(require_roles(["EMPLOYER", "ADMIN"])),
 ):
     """Submit new employer hiring requirements and skill demand signal into intelligence loop."""
-    company = (submission.company_name or submission.employer_name or current_user.get("organization_id") or current_user.get("full_name") or "").strip()
+    user_role = (current_user.get("role") or "").upper()
+    user_org = current_user.get("organization_id")
+    user_id = current_user.get("id")
+
+    # Reject client spoofing: If user is EMPLOYER and client supplies an employer_id that does not match authenticated identity
+    if user_role == "EMPLOYER":
+        auth_employer_id = user_org or f"emp-{user_id}"
+        if submission.employer_id and user_org and submission.employer_id.strip().lower() != user_org.strip().lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Cannot submit hiring demand on behalf of another organization.",
+            )
+        company = (submission.company_name or submission.employer_name or user_org or current_user.get("full_name") or "").strip()
+    else:
+        auth_employer_id = submission.employer_id or user_org or f"emp-{user_id}"
+        company = (submission.company_name or submission.employer_name or user_org or current_user.get("full_name") or "").strip()
+
     role = (submission.job_role or submission.role_title or "").strip()
     skills_list = submission.required_skills or submission.skills or []
 
@@ -226,7 +248,7 @@ async def submit_demand(
     demand_record = {
         "id": demand_id,
         "demand_id": demand_id,
-        "employer_id": submission.employer_id or current_user.get("organization_id") or f"emp-{current_user['id']}",
+        "employer_id": auth_employer_id,
         "company_name": company,
         "employer_name": company,
         "industry": submission.industry.strip(),
@@ -247,17 +269,25 @@ async def submit_demand(
         "nsqf_level": submission.nsqf_level,
         "source": "EMPLOYER_SUBMITTED",
         "validation_status": "PENDING",
-
         "provenance_label": "Employer Submitted — Pending Validation",
         "is_demo": False,
         "submitted_at": now_iso,
         "submitted_date": now_date,
+        "created_at": now_iso,
+        "updated_at": now_iso,
         "status": "pending",
         "user_id": current_user.get("id"),
         "user_email": current_user.get("email"),
     }
 
-    saved = save_employer_demand(demand_record)
+    try:
+        saved = create_employer_demand(demand_record)
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database insertion failed: {e}",
+        )
+
     return {
         "status": "created",
         "message": "Hiring requirement submitted for validation.",
@@ -270,7 +300,11 @@ async def submit_demand(
 @router.get("/employer/demands/mine")
 async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER", "ADMIN"]))):
     """Retrieve hiring requirements submitted by the current authenticated employer account."""
-    all_demands = get_demo("employer_demands")
+    try:
+        all_demands = list_employer_demands()
+    except SupabaseRepositoryError as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+
     user_id = current_user.get("id")
     org_id = current_user.get("organization_id")
     email = current_user.get("email")
@@ -290,7 +324,6 @@ async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER"
     }
 
 
-
 @router.patch("/employer/demands/{demand_id}")
 async def update_my_demand(
     demand_id: str,
@@ -298,8 +331,11 @@ async def update_my_demand(
     current_user: dict = Depends(get_current_user),
 ):
     """Update employer demand record with ownership isolation."""
-    all_demands = get_demo("employer_demands")
-    matched = next((d for d in all_demands if d.get("id") == demand_id), None)
+    try:
+        matched = get_employer_demand(demand_id)
+    except SupabaseRepositoryError as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+
     if not matched:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
 
@@ -307,6 +343,7 @@ async def update_my_demand(
     is_owner = (
         matched.get("user_id") == current_user.get("id")
         or (current_user.get("organization_id") and matched.get("employer_id") == current_user.get("organization_id"))
+        or (current_user.get("email") and matched.get("user_email") == current_user.get("email"))
     )
 
     if user_role != "ADMIN" and not is_owner:
@@ -319,10 +356,18 @@ async def update_my_demand(
     if not patch_data:
         raise HTTPException(status_code=422, detail="No fields provided for update.")
 
-    matched.update(patch_data)
-    matched["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    saved = save_employer_demand(matched)
-    return {"status": "success", "message": "Employer demand updated.", "demand": saved}
+    patch_data["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    try:
+        updated = update_employer_demand(demand_id, patch_data)
+    except DemandNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed: {e}",
+        )
+
+    return {"status": "success", "message": "Employer demand updated.", "demand": updated}
 
 
 @router.delete("/employer/demands/{demand_id}")
@@ -331,8 +376,11 @@ async def delete_my_demand(
     current_user: dict = Depends(get_current_user),
 ):
     """Delete employer demand record with ownership check."""
-    all_demands = get_demo("employer_demands")
-    matched = next((d for d in all_demands if d.get("id") == demand_id), None)
+    try:
+        matched = get_employer_demand(demand_id)
+    except SupabaseRepositoryError as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+
     if not matched:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
 
@@ -340,6 +388,7 @@ async def delete_my_demand(
     is_owner = (
         matched.get("user_id") == current_user.get("id")
         or (current_user.get("organization_id") and matched.get("employer_id") == current_user.get("organization_id"))
+        or (current_user.get("email") and matched.get("user_email") == current_user.get("email"))
     )
 
     if user_role != "ADMIN" and not is_owner:
@@ -348,8 +397,15 @@ async def delete_my_demand(
             detail="Forbidden: You do not have permission to delete another employer's demand record.",
         )
 
-    delete_employer_demand(demand_id)
-    return {"status": "success", "message": f"Demand '{demand_id}' removed.", "deleted_id": demand_id}
+    try:
+        delete_employer_demand_repo(demand_id)
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database deletion failed: {e}",
+        )
+
+    return {"status": "success", "message": f"Employer demand '{demand_id}' deleted."}
 
 
 @router.get("/employer/demands")
@@ -362,7 +418,10 @@ async def list_demands(
     source: str | None = None,
 ):
     """List employer-submitted skill demands with multi-parameter filtering."""
-    demands = get_demo("employer_demands")
+    try:
+        demands = list_employer_demands()
+    except SupabaseRepositoryError:
+        demands = []
     results = demands
 
     if district and district.lower() != "all":
@@ -399,10 +458,12 @@ async def list_demands(
 @router.get("/employer/demands/{demand_id}")
 async def get_demand_detail(demand_id: str):
     """Retrieve detailed individual employer hiring demand record."""
-    demands = get_demo("employer_demands")
-    for d in demands:
-        if d.get("id") == demand_id:
-            return {"status": "success", "demand": d}
+    try:
+        d = get_employer_demand(demand_id)
+    except SupabaseRepositoryError as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+    if d:
+        return {"status": "success", "demand": d}
 
     raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
 
@@ -439,7 +500,10 @@ async def employer_summary():
         feedback = list_employer_feedback()
     except SupabaseRepositoryError:
         feedback = []
-    demands = get_demo("employer_demands")
+    try:
+        demands = list_employer_demands()
+    except SupabaseRepositoryError:
+        demands = []
     employers = get_demo("employers")
     difficult = get_demo("difficult_skills")
 

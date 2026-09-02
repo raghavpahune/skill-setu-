@@ -30,7 +30,11 @@ def compute_gaps(district: str | None = None) -> list[dict]:
     demand_counts = Counter(js["skill_id"] for js in filtered_js)
 
     # Phase 14: Incorporate validated first-party employer demands
-    employer_demands = get_demo("employer_demands")
+    try:
+        from app.repositories.supabase_repository import list_employer_demands
+        employer_demands = list_employer_demands()
+    except Exception:
+        employer_demands = get_demo("employer_demands")
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     validated_demands = [
         d for d in employer_demands
