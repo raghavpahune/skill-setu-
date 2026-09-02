@@ -474,14 +474,18 @@ def persist_jobs_to_supabase(jobs: list[dict]):
 
 
 def save_student_assessment(assessment_data: dict) -> dict:
-    """Save new student-submitted self-assessment record to memory cache, disk storage, and Supabase."""
-    if not _cache:
-        init_db()
+    """Save new student-submitted self-assessment record to Supabase repository and sync cache/disk."""
     now_iso = datetime.now(timezone.utc).isoformat()
     assessment_data.setdefault("created_at", now_iso)
     assessment_data["updated_at"] = now_iso
     assessment_data.setdefault("source", "USER_SUBMITTED")
     assessment_data["is_demo"] = False
+
+    from app.repositories.supabase_repository import create_student_assessment
+    create_student_assessment(assessment_data)
+
+    if not _cache:
+        init_db()
     assessments = _cache.setdefault("student_assessments", [])
     
     # Check if this student already submitted, update or prepend
@@ -498,19 +502,14 @@ def save_student_assessment(assessment_data: dict) -> dict:
 
     _flush_real_table("student_assessments")
 
-    client = get_supabase_client()
-    if client:
-        try:
-            client.table("student_assessments").upsert(assessment_data).execute()
-            logger.info("[DB] Persisted student assessment '%s' to Supabase.", assessment_data.get("id"))
-        except Exception as e:
-            logger.warning("[DB] Failed persisting student assessment to Supabase: %s", e)
-
     return assessment_data
 
 
 def delete_student_assessment(assessment_id: str) -> bool:
-    """Delete student assessment from in-memory cache, disk storage, and Supabase."""
+    """Delete student assessment from Supabase repository and sync cache/disk."""
+    from app.repositories.supabase_repository import delete_student_assessment_repo
+    repo_deleted = delete_student_assessment_repo(assessment_id)
+
     if not _cache:
         init_db()
     assessments = _cache.get("student_assessments", [])
@@ -520,15 +519,8 @@ def delete_student_assessment(assessment_id: str) -> bool:
 
     if deleted:
         _flush_real_table("student_assessments")
-        client = get_supabase_client()
-        if client:
-            try:
-                client.table("student_assessments").delete().eq("id", assessment_id).execute()
-                logger.info("[DB] Deleted student assessment '%s' from Supabase.", assessment_id)
-            except Exception as e:
-                logger.warning("[DB] Failed deleting student assessment from Supabase: %s", e)
 
-    return deleted
+    return repo_deleted or deleted
 
 
 def save_course(course_data: dict) -> dict:

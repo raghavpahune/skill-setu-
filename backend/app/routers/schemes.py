@@ -99,20 +99,30 @@ async def recommended_schemes(
     limit: int = Query(10, ge=1, le=50),
 ):
     """Return schemes ranked by relevance to a student profile or assessment record."""
-    # Try student profiles first, then assessments
-    profiles = get_demo("student_profiles")
+    # Query Supabase repository (authoritative system of record)
     profile = None
-    for p in profiles:
-        if p.get("user_id") == student_id:
-            profile = p
-            break
+    try:
+        from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
+        profile = get_student_profile(student_id) or get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
+    except Exception as e:
+        logger.error("[RecommendedSchemes] Supabase error for %s: %s", student_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed fetching student profile for recommendations: {e}",
+        ) from e
 
-    if not profile:
-        assessments = get_demo("student_assessments")
-        for a in assessments:
-            if a.get("id") == student_id or a.get("user_id") == student_id:
-                profile = a
+    if not profile and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        profiles = get_demo("student_profiles")
+        for p in profiles:
+            if p.get("user_id") == student_id or p.get("id") == student_id:
+                profile = p
                 break
+        if not profile:
+            assessments = get_demo("student_assessments")
+            for a in assessments:
+                if a.get("id") == student_id or a.get("user_id") == student_id:
+                    profile = a
+                    break
 
     if not profile:
         raise HTTPException(status_code=404, detail=f"Student profile '{student_id}' not found.")

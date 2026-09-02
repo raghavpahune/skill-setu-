@@ -1,10 +1,13 @@
 """Admin Data Management API — inspection, filtering, aggregate analytics, and management of student assessments, employer demands, and government opportunities."""
 from collections import Counter
 from datetime import datetime, timezone
+import logging
 from typing import Any
 import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("skillsetu.admin")
 from app.config import settings
 from app.db import (
     get_demo,
@@ -57,7 +60,15 @@ async def list_admin_assessments(
     offset: int = Query(0, ge=0),
 ):
     """Retrieve and filter student assessment records with pagination and source distinction."""
-    assessments = get_demo("student_assessments")
+    try:
+        from app.repositories.supabase_repository import list_student_assessments
+        assessments = list_student_assessments()
+    except Exception as e:
+        logger.error("[AdminAssessments] Supabase query failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed listing assessments: {e}",
+        ) from e
     results = assessments
 
     # 1. Filter by Data Source
@@ -114,7 +125,15 @@ async def list_admin_assessments(
 @router.get("/admin/assessments/stats/summary", dependencies=[Depends(verify_admin_key)])
 async def get_admin_assessment_stats():
     """Calculate aggregate analytics, labor-market demand distribution, and skill deficits."""
-    assessments = get_demo("student_assessments")
+    try:
+        from app.repositories.supabase_repository import list_student_assessments
+        assessments = list_student_assessments()
+    except Exception as e:
+        logger.error("[AdminStats] Supabase query failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed retrieving assessment statistics: {e}",
+        ) from e
 
     total_submissions = len(assessments)
     user_submitted_count = sum(1 for a in assessments if a.get("source") == "USER_SUBMITTED")
@@ -185,10 +204,26 @@ async def get_admin_assessment_stats():
 @router.get("/admin/assessments/{assessment_id}", dependencies=[Depends(verify_admin_key)])
 async def get_admin_assessment_detail(assessment_id: str):
     """Retrieve full individual student assessment record for administrative audit."""
-    assessments = get_demo("student_assessments")
-    for a in assessments:
-        if a.get("id") == assessment_id:
-            return {"status": "success", "assessment": a}
+    a = None
+    try:
+        from app.repositories.supabase_repository import get_student_assessment
+        a = get_student_assessment(assessment_id)
+    except Exception as e:
+        logger.error("[AdminAssessmentDetail] Supabase error for %s: %s", assessment_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed for assessment '{assessment_id}': {e}",
+        ) from e
+
+    if not a and assessment_id.startswith(("ast-demo-", "demo-")):
+        assessments = get_demo("student_assessments")
+        for item in assessments:
+            if item.get("id") == assessment_id:
+                a = item
+                break
+
+    if a:
+        return {"status": "success", "assessment": a}
 
     raise HTTPException(status_code=404, detail=f"Assessment record '{assessment_id}' not found.")
 
@@ -196,8 +231,24 @@ async def get_admin_assessment_detail(assessment_id: str):
 @router.delete("/admin/assessments/{assessment_id}", dependencies=[Depends(verify_admin_key)])
 async def delete_admin_assessment(assessment_id: str):
     """Delete student assessment record from system memory cache and connected database."""
-    deleted = delete_student_assessment(assessment_id)
-    if deleted:
+    deleted = False
+    try:
+        from app.repositories.supabase_repository import delete_student_assessment_repo
+        deleted = delete_student_assessment_repo(assessment_id)
+    except Exception as e:
+        logger.error("[AdminAssessmentDelete] Supabase deletion failed for %s: %s", assessment_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database deletion failed for assessment '{assessment_id}': {e}",
+        ) from e
+
+    from app.db import delete_student_assessment
+    try:
+        cache_deleted = delete_student_assessment(assessment_id)
+    except Exception:
+        cache_deleted = False
+
+    if deleted or cache_deleted:
         return {
             "status": "success",
             "message": f"Assessment record '{assessment_id}' successfully removed.",

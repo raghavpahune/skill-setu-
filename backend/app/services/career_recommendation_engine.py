@@ -94,22 +94,45 @@ CAREER_ROLES_BENCHMARK = [
 
 
 def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
-    """Lookup student from user assessments first (real data), then student_profiles (demo dataset)."""
-    assessments = get_demo("student_assessments")
-    for a in assessments:
-        if a.get("id") == student_id or a.get("user_id") == student_id:
+    """Resolve student profile or assessment from Supabase repository.
+
+    Supabase is the authoritative system of record for production student candidates.
+    Explicit demo fixtures are only checked if the ID specifically matches a known demo fixture.
+    """
+    if not student_id or student_id == "me":
+        # 'me' must be resolved to the authenticated user ID prior to calling this function
+        return None
+
+    # 1. Query Supabase repository (authoritative system of record)
+    from app.repositories.supabase_repository import (
+        get_student_assessment,
+        get_student_assessment_by_user,
+        get_student_profile,
+        SupabaseRepositoryError,
+    )
+    try:
+        a = get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
+        if a:
             return a
-
-    profiles = get_demo("student_profiles")
-    for p in profiles:
-        if p.get("user_id") == student_id or p.get("id") == student_id:
+        p = get_student_profile(student_id)
+        if p:
             return p
+    except SupabaseRepositoryError as e:
+        logger.error("[RecommendationEngine] Supabase repository error resolving student '%s': %s", student_id, e)
+        raise RuntimeError(f"Database error resolving student profile: {e}") from e
 
-    if student_id == "me":
-        if assessments:
-            return assessments[0]
-        if profiles:
-            return profiles[0]
+    # 2. Only allow explicit demo fixture IDs for legitimate demo candidate selector
+    # NEVER fall back to demo records for production student IDs (e.g. usr-student-*, UUIDs, etc.)
+    if student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        assessments = get_demo("student_assessments")
+        for a in assessments:
+            if a.get("id") == student_id or a.get("user_id") == student_id:
+                return a
+
+        profiles = get_demo("student_profiles")
+        for p in profiles:
+            if p.get("user_id") == student_id or p.get("id") == student_id:
+                return p
 
     return None
 

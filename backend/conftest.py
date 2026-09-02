@@ -137,10 +137,12 @@ class MockSupabaseTable:
 
 
 class MockSupabaseClient:
-    def __init__(self, feedback_rows=None, demands_rows=None):
+    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None):
         self.tables = {
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
+            "student_profiles": MockSupabaseTable(profiles_rows),
+            "student_assessments": MockSupabaseTable(assessments_rows),
         }
 
     def table(self, table_name: str) -> MockSupabaseTable:
@@ -183,12 +185,56 @@ def _load_initial_demands_rows() -> list[dict]:
     return rows
 
 
+def _load_initial_student_profiles_rows() -> list[dict]:
+    rows: list[dict] = []
+    base_dir = Path(__file__).resolve().parent.parent / "data"
+    demo_file = base_dir / "demo" / "student_profiles.json"
+    real_file = base_dir / "real" / "student_profiles.json"
+
+    seen_ids = set()
+    for file_path in (real_file, demo_file):
+        if file_path.is_file():
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                for p in data:
+                    pid = p.get("user_id") or p.get("id")
+                    if pid and pid not in seen_ids:
+                        rows.append(p)
+                        seen_ids.add(pid)
+            except Exception:
+                pass
+    return rows
+
+
+def _load_initial_student_assessments_rows() -> list[dict]:
+    rows: list[dict] = []
+    base_dir = Path(__file__).resolve().parent.parent / "data"
+    demo_file = base_dir / "demo" / "student_assessments.json"
+    real_file = base_dir / "real" / "student_assessments.json"
+
+    seen_ids = set()
+    for file_path in (real_file, demo_file):
+        if file_path.is_file():
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                for a in data:
+                    aid = a.get("id")
+                    if aid and aid not in seen_ids:
+                        rows.append(a)
+                        seen_ids.add(aid)
+            except Exception:
+                pass
+    return rows
+
+
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
     """Autouse fixture providing an isolated Supabase test double for unit test suites."""
     mock_client = MockSupabaseClient(
         feedback_rows=_load_demo_feedback_rows(),
         demands_rows=_load_initial_demands_rows(),
+        profiles_rows=_load_initial_student_profiles_rows(),
+        assessments_rows=_load_initial_student_assessments_rows(),
     )
     set_supabase_client(mock_client)
     yield mock_client

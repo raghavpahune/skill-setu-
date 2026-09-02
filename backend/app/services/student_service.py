@@ -116,12 +116,21 @@ def get_personalized_industry_alerts(
     student_profile = None
     student_acquired_ids = set()
     if student_id:
-        profiles = get_demo("student_profiles")
-        for p in profiles:
-            if p["user_id"] == student_id:
-                student_profile = p
-                student_acquired_ids = {sk["skill_id"] for sk in p.get("skills", [])}
-                break
+        try:
+            from app.repositories.supabase_repository import get_student_profile, get_student_assessment
+            student_profile = get_student_profile(student_id) or get_student_assessment(student_id)
+        except Exception as e:
+            logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
+            student_profile = None
+
+        if not student_profile and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+            profiles = get_demo("student_profiles")
+            for p in profiles:
+                if p["user_id"] == student_id:
+                    student_profile = p
+                    break
+        if student_profile:
+            student_acquired_ids = {sk["skill_id"] for sk in student_profile.get("skills", []) if isinstance(sk, dict) and "skill_id" in sk}
 
     # Determine domains to evaluate
     domains_to_process = []
@@ -472,19 +481,32 @@ def get_skill_explainability(
     # 7. Student Personalization Overlay (if student_id supplied)
     student_alignment = None
     if student_id:
-        profiles = get_demo("student_profiles")
-        for p in profiles:
-            if p["user_id"] == student_id:
-                has_skill = any(sk["skill_id"] == sid for sk in p.get("skills", []))
-                is_required_for_target = sid in p.get("required_skills", [])
-                student_alignment = {
-                    "student_name": p.get("name", "Student"),
-                    "target_role": p.get("target_role", "Career Goal"),
-                    "is_acquired": has_skill,
-                    "is_required_for_target": is_required_for_target,
-                    "status_label": "Already Acquired" if has_skill else ("Core Target Deficit" if is_required_for_target else "Recommended Adjacent Competency"),
-                }
-                break
+        p = None
+        try:
+            from app.repositories.supabase_repository import get_student_profile, get_student_assessment
+            p = get_student_profile(student_id) or get_student_assessment(student_id)
+        except Exception as e:
+            logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
+            p = None
+
+        if not p and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+            profiles = get_demo("student_profiles")
+            for item in profiles:
+                if item["user_id"] == student_id:
+                    p = item
+                    break
+        if p:
+            skills_list = p.get("skills", []) + p.get("current_skills", [])
+            has_skill = any((sk.get("skill_id") == sid or sk.get("skill_name", "").lower() == skill_name.lower()) if isinstance(sk, dict) else sk == sid for sk in skills_list)
+            req_skills = p.get("required_skills", [])
+            is_required_for_target = any(r == sid or (isinstance(r, dict) and r.get("skill_id") == sid) for r in req_skills)
+            student_alignment = {
+                "student_name": p.get("name", "Student"),
+                "target_role": p.get("target_role") or p.get("career_goal", "Career Goal"),
+                "is_acquired": has_skill,
+                "is_required_for_target": is_required_for_target,
+                "status_label": "Already Acquired" if has_skill else ("Core Target Deficit" if is_required_for_target else "Recommended Adjacent Competency"),
+            }
 
     return {
         "status": "success",

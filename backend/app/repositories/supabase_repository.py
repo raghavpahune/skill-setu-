@@ -28,6 +28,16 @@ class DemandNotFoundError(SupabaseRepositoryError):
     pass
 
 
+class AssessmentNotFoundError(SupabaseRepositoryError):
+    """Raised when a student assessment record cannot be located in Supabase."""
+    pass
+
+
+class ProfileNotFoundError(SupabaseRepositoryError):
+    """Raised when a student profile record cannot be located in Supabase."""
+    pass
+
+
 class SupabaseConnectionError(SupabaseRepositoryError):
     """Raised when Supabase client is not configured or fails to connect."""
     pass
@@ -241,3 +251,218 @@ def delete_employer_demand_repo(demand_id: str) -> bool:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed deleting employer_demand id='%s': %s", demand_id, e)
         raise SupabaseRepositoryError(f"Database deletion failed for employer_demand '{demand_id}': {e}") from e
+
+
+# ===========================================================================
+# STUDENT PROFILES
+# ===========================================================================
+
+def get_student_profile(user_id: str) -> dict[str, Any] | None:
+    """Retrieve student profile directly from Supabase by user_id.
+
+    Returns None if profile not found.
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        res = client.table("student_profiles").select("*").eq("user_id", user_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        # Also check id column if present
+        res_id = client.table("student_profiles").select("*").eq("id", user_id).execute()
+        if res_id.data and len(res_id.data) > 0:
+            return res_id.data[0]
+        return None
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching student_profile user_id='%s': %s", user_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for student profile '{user_id}': {e}") from e
+
+
+def list_student_profiles() -> list[dict[str, Any]]:
+    """List all student profiles directly from Supabase.
+
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        res = client.table("student_profiles").select("*").execute()
+        return res.data or []
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing student_profiles: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for student profiles: {e}") from e
+
+
+def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively create or update a student profile in Supabase.
+
+    Returns persisted profile record on success.
+    Raises SupabaseRepositoryError on database failure.
+    Does NOT write to local JSON.
+    Does NOT treat in-memory _cache as authoritative.
+    """
+    try:
+        client = get_client()
+        res = client.table("student_profiles").upsert(profile_data).execute()
+        saved = res.data[0] if (res.data and len(res.data) > 0) else profile_data
+        logger.info("[SupabaseRepo] Confirmed Supabase upsert for student_profile '%s'", profile_data.get("user_id"))
+        return saved
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
+        raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
+
+
+# ===========================================================================
+# STUDENT ASSESSMENTS
+# ===========================================================================
+
+def get_student_assessment(assessment_id: str) -> dict[str, Any] | None:
+    """Retrieve student assessment record directly from Supabase by id.
+
+    Returns None if assessment not found.
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        res = client.table("student_assessments").select("*").eq("id", assessment_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        return None
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching student_assessment id='%s': %s", assessment_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for student assessment '{assessment_id}': {e}") from e
+
+
+def get_student_assessment_by_user(user_id: str, user_email: str | None = None) -> dict[str, Any] | None:
+    """Retrieve student assessment record by user_id, assessment id, or email.
+
+    Prioritizes latest user-submitted assessments over demo baselines.
+    Returns None if not found.
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        candidates = []
+        # Query by user_id
+        res_uid = client.table("student_assessments").select("*").eq("user_id", user_id).execute()
+        if res_uid.data:
+            candidates.extend(res_uid.data)
+        # Query by id
+        res_id = client.table("student_assessments").select("*").eq("id", user_id).execute()
+        if res_id.data:
+            candidates.extend(res_id.data)
+        # Query by email if provided
+        if user_email:
+            res_email = client.table("student_assessments").select("*").eq("user_email", user_email).execute()
+            if res_email.data:
+                candidates.extend(res_email.data)
+
+        if not candidates:
+            return None
+
+        # Deduplicate candidates by id preserving order
+        unique_candidates = []
+        seen_ids = set()
+        for c in candidates:
+            cid = c.get("id")
+            if cid and cid not in seen_ids:
+                seen_ids.add(cid)
+                unique_candidates.append(c)
+
+        # Sort so that latest USER_SUBMITTED assessment comes first
+        return sorted(
+            unique_candidates,
+            key=lambda r: (
+                1 if r.get("source") == "USER_SUBMITTED" or not r.get("is_demo", False) else 0,
+                r.get("updated_at") or r.get("created_at") or "",
+            ),
+            reverse=True,
+        )[0]
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching student_assessment for user='%s': %s", user_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for student user '{user_id}': {e}") from e
+
+
+def list_student_assessments(
+    source: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List student assessments directly from Supabase.
+
+    Supports optional filtering by source ('USER_SUBMITTED', 'DEMO_SYNTHETIC', etc.).
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        query = client.table("student_assessments").select("*")
+        if source and source.lower() != "all":
+            query = query.eq("source", source)
+        res = query.execute()
+        rows = res.data or []
+        if limit is not None and limit > 0:
+            rows = rows[:limit]
+        return rows
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing student_assessments: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for student assessments: {e}") from e
+
+
+def create_student_assessment(assessment_data: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively persist a student assessment record to Supabase.
+
+    Returns inserted/upserted assessment record on success.
+    Raises SupabaseRepositoryError on database failure.
+    Does NOT write to local JSON.
+    Does NOT treat in-memory _cache as authoritative.
+    """
+    try:
+        client = get_client()
+        res = client.table("student_assessments").upsert(assessment_data).execute()
+        if not res.data or len(res.data) == 0:
+            saved_row = assessment_data
+        else:
+            saved_row = res.data[0]
+        logger.info("[SupabaseRepo] Confirmed Supabase persistence for student_assessment '%s'", assessment_data.get("id"))
+        return saved_row
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed persisting student_assessment id='%s': %s", assessment_data.get("id"), e)
+        raise SupabaseRepositoryError(f"Database persistence failed for student assessment: {e}") from e
+
+
+def update_student_assessment(assessment_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively update an existing student assessment record in Supabase.
+
+    Returns updated assessment record on success.
+    Raises AssessmentNotFoundError if no matching row was updated.
+    Raises SupabaseRepositoryError on database failure.
+    Does NOT write to local JSON.
+    Does NOT treat in-memory _cache as authoritative.
+    """
+    try:
+        client = get_client()
+        res = client.table("student_assessments").update(updates).eq("id", assessment_id).execute()
+        if not res.data or len(res.data) == 0:
+            raise AssessmentNotFoundError(f"Student assessment record '{assessment_id}' not found in Supabase.")
+        updated_row = res.data[0]
+        logger.info("[SupabaseRepo] Confirmed Supabase update for student_assessment '%s'", assessment_id)
+        return updated_row
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed updating student_assessment id='%s': %s", assessment_id, e)
+        raise SupabaseRepositoryError(f"Database update failed for student assessment '{assessment_id}': {e}") from e
+
+
+def delete_student_assessment_repo(assessment_id: str) -> bool:
+    """Authoritatively delete a student assessment record from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("student_assessments").delete().eq("id", assessment_id).execute()
+        deleted = bool(getattr(res, "data", []))
+        if deleted:
+            logger.info("[SupabaseRepo] Confirmed Supabase deletion for student_assessment '%s'", assessment_id)
+        return deleted
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed deleting student_assessment id='%s': %s", assessment_id, e)
+        raise SupabaseRepositoryError(f"Database deletion failed for student assessment '{assessment_id}': {e}") from e
