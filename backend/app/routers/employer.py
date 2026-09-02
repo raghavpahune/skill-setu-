@@ -5,7 +5,14 @@ from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.security import get_current_user, require_roles
 from pydantic import BaseModel, Field, model_validator
-from app.db import get_demo, save_employer_feedback, save_employer_demand, delete_employer_demand
+from app.db import get_demo, save_employer_demand, delete_employer_demand
+from app.repositories.supabase_repository import (
+    get_employer_feedback,
+    list_employer_feedback,
+    update_employer_feedback,
+    FeedbackNotFoundError,
+    SupabaseRepositoryError,
+)
 
 router = APIRouter()
 
@@ -64,7 +71,7 @@ async def list_validations(
     demand_level: str | None = None,
 ):
     """List skill demand summaries for employer validation with enriched metadata and filtering."""
-    feedback = get_demo("employer_feedback")
+    feedback = list_employer_feedback(status=status, demand_level=demand_level)
     skills_map = {s["id"]: s for s in get_demo("skills")}
     employers_map = {e["id"]: e for e in get_demo("employers")}
 
@@ -111,8 +118,14 @@ async def submit_feedback(
             detail="Forbidden: Insufficient role permissions. Required one of: ['EMPLOYER', 'ADMIN']",
         )
 
-    all_feedback = get_demo("employer_feedback")
-    matched = next((f for f in all_feedback if f.get("id") == submission.feedback_id), None)
+    try:
+        matched = get_employer_feedback(submission.feedback_id)
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query error: {e}",
+        )
+
     if not matched:
         return {"error": "feedback not found"}
 
@@ -136,17 +149,33 @@ async def submit_feedback(
                 detail="Forbidden: You do not have permission to modify another employer's feedback.",
             )
 
-    updated = save_employer_feedback(
-        feedback_id=submission.feedback_id,
-        status=submission.status,
-        notes=submission.notes,
-        proficiency_required=submission.proficiency_required,
-        user_id=current_user.get("id"),
-        user_email=current_user.get("email"),
-    )
-    if updated:
-        return {"status": "updated", "feedback": updated}
-    return {"error": "feedback not found"}
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    updates = {
+        "status": submission.status,
+        "updated_at": now_iso,
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+    }
+    if submission.notes is not None:
+        updates["notes"] = submission.notes
+    if submission.proficiency_required is not None:
+        updates["proficiency_required"] = submission.proficiency_required
+    if current_user.get("id"):
+        updates["user_id"] = current_user.get("id")
+    if current_user.get("email"):
+        updates["user_email"] = current_user.get("email")
+
+    try:
+        updated = update_employer_feedback(submission.feedback_id, updates)
+    except FeedbackNotFoundError:
+        return {"error": "feedback not found"}
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed: {e}",
+        )
+
+    return {"status": "updated", "feedback": updated}
 
 
 from app.core.security import get_current_user, get_optional_current_user, require_roles
@@ -406,7 +435,10 @@ async def list_difficult_skills():
 @router.get("/employer/summary")
 async def employer_summary():
     """Get high-level employer validation KPIs, approval rates, and industry participation."""
-    feedback = get_demo("employer_feedback")
+    try:
+        feedback = list_employer_feedback()
+    except SupabaseRepositoryError:
+        feedback = []
     demands = get_demo("employer_demands")
     employers = get_demo("employers")
     difficult = get_demo("difficult_skills")

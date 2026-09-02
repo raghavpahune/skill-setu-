@@ -260,7 +260,11 @@ def get_platform_metrics_summary() -> dict[str, Any]:
     placements = get_demo("placements")
     skills = get_demo("skills")
     employers = get_demo("employers")
-    employer_feedback = get_demo("employer_feedback")
+    try:
+        from app.repositories.supabase_repository import list_employer_feedback
+        employer_feedback = list_employer_feedback()
+    except Exception:
+        employer_feedback = get_demo("employer_feedback")
     audited_courses = audit_all_courses()
     gaps = compute_gaps()
 
