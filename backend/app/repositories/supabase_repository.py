@@ -38,6 +38,11 @@ class ProfileNotFoundError(SupabaseRepositoryError):
     pass
 
 
+class CourseNotFoundError(SupabaseRepositoryError):
+    """Raised when a course record cannot be located in Supabase."""
+    pass
+
+
 class SupabaseConnectionError(SupabaseRepositoryError):
     """Raised when Supabase client is not configured or fails to connect."""
     pass
@@ -466,3 +471,127 @@ def delete_student_assessment_repo(assessment_id: str) -> bool:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed deleting student_assessment id='%s': %s", assessment_id, e)
         raise SupabaseRepositoryError(f"Database deletion failed for student assessment '{assessment_id}': {e}") from e
+
+
+# ===========================================================================
+# COURSES
+# ===========================================================================
+
+def get_course(course_id: str) -> dict[str, Any] | None:
+    """Retrieve a single course record directly from Supabase by id or course_id.
+
+    Returns None if course not found.
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        res = client.table("courses").select("*").eq("id", course_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        # Also check course_id column if distinct
+        res_cid = client.table("courses").select("*").eq("course_id", course_id).execute()
+        if res_cid.data and len(res_cid.data) > 0:
+            return res_cid.data[0]
+        return None
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching course id='%s': %s", course_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for course '{course_id}': {e}") from e
+
+
+def list_courses(
+    district: str | None = None,
+    category: str | None = None,
+    source: str | None = None,
+    status: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List course records directly from Supabase.
+
+    Supports optional filtering by district, category, source, status, and limit.
+    Raises SupabaseRepositoryError on database failure.
+    """
+    try:
+        client = get_client()
+        query = client.table("courses").select("*")
+        if district and district.lower() != "all":
+            query = query.eq("district", district.strip())
+        if category and category.lower() != "all":
+            query = query.eq("category", category.strip())
+        if source and source.lower() != "all":
+            query = query.eq("source", source.strip())
+        if status and status.lower() != "all":
+            query = query.eq("status", status.strip())
+        res = query.execute()
+        rows = res.data or []
+        if limit is not None and limit > 0:
+            rows = rows[:limit]
+        return rows
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing courses: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for courses: {e}") from e
+
+
+def create_course(course_data: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively persist a course record to Supabase.
+
+    Returns inserted/upserted course record on success.
+    Raises SupabaseRepositoryError on database failure.
+    Does NOT write to local JSON.
+    Does NOT treat in-memory _cache as authoritative.
+    """
+    try:
+        client = get_client()
+        res = client.table("courses").upsert(course_data).execute()
+        if not res.data or len(res.data) == 0:
+            saved_row = course_data
+        else:
+            saved_row = res.data[0]
+        logger.info("[SupabaseRepo] Confirmed Supabase persistence for course '%s'", course_data.get("id"))
+        return saved_row
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed persisting course id='%s': %s", course_data.get("id"), e)
+        raise SupabaseRepositoryError(f"Database persistence failed for course: {e}") from e
+
+
+def update_course_repo(course_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively update an existing course record in Supabase.
+
+    Returns updated course record on success.
+    Raises CourseNotFoundError if no matching row was updated.
+    Raises SupabaseRepositoryError on database failure.
+    Does NOT write to local JSON.
+    Does NOT treat in-memory _cache as authoritative.
+    """
+    try:
+        client = get_client()
+        existing = get_course(course_id)
+        if not existing:
+            raise CourseNotFoundError(f"Course record '{course_id}' not found in Supabase.")
+        target_id = existing.get("id") or course_id
+        res = client.table("courses").update(updates).eq("id", target_id).execute()
+        if not res.data or len(res.data) == 0:
+            raise CourseNotFoundError(f"Course record '{course_id}' not found in Supabase.")
+        updated_row = res.data[0]
+        logger.info("[SupabaseRepo] Confirmed Supabase update for course '%s'", course_id)
+        return updated_row
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed updating course id='%s': %s", course_id, e)
+        raise SupabaseRepositoryError(f"Database update failed for course '{course_id}': {e}") from e
+
+
+def delete_course_repo(course_id: str) -> bool:
+    """Authoritatively delete a course record from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("courses").delete().eq("id", course_id).execute()
+        deleted = bool(getattr(res, "data", []))
+        if deleted:
+            logger.info("[SupabaseRepo] Confirmed Supabase deletion for course '%s'", course_id)
+        return deleted
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed deleting course id='%s': %s", course_id, e)
+        raise SupabaseRepositoryError(f"Database deletion failed for course '{course_id}': {e}") from e

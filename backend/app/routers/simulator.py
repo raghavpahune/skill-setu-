@@ -32,7 +32,11 @@ def _skill_categories() -> list[str]:
 def _baseline_metrics(district: str | None = None) -> dict:
     """Compute current-state metrics from existing data."""
     gaps = compute_gaps(district=district)
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     placements = get_demo("placements")
 
     # Filter courses/placements by district if requested
@@ -67,7 +71,11 @@ def _simulate_capacity_increase(baseline: dict, scenario: WhatIfScenario) -> dic
     """Simulate increasing training capacity for a skill category/district."""
     pct = max(1, min(200, scenario.capacity_change_pct))
     gaps = compute_gaps(district=scenario.district)
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     course_skills_data = get_demo("course_skills")
     skills_map = {s["id"]: s for s in get_demo("skills")}
 

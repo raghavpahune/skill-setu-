@@ -524,14 +524,18 @@ def delete_student_assessment(assessment_id: str) -> bool:
 
 
 def save_course(course_data: dict) -> dict:
-    """Save new course or institute training program to cache, disk storage, and Supabase."""
-    if not _cache:
-        init_db()
+    """Save new course or institute training program to Supabase repository and sync cache/disk."""
     now_iso = datetime.now(timezone.utc).isoformat()
     course_data.setdefault("created_at", now_iso)
     course_data["updated_at"] = now_iso
     course_data.setdefault("source", "USER_SUBMITTED")
     course_data["is_demo"] = False
+
+    from app.repositories.supabase_repository import create_course
+    create_course(course_data)
+
+    if not _cache:
+        init_db()
     courses = _cache.setdefault("courses", [])
     cid = course_data.get("id")
     existing_idx = next((i for i, c in enumerate(courses) if cid and c.get("id") == cid), None)
@@ -541,19 +545,17 @@ def save_course(course_data: dict) -> dict:
         courses.insert(0, course_data)
     _flush_real_table("courses")
 
-    client = get_supabase_client()
-    if client:
-        try:
-            client.table("courses").upsert(course_data).execute()
-            logger.info("[DB] Persisted course '%s' to Supabase.", course_data.get("id"))
-        except Exception as e:
-            logger.warning("[DB] Failed persisting course to Supabase: %s", e)
-
     return course_data
 
 
 def update_course(course_id: str, updates: dict) -> dict | None:
-    """Update fields on a course record and flush to disk."""
+    """Update fields on a course record in Supabase repository and sync cache/disk."""
+    from app.repositories.supabase_repository import update_course_repo
+    try:
+        update_course_repo(course_id, updates)
+    except Exception as e:
+        logger.warning("[DB] Failed updating course in Supabase repository: %s", e)
+
     if not _cache:
         init_db()
     courses = _cache.get("courses", [])
@@ -567,19 +569,19 @@ def update_course(course_id: str, updates: dict) -> dict | None:
 
     if matched:
         _flush_real_table("courses")
-        client = get_supabase_client()
-        if client:
-            try:
-                client.table("courses").update(updates).eq("id", course_id).execute()
-                logger.info("[DB] Updated course '%s' in Supabase.", course_id)
-            except Exception as e:
-                logger.warning("[DB] Failed updating course in Supabase: %s", e)
 
     return matched
 
 
 def delete_course(course_id: str) -> bool:
-    """Delete course record from cache, disk storage, and Supabase."""
+    """Delete course record from Supabase repository and sync cache/disk."""
+    from app.repositories.supabase_repository import delete_course_repo
+    repo_deleted = False
+    try:
+        repo_deleted = delete_course_repo(course_id)
+    except Exception as e:
+        logger.warning("[DB] Failed deleting course in Supabase repository: %s", e)
+
     if not _cache:
         init_db()
     courses = _cache.get("courses", [])
@@ -589,15 +591,8 @@ def delete_course(course_id: str) -> bool:
 
     if deleted:
         _flush_real_table("courses")
-        client = get_supabase_client()
-        if client:
-            try:
-                client.table("courses").delete().eq("id", course_id).execute()
-                logger.info("[DB] Deleted course '%s' from Supabase.", course_id)
-            except Exception as e:
-                logger.warning("[DB] Failed deleting course from Supabase: %s", e)
 
-    return deleted
+    return repo_deleted or deleted
 
 
 def save_gov_opportunity(data: dict) -> dict:

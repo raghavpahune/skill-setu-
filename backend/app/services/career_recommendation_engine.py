@@ -315,7 +315,11 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                 })
 
         # Connect with matching institute training programs (Phase 25)
-        all_courses = get_demo("courses")
+        try:
+            from app.repositories.supabase_repository import list_courses
+            all_courses = list_courses()
+        except Exception:
+            all_courses = get_demo("courses")
         role_courses = []
         for c in all_courses:
             if c.get("status", "active").lower() not in ("active", "needs_attention"):
@@ -421,7 +425,11 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     top_recommended_role = career_evaluations[0]
 
     # 5. Build Targeted Next Learning Steps (Roadmap with Institute Training Availability)
-    all_courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        all_courses = list_courses()
+    except Exception:
+        all_courses = get_demo("courses")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why

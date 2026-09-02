@@ -584,7 +584,21 @@ async def list_admin_courses(
     offset: int = Query(0, ge=0),
 ):
     """List and audit academic & vocational course records with source separation."""
-    all_courses = get_demo("courses")
+    from app.repositories.supabase_repository import list_courses, SupabaseRepositoryError
+    try:
+        all_courses = list_courses(
+            district=district,
+            category=category,
+            source=source,
+            status=status,
+        )
+    except SupabaseRepositoryError as e:
+        logger.error("[Admin] Failed querying courses from Supabase: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database query failed for courses: {e}",
+        )
+
     results = all_courses
 
     if district and district.lower() != "all":
@@ -640,13 +654,31 @@ async def list_admin_courses(
 @router.patch("/admin/courses/{course_id}", dependencies=[Depends(verify_admin_key)])
 async def update_admin_course(course_id: str, data: AdminCourseUpdate):
     """Administratively update course syllabus, status, and placement health."""
+    from app.repositories.supabase_repository import (
+        update_course_repo,
+        CourseNotFoundError,
+        SupabaseRepositoryError,
+    )
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=422, detail="No fields to update.")
 
-    updated = update_course(course_id, updates)
-    if not updated:
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        updated = update_course_repo(course_id, updates)
+    except CourseNotFoundError:
         raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
+    except SupabaseRepositoryError as e:
+        logger.error("[Admin] Failed updating course '%s' in Supabase: %s", course_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database update failed for course: {e}",
+        )
+
+    try:
+        update_course(course_id, updates)
+    except Exception:
+        pass
 
     return {
         "status": "success",
@@ -659,8 +691,24 @@ async def update_admin_course(course_id: str, data: AdminCourseUpdate):
 @router.delete("/admin/courses/{course_id}", dependencies=[Depends(verify_admin_key)])
 async def delete_admin_course(course_id: str):
     """Administratively remove a course record."""
-    deleted = delete_course(course_id)
+    from app.repositories.supabase_repository import (
+        delete_course_repo,
+        SupabaseRepositoryError,
+    )
+    try:
+        deleted = delete_course_repo(course_id)
+    except SupabaseRepositoryError as e:
+        logger.error("[Admin] Failed deleting course '%s' from Supabase: %s", course_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database deletion failed for course: {e}",
+        )
+
     if deleted:
+        try:
+            delete_course(course_id)
+        except Exception:
+            pass
         return {
             "status": "success",
             "message": f"Course '{course_id}' removed.",

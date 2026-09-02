@@ -14,7 +14,11 @@ def compute_gaps(district: str | None = None) -> list[dict]:
     jobs = get_demo("jobs")
     job_skills = get_demo("job_skills")
     course_skills_data = get_demo("course_skills")
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     skills_map = {s["id"]: s for s in get_demo("skills")}
 
     # Filter jobs by district if specified

@@ -62,7 +62,11 @@ TRAINER_UPGRADE_CATALOG = {
 
 def audit_all_courses() -> list[dict[str, Any]]:
     """Execute deep health, obsolescence, and oversupply audit across all institutional courses."""
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     course_skills_raw = get_demo("course_skills")
     placements = {p["course_id"]: p for p in get_demo("placements")}
     skills_map = {s["id"]: s for s in get_demo("skills")}

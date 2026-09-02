@@ -107,7 +107,11 @@ def get_personalized_industry_alerts(
     skills_map = {s["id"]: s for s in get_demo("skills")}
     jobs = get_demo("jobs")
     job_skills = get_demo("job_skills")
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     course_skills = get_demo("course_skills")
     gaps_list = compute_gaps()
     gaps_map = {g["skill_id"]: g for g in gaps_list}
@@ -311,7 +315,11 @@ def get_skill_explainability(
     skills_map = {s["id"]: s for s in skills_list}
     jobs = get_demo("jobs")
     job_skills = get_demo("job_skills")
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     course_skills = get_demo("course_skills")
     forecasts = get_demo("skill_forecasts")
     try:
@@ -635,7 +643,11 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
     skills_list = get_demo("skills")
     skills_map = {s["id"]: s for s in skills_list}
     skills_name_map = {s["name"].lower(): s for s in skills_list}
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     course_skills = get_demo("course_skills")
     gaps_list = compute_gaps()
     gaps_map = {g["skill_id"]: g for g in gaps_list}

@@ -11,7 +11,11 @@ from app.services.curriculum_engine import audit_all_courses, EQUIPMENT_CATALOG,
 def get_all_districts() -> list[dict]:
     """List all districts with job counts and course counts."""
     jobs = get_demo("jobs")
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     
     job_counts = Counter(j["district"] for j in jobs if j.get("district"))
     course_counts = Counter(c["district"] for c in courses if c.get("district"))
@@ -31,7 +35,11 @@ def get_all_districts() -> list[dict]:
 def get_district_plan(district: str) -> dict[str, Any]:
     """Generate a comprehensive training plan for a district covering all §13 requirements."""
     jobs = get_demo("jobs")
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     skills_map = {s["id"]: s for s in get_demo("skills")}
     job_skills = get_demo("job_skills")
     placements = get_demo("placements")
@@ -260,7 +268,11 @@ def get_district_plan(district: str) -> dict[str, Any]:
 def get_platform_metrics_summary() -> dict[str, Any]:
     """Compute the 7 platform-level success metrics specified in PROJECT_SPEC Section 33."""
     jobs = get_demo("jobs")
-    courses = get_demo("courses")
+    try:
+        from app.repositories.supabase_repository import list_courses
+        courses = list_courses()
+    except Exception:
+        courses = get_demo("courses")
     placements = get_demo("placements")
     skills = get_demo("skills")
     employers = get_demo("employers")
