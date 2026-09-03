@@ -1,10 +1,14 @@
 """Government Opportunities API — apprenticeships, training programs, employment, and entrepreneurship schemes."""
+import logging
 from datetime import datetime, timezone
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from app.db import get_demo, save_gov_opportunity
 from app.core.security import require_roles
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 

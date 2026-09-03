@@ -3,11 +3,14 @@
 Fulfills PROJECT_SPEC Section 18 ("Why Should I Learn This?") and Section 19 ("Personalized Industry Alerts").
 Derives all metrics deterministically from existing SkillSetu datasets with explicit data grounding.
 """
+import logging
 from collections import Counter
 from typing import Any
 
 from app.db import get_demo
 from app.services.gap_engine import compute_gaps
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Supported Alert Domains (PROJECT_SPEC Section 19)
@@ -125,8 +128,8 @@ def get_personalized_industry_alerts(
     student_acquired_ids = set()
     if student_id:
         try:
-            from app.repositories.supabase_repository import get_student_profile, get_student_assessment
-            student_profile = get_student_profile(student_id) or get_student_assessment(student_id)
+            from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
+            student_profile = get_student_profile(student_id) or get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
         except Exception as e:
             logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
             student_profile = None
@@ -325,7 +328,8 @@ def get_skill_explainability(
     except Exception:
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
-    forecasts = get_demo("skill_forecasts")
+    from app.repositories.supabase_repository import list_skill_forecasts
+    forecasts = list_skill_forecasts()
     try:
         from app.repositories.supabase_repository import list_employer_feedback
         feedback = list_employer_feedback()
@@ -499,8 +503,8 @@ def get_skill_explainability(
     if student_id:
         p = None
         try:
-            from app.repositories.supabase_repository import get_student_profile, get_student_assessment
-            p = get_student_profile(student_id) or get_student_assessment(student_id)
+            from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
+            p = get_student_profile(student_id) or get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
         except Exception as e:
             logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
             p = None

@@ -17,274 +17,8 @@ import SignalCard from '../components/SignalCard';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const DEFAULT_VALIDATIONS = [
-  {
-    id: 'val-001',
-    skill_id: 'sk-002',
-    skill_name: 'Generative AI & LLM Systems',
-    skill_category: 'AI/ML',
-    nsqf_level: 8,
-    employer_id: 'emp-001',
-    employer_name: 'Tata Consultancy Services (Pune Innovation Center)',
-    industry: 'IT/ITES',
-    district: 'Pune',
-    demand_level: 'critical',
-    proficiency_required: 'advanced',
-    status: 'pending',
-    notes: 'Urgent demand for enterprise RAG pipeline engineers and vector search specialists.',
-  },
-  {
-    id: 'val-002',
-    skill_id: 'sk-018',
-    skill_name: 'Electric Vehicle Battery Management Systems (BMS)',
-    skill_category: 'Electric Vehicles',
-    nsqf_level: 6,
-    employer_id: 'emp-006',
-    employer_name: 'Bajaj Auto Ltd (Akurdi Plant)',
-    industry: 'Electric Vehicles',
-    district: 'Pune',
-    demand_level: 'high',
-    proficiency_required: 'intermediate',
-    status: 'confirmed',
-    notes: 'Validated for upcoming 2-wheeler & 3-wheeler assembly lines in Pune-Chakan industrial belt.',
-  },
-  {
-    id: 'val-003',
-    skill_id: 'sk-029',
-    skill_name: 'Kubernetes & Multi-Cloud Infrastructure',
-    skill_category: 'Cloud',
-    nsqf_level: 7,
-    employer_id: 'emp-002',
-    employer_name: 'Infosys Hinjawadi Hub',
-    industry: 'IT/ITES',
-    district: 'Pune',
-    demand_level: 'high',
-    proficiency_required: 'advanced',
-    status: 'corrected',
-    notes: 'Upgraded proficiency to senior production-grade with Helm and Infrastructure-as-Code knowledge.',
-  },
-  {
-    id: 'val-004',
-    skill_id: 'sk-017',
-    skill_name: 'PLC Programming & SCADA Telemetry',
-    skill_category: 'Manufacturing',
-    nsqf_level: 5,
-    employer_id: 'emp-008',
-    employer_name: 'Siemens India (Kalwa Works)',
-    industry: 'Manufacturing',
-    district: 'Thane',
-    demand_level: 'high',
-    proficiency_required: 'advanced',
-    status: 'confirmed',
-    notes: 'High demand across smart factory automation retrofits in Thane and Nashik.',
-  },
-  {
-    id: 'val-005',
-    skill_id: 'sk-011',
-    skill_name: 'Cybersecurity & Cloud Threat Intelligence',
-    skill_category: 'Security',
-    nsqf_level: 6,
-    employer_id: 'emp-012',
-    employer_name: 'Quick Heal Technologies',
-    industry: 'IT/ITES',
-    district: 'Pune',
-    demand_level: 'critical',
-    proficiency_required: 'advanced',
-    status: 'confirmed',
-    notes: 'Junior SOC analysts lack real incident-response and SIEM log hunting telemetry.',
-  },
-  {
-    id: 'val-006',
-    skill_id: 'sk-035',
-    skill_name: 'Solar PV Grid Integration & Inverters',
-    skill_category: 'Green Energy',
-    nsqf_level: 5,
-    employer_id: 'emp-015',
-    employer_name: 'Tata Power Solar',
-    industry: 'Green Energy',
-    district: 'Mumbai',
-    demand_level: 'high',
-    proficiency_required: 'intermediate',
-    status: 'pending',
-    notes: 'Need certified rooftop and utility-scale solar grid synchronization technicians.',
-  },
-  {
-    id: 'val-007',
-    skill_id: 'sk-033',
-    skill_name: 'Drone Avionics & Remote Pilot Systems',
-    skill_category: 'Emerging Tech',
-    nsqf_level: 5,
-    employer_id: 'emp-016',
-    employer_name: 'ideaForge',
-    industry: 'Emerging Tech',
-    district: 'Mumbai',
-    demand_level: 'high',
-    proficiency_required: 'advanced',
-    status: 'confirmed',
-    notes: 'DGCA remote pilot certification and carbon-composite structural repair required.',
-  },
-  {
-    id: 'val-008',
-    skill_id: 'sk-025',
-    skill_name: 'Traditional Manual Typewriting',
-    skill_category: 'Administration',
-    nsqf_level: 3,
-    employer_id: 'emp-014',
-    employer_name: 'Mahindra Logistics',
-    industry: 'Logistics',
-    district: 'Mumbai',
-    demand_level: 'low',
-    proficiency_required: 'beginner',
-    status: 'rejected',
-    notes: 'Completely replaced by modern WMS software, barcode scanners, and handheld mobile terminals.',
-  },
-];
-
-const DEFAULT_DEMANDS = [
-  {
-    id: 'ed-001',
-    employer_name: 'Tata Consultancy Services',
-    industry: 'IT/ITES',
-    district: 'Pune',
-    role_title: 'Senior AI Systems & Agentic RAG Engineer',
-    skills: ['Generative AI', 'RAG', 'AI Agents', 'Python', 'Vector Databases'],
-    proficiency_required: 'advanced',
-    nsqf_level: 7,
-    urgency: 'immediate',
-    positions_count: 45,
-    hiring_challenge: 'Candidates understand prompt engineering but lack production RAG pipeline architecture and evaluation skills.',
-    submitted_date: '2026-08-15',
-    status: 'active',
-  },
-  {
-    id: 'ed-002',
-    employer_name: 'Tata Motors',
-    industry: 'Electric Vehicles',
-    district: 'Pune',
-    role_title: 'EV Battery Management System (BMS) Calibration Specialist',
-    skills: ['EV Battery Technology', 'Battery Management (BMS)', 'Motor Control', 'CAN Bus'],
-    proficiency_required: 'advanced',
-    nsqf_level: 6,
-    urgency: 'next_quarter',
-    positions_count: 30,
-    hiring_challenge: 'Severe shortage of diploma and ITI graduates with high-voltage battery safety protocol certifications.',
-    submitted_date: '2026-08-18',
-    status: 'active',
-  },
-  {
-    id: 'ed-003',
-    employer_name: 'Siemens India',
-    industry: 'Manufacturing',
-    district: 'Pune',
-    role_title: 'Industry 4.0 PLC & SCADA Automation Lead',
-    skills: ['PLC Programming', 'SCADA', 'Industrial Robotics', 'IoT', 'Cybersecurity'],
-    proficiency_required: 'advanced',
-    nsqf_level: 6,
-    urgency: 'immediate',
-    positions_count: 20,
-    hiring_challenge: 'Industrial IoT protocols (MQTT, OPC-UA) are absent from traditional polytechnic curricula.',
-    submitted_date: '2026-08-20',
-    status: 'active',
-  },
-  {
-    id: 'ed-004',
-    employer_name: 'Quick Heal Technologies',
-    industry: 'IT/ITES',
-    district: 'Pune',
-    role_title: 'Cloud Security & Threat Intelligence Analyst',
-    skills: ['Cybersecurity', 'Network Security', 'Cloud Computing', 'AWS', 'Linux'],
-    proficiency_required: 'intermediate',
-    nsqf_level: 6,
-    urgency: 'immediate',
-    positions_count: 25,
-    hiring_challenge: 'Graduates possess theoretical security knowledge but lack hands-on experience in cloud SIEM and endpoint telemetry.',
-    submitted_date: '2026-08-22',
-    status: 'active',
-  },
-];
-
-const DEFAULT_DIFFICULT_SKILLS = [
-  {
-    skill_id: 'sk-006',
-    skill_name: 'RAG (Retrieval Augmented Generation)',
-    category: 'AI/ML',
-    nsqf_level: 7,
-    deficit_score: 88,
-    avg_days_to_fill: 64,
-    top_districts: ['Pune', 'Mumbai'],
-    industries: ['IT/ITES', 'Emerging Tech', 'Finance'],
-    shortage_reason: 'Curricula teach basic NLP; enterprise production needs vector indexing, embedding tuning, and guardrails.',
-    hiring_challenge: 'Extremely low candidate supply with verifiable end-to-end RAG deployment experience.',
-    suggested_intervention: 'Introduce 40-hour hands-on Vector DB and LangChain/LlamaIndex capstone in B.Tech IT & MCA syllabi.',
-  },
-  {
-    skill_id: 'sk-018',
-    skill_name: 'EV Battery Management Systems (BMS)',
-    category: 'Electric Vehicles',
-    nsqf_level: 6,
-    deficit_score: 84,
-    avg_days_to_fill: 58,
-    top_districts: ['Pune', 'Chhatrapati Sambhajinagar', 'Nashik'],
-    industries: ['Electric Vehicles', 'Manufacturing'],
-    shortage_reason: 'High-voltage battery diagnostics requires specialized lab equipment not available in 85% of state ITIs.',
-    hiring_challenge: 'Automotive OEMs expanding fast in Chakan cluster; local talent lacks safety-critical battery cell balancing skills.',
-    suggested_intervention: 'Establish 5 regional EV Excellence Centres in Pune, Nashik, and Sambhajinagar with real BMS test benches.',
-  },
-  {
-    skill_id: 'sk-029',
-    skill_name: 'Kubernetes & Multi-Cloud Infrastructure',
-    category: 'Cloud',
-    nsqf_level: 7,
-    deficit_score: 79,
-    avg_days_to_fill: 52,
-    top_districts: ['Pune', 'Mumbai', 'Nagpur'],
-    industries: ['IT/ITES', 'Cloud Infrastructure'],
-    shortage_reason: 'Institutes teach static virtualization and basic AWS EC2; employers require production Helm, K8s operators, and Istio.',
-    hiring_challenge: 'Senior roles unfilled for 50+ days; junior applicants fail real-world cluster debugging assessments.',
-    suggested_intervention: 'Integrate CKA/CKAD certified micro-credentials into Final Year Computer Engineering curricula.',
-  },
-  {
-    skill_id: 'sk-017',
-    skill_name: 'PLC Programming & SCADA Telemetry',
-    category: 'Manufacturing',
-    nsqf_level: 5,
-    deficit_score: 76,
-    avg_days_to_fill: 47,
-    top_districts: ['Pune', 'Nashik', 'Nagpur', 'Chhatrapati Sambhajinagar'],
-    industries: ['Manufacturing', 'Advanced Manufacturing'],
-    shortage_reason: 'Legacy relay logic is taught instead of modern Siemens TIA Portal, Beckhoff EtherCAT, and OPC-UA smart factory stacks.',
-    hiring_challenge: 'Industry 4.0 modernization across automotive and engineering ancillaries stalled by lack of controls engineers.',
-    suggested_intervention: 'Modernize polytechnic electrical labs with Siemens/Rockwell PLC simulation software and hardware rigs.',
-  },
-  {
-    skill_id: 'sk-011',
-    skill_name: 'Cybersecurity & Cloud Threat Intelligence',
-    category: 'Security',
-    nsqf_level: 6,
-    deficit_score: 74,
-    avg_days_to_fill: 49,
-    top_districts: ['Pune', 'Mumbai'],
-    industries: ['IT/ITES', 'Security', 'Finance'],
-    shortage_reason: 'Heavy reliance on theoretical network models rather than hands-on SOC incident response, SIEM, and vulnerability analysis.',
-    hiring_challenge: 'BFSI and cybersecurity vendors in BKC and Hinjawadi face 40%+ talent shortfall for junior SOC analysts.',
-    suggested_intervention: 'Roll out standardized cyber range lab simulations across all MSBTE engineering polytechnics.',
-  },
-  {
-    skill_id: 'sk-033',
-    skill_name: 'Drone Technology & Avionics Assembly',
-    category: 'Emerging Tech',
-    nsqf_level: 5,
-    deficit_score: 71,
-    avg_days_to_fill: 44,
-    top_districts: ['Mumbai', 'Pune', 'Nagpur'],
-    industries: ['Emerging Tech', 'Defence & Aerospace', 'Agriculture'],
-    shortage_reason: 'DGCA certification courses are expensive and concentrated in few private aviation academies.',
-    hiring_challenge: 'Growing demand for agricultural drone pilots and defense UAV technicians across Vidarbha and Western Maharashtra.',
-    suggested_intervention: 'Sponsor DGCA-approved remote pilot training through State Vocational Skill Schemes.',
-  },
-];
-
 const DISTRICTS = [
+
   'All Districts',
   'Pune',
   'Mumbai',
@@ -345,11 +79,11 @@ const AVAILABLE_TAXONOMY_SKILLS = [
 ];
 
 export default function EmployerDashboard() {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const [activeTab, setActiveTab] = useState('validation'); // 'validation' | 'demand' | 'difficult' | 'signals'
-  const [validations, setValidations] = useState(DEFAULT_VALIDATIONS);
-  const [demands, setDemands] = useState(DEFAULT_DEMANDS);
-  const [difficultSkills, setDifficultSkills] = useState(DEFAULT_DIFFICULT_SKILLS);
+  const [validations, setValidations] = useState([]);
+  const [demands, setDemands] = useState([]);
+  const [difficultSkills, setDifficultSkills] = useState([]);
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
@@ -369,8 +103,8 @@ export default function EmployerDashboard() {
 
   // New Demand Form state (Phase 14)
   const [demandForm, setDemandForm] = useState({
-    employer_name: 'Tata Consultancy Services',
-    company_name: 'Tata Consultancy Services',
+    employer_name: user?.name || '',
+    company_name: user?.name || '',
     industry: 'IT & Software',
     district: 'Pune',
     role_title: '',
@@ -382,8 +116,8 @@ export default function EmployerDashboard() {
     nsqf_level: 6,
     urgency: 'immediate',
     hiring_timeline: 'Immediate (0-30 days)',
-    positions_count: 15,
-    openings_count: 15,
+    positions_count: 5,
+    openings_count: 5,
     experience_level: 'Entry Level (0-1 yrs)',
     hiring_challenge: '',
     additional_requirements: '',
@@ -403,13 +137,19 @@ export default function EmployerDashboard() {
         api.getDifficultSkills(),
         api.getSignals(),
       ]);
-      if (Array.isArray(valsRes) && valsRes.length > 0) setValidations(valsRes);
-      if (Array.isArray(demandsRes) && demandsRes.length > 0) setDemands(demandsRes);
-      if (Array.isArray(diffRes) && diffRes.length > 0) setDifficultSkills(diffRes);
-      if (Array.isArray(sigsRes) && sigsRes.length > 0) setSignals(sigsRes);
+      if (Array.isArray(valsRes)) setValidations(valsRes);
+      if (Array.isArray(demandsRes)) setDemands(demandsRes);
+      if (Array.isArray(diffRes)) setDifficultSkills(diffRes);
+      if (Array.isArray(sigsRes)) {
+        setSignals(sigsRes);
+      } else if (sigsRes?.signals && Array.isArray(sigsRes.signals)) {
+        setSignals(sigsRes.signals);
+      } else {
+        setSignals([]);
+      }
     } catch (err) {
       console.warn('Failed loading employer live data:', err);
-      setApiError(err?.message || 'Could not connect to live backend API. Displaying offline demo baseline.');
+      setApiError(err?.message || 'Failed to load live employer data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -418,6 +158,7 @@ export default function EmployerDashboard() {
   useEffect(() => {
     loadEmployerData();
   }, []);
+
 
   const showToast = (type, message) => {
     setToastMessage({ type, message });
@@ -1829,18 +1570,36 @@ export default function EmployerDashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {signals.length > 0 ? (
+            {loading ? (
+              <div className="col-span-3 text-center py-12 text-slate-400">
+                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-xs">Loading industry signals...</p>
+              </div>
+            ) : apiError ? (
+              <div className="col-span-3 text-center py-12 text-rose-500 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-800">
+                <p className="text-sm font-semibold">Failed to load industry signals.</p>
+                <p className="text-xs text-slate-400 mt-1">{apiError}</p>
+                <button
+                  onClick={loadEmployerData}
+                  className="mt-3 px-3 py-1 bg-white dark:bg-slate-800 border border-rose-300 rounded text-xs font-semibold cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : signals.length > 0 ? (
               signals.map((sig) => (
                 <div key={sig.id || sig.title} className="flex flex-col justify-between">
                   <SignalCard signal={sig} />
                 </div>
               ))
             ) : (
-              <div className="col-span-3 text-center py-12 text-slate-400">
-                Loading industry signals...
+              <div className="col-span-3 text-center py-12 text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No current industry signals available.</p>
+                <p className="text-xs text-slate-400 mt-1">Verified intelligence extracted from industrial announcements will appear here once published.</p>
               </div>
             )}
           </div>
+
         </div>
       )}
 

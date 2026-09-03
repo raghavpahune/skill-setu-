@@ -122,7 +122,11 @@ export default function StudentDashboard() {
   const [passport, setPassport] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [schemes, setSchemes] = useState([]);
+  const [schemesLoading, setSchemesLoading] = useState(false);
+  const [schemesError, setSchemesError] = useState(null);
   const [opportunities, setOpportunities] = useState([]);
+  const [oppsLoading, setOppsLoading] = useState(false);
+  const [oppsError, setOppsError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [passportError, setPassportError] = useState(null);
   const [roadmapError, setRoadmapError] = useState(null);
@@ -211,35 +215,88 @@ export default function StudentDashboard() {
   }, [user]);
 
   // Load personalized recommendations when student changes (Phase 15)
-  useEffect(() => {
+  const loadSchemesAndOpps = useCallback(() => {
     if (!selectedStudentId) return;
 
+    setSchemesLoading(true);
+    setSchemesError(null);
+    setOppsLoading(true);
+    setOppsError(null);
+
+    // Load schemes with deduplication by scheme_code || id
     api.getRecommendedSchemes(selectedStudentId)
       .then((res) => {
-        if (res && Array.isArray(res.schemes)) {
-          setSchemes(res.schemes.slice(0, 4));
+        const rawSchemes = (res && Array.isArray(res.schemes)) ? res.schemes : (Array.isArray(res) ? res : []);
+        const seen = new Set();
+        const unique = [];
+        for (const s of rawSchemes) {
+          const key = s.scheme_code || s.id || s.title;
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            unique.push(s);
+          }
         }
+        setSchemes(unique.slice(0, 4));
       })
-      .catch(() => {
+      .catch((err) => {
         // Fallback: load all schemes (non-personalized)
         api.getSchemes({ limit: 4 })
-          .then((res) => { if (Array.isArray(res)) setSchemes(res); })
-          .catch(() => {});
-      });
+          .then((res) => {
+            const raw = Array.isArray(res) ? res : [];
+            const seen = new Set();
+            const unique = [];
+            for (const s of raw) {
+              const key = s.scheme_code || s.id || s.title;
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                unique.push(s);
+              }
+            }
+            setSchemes(unique);
+          })
+          .catch((e) => setSchemesError(e?.message || 'Failed to load welfare schemes.'));
+      })
+      .finally(() => setSchemesLoading(false));
 
+    // Load opportunities with deduplication by external_id || id
     api.getRecommendedGovOpportunities(selectedStudentId)
       .then((res) => {
-        if (res && Array.isArray(res.opportunities)) {
-          setOpportunities(res.opportunities.slice(0, 4));
+        const rawOpps = (res && Array.isArray(res.opportunities)) ? res.opportunities : (Array.isArray(res) ? res : []);
+        const seen = new Set();
+        const unique = [];
+        for (const o of rawOpps) {
+          const key = o.external_id || o.id || o.name;
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            unique.push(o);
+          }
         }
+        setOpportunities(unique.slice(0, 4));
       })
-      .catch(() => {
+      .catch((err) => {
         // Fallback: load generic opportunities
         api.getOpportunities({ limit: 4 })
-          .then((res) => { if (Array.isArray(res)) setOpportunities(res); })
-          .catch(() => {});
-      });
+          .then((res) => {
+            const raw = Array.isArray(res) ? res : [];
+            const seen = new Set();
+            const unique = [];
+            for (const o of raw) {
+              const key = o.external_id || o.id || o.name;
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                unique.push(o);
+              }
+            }
+            setOpportunities(unique);
+          })
+          .catch((e) => setOppsError(e?.message || 'Failed to load opportunities.'));
+      })
+      .finally(() => setOppsLoading(false));
   }, [selectedStudentId]);
+
+  useEffect(() => {
+    loadSchemesAndOpps();
+  }, [loadSchemesAndOpps]);
 
   // Fetch passport and roadmap whenever candidate changes
   const fetchStudentData = () => {
@@ -1051,9 +1108,21 @@ export default function StudentDashboard() {
                     </div>
                   ))}
                 </div>
+              ) : schemesLoading ? (
+                <div className="py-8 text-center text-slate-400">
+                  <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-xs">Loading welfare schemes...</p>
+                </div>
+              ) : schemesError ? (
+                <div className="py-4 text-center text-rose-500 text-xs">
+                  <p>{schemesError}</p>
+                  <button onClick={loadSchemesAndOpps} className="mt-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded font-bold">Retry</button>
+                </div>
               ) : (
-                <p className="text-xs text-slate-500 py-4 text-center">Loading welfare schemes...</p>
+                <p className="text-xs text-slate-500 py-4 text-center">No matching welfare schemes found for this profile.</p>
               )}
+
+
             </div>
           </div>
         </div>
@@ -1144,9 +1213,21 @@ export default function StudentDashboard() {
                     </div>
                   ))}
                 </div>
+              ) : oppsLoading ? (
+                <div className="py-8 text-center text-slate-400">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-xs">Loading opportunities...</p>
+                </div>
+              ) : oppsError ? (
+                <div className="py-4 text-center text-rose-500 text-xs">
+                  <p>{oppsError}</p>
+                  <button onClick={loadSchemesAndOpps} className="mt-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded font-bold">Retry</button>
+                </div>
               ) : (
-                <p className="text-xs text-slate-500 py-4 text-center">Loading opportunities...</p>
+                <p className="text-xs text-slate-500 py-4 text-center">No matching government opportunities found for this profile.</p>
               )}
+
+
             </div>
           </div>
         </div>

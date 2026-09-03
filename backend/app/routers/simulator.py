@@ -139,7 +139,8 @@ def _simulate_capacity_increase(baseline: dict, scenario: WhatIfScenario) -> dic
 def _simulate_curriculum_stale(baseline: dict, scenario: WhatIfScenario) -> dict:
     """Simulate what happens if curriculum is NOT updated for N years."""
     years = max(1, min(5, scenario.stale_years))
-    forecasts = get_demo("skill_forecasts")
+    from app.repositories.supabase_repository import list_skill_forecasts
+    forecasts = list_skill_forecasts()
     skills_map = {s["id"]: s for s in get_demo("skills")}
 
     # Skills with rising trends will worsen the gap

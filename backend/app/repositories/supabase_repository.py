@@ -50,6 +50,11 @@ class IndustrySignalNotFoundError(SupabaseRepositoryError):
     pass
 
 
+class SkillForecastNotFoundError(SupabaseRepositoryError):
+    """Raised when a skill forecast record cannot be located in Supabase."""
+    pass
+
+
 class SupabaseConnectionError(SupabaseRepositoryError):
     """Raised when Supabase client is not configured or fails to connect."""
     pass
@@ -160,7 +165,10 @@ def get_employer_demand(demand_id: str) -> dict[str, Any] | None:
         client = get_client()
         res = client.table("employer_demands").select("*").eq("id", demand_id).execute()
         if res.data and len(res.data) > 0:
-            return res.data[0]
+            row = res.data[0]
+            if "created_at" not in row and "submitted_at" in row:
+                row["created_at"] = row["submitted_at"]
+            return row
         return None
     except SupabaseRepositoryError:
         raise
@@ -196,12 +204,87 @@ def list_employer_demands(
             query = query.eq("is_demo", is_demo)
 
         res = query.execute()
-        return res.data or []
+        rows = res.data or []
+        for r in rows:
+            if "created_at" not in r and "submitted_at" in r:
+                r["created_at"] = r["submitted_at"]
+        return rows
     except SupabaseRepositoryError:
         raise
     except Exception as e:
         logger.error("[SupabaseRepo] Failed listing employer_demands: %s", e)
         raise SupabaseRepositoryError(f"Database query failed for employer_demands list: {e}") from e
+
+
+VALID_EMPLOYER_DEMAND_COLUMNS = {
+    "id",
+    "user_id",
+    "user_email",
+    "employer_id",
+    "company_name",
+    "employer_name",
+    "industry",
+    "district",
+    "job_role",
+    "role_title",
+    "required_skills",
+    "skills",
+    "preferred_proficiency",
+    "proficiency_required",
+    "openings_count",
+    "positions_count",
+    "experience_level",
+    "hiring_timeline",
+    "urgency",
+    "additional_requirements",
+    "hiring_challenge",
+    "nsqf_level",
+    "validation_status",
+    "admin_notes",
+    "validated_by",
+    "source",
+    "is_demo",
+    "created_at",
+    "submitted_at",
+    "updated_at",
+}
+
+VALID_STUDENT_PROFILE_COLUMNS = {
+    "user_id",
+    "target_role",
+    "skill_match_pct",
+}
+
+VALID_INDUSTRY_SIGNAL_COLUMNS = {
+    "id",
+    "title",
+    "summary",
+    "description",
+    "category",
+    "industry",
+    "technology",
+    "impact_level",
+    "signal_date",
+    "skills",
+    "tools",
+    "source",
+    "source_url",
+    "source_name",
+    "source_type",
+    "published_at",
+    "collected_at",
+    "created_at",
+    "updated_at",
+    "validation_status",
+    "is_active",
+    "is_demo",
+    "data_provenance",
+    "freshness",
+    "is_ai_processed",
+    "ai_metadata",
+    "signature",
+    "admin_notes",
+}
 
 
 def create_employer_demand(demand_data: dict[str, Any]) -> dict[str, Any]:
@@ -214,17 +297,30 @@ def create_employer_demand(demand_data: dict[str, Any]) -> dict[str, Any]:
     """
     try:
         client = get_client()
-        res = client.table("employer_demands").insert(demand_data).execute()
+        # Sanitize payload against canonical employer_demands schema
+        clean_data = {k: v for k, v in demand_data.items() if k in VALID_EMPLOYER_DEMAND_COLUMNS}
+        if "submitted_at" not in clean_data and "created_at" in demand_data:
+            clean_data["submitted_at"] = demand_data["created_at"]
+        if "validation_status" not in clean_data and "status" in demand_data:
+            clean_data["validation_status"] = str(demand_data["status"]).upper()
+        res = client.table("employer_demands").insert(clean_data).execute()
         if not res.data or len(res.data) == 0:
-            return demand_data
+            result = dict(demand_data)
+            if "created_at" not in result and "submitted_at" in result:
+                result["created_at"] = result["submitted_at"]
+            return result
         created_row = res.data[0]
         logger.info("[SupabaseRepo] Confirmed Supabase insert for employer_demand '%s'", created_row.get("id"))
-        return created_row
+        result = {**demand_data, **created_row}
+        if "created_at" not in result and "submitted_at" in result:
+            result["created_at"] = result["submitted_at"]
+        return result
     except SupabaseRepositoryError:
         raise
     except Exception as e:
         logger.error("[SupabaseRepo] Failed inserting employer_demand: %s", e)
         raise SupabaseRepositoryError(f"Database insertion failed for employer_demand: {e}") from e
+
 
 
 def update_employer_demand(demand_id: str, updates: dict[str, Any]) -> dict[str, Any]:
@@ -238,12 +334,15 @@ def update_employer_demand(demand_id: str, updates: dict[str, Any]) -> dict[str,
     """
     try:
         client = get_client()
-        res = client.table("employer_demands").update(updates).eq("id", demand_id).execute()
+        clean_updates = {k: v for k, v in updates.items() if k in VALID_EMPLOYER_DEMAND_COLUMNS}
+        if "validation_status" not in clean_updates and "status" in updates:
+            clean_updates["validation_status"] = str(updates["status"]).upper()
+        res = client.table("employer_demands").update(clean_updates).eq("id", demand_id).execute()
         if not res.data or len(res.data) == 0:
             raise DemandNotFoundError(f"Employer demand record '{demand_id}' not found in Supabase.")
         updated_row = res.data[0]
         logger.info("[SupabaseRepo] Confirmed Supabase update for employer_demand '%s'", demand_id)
-        return updated_row
+        return {**updates, **updated_row}
     except SupabaseRepositoryError:
         raise
     except Exception as e:
@@ -280,10 +379,6 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
         res = client.table("student_profiles").select("*").eq("user_id", user_id).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]
-        # Also check id column if present
-        res_id = client.table("student_profiles").select("*").eq("id", user_id).execute()
-        if res_id.data and len(res_id.data) > 0:
-            return res_id.data[0]
         return None
     except Exception as e:
         logger.error("[SupabaseRepo] Failed fetching student_profile user_id='%s': %s", user_id, e)
@@ -314,13 +409,15 @@ def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     """
     try:
         client = get_client()
-        res = client.table("student_profiles").upsert(profile_data).execute()
+        clean_profile = {k: v for k, v in profile_data.items() if k in VALID_STUDENT_PROFILE_COLUMNS}
+        res = client.table("student_profiles").upsert(clean_profile).execute()
         saved = res.data[0] if (res.data and len(res.data) > 0) else profile_data
         logger.info("[SupabaseRepo] Confirmed Supabase upsert for student_profile '%s'", profile_data.get("user_id"))
-        return saved
+        return {**profile_data, **saved}
     except Exception as e:
         logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
         raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
+
 
 
 # ===========================================================================
@@ -680,7 +777,8 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
         sig_record.setdefault("is_demo", False)
         sig_record.setdefault("data_provenance", "VERIFIED_EXTERNAL_FEED")
 
-        res = client.table("industry_signals").upsert(sig_record).execute()
+        clean_sig = {k: v for k, v in sig_record.items() if k in VALID_INDUSTRY_SIGNAL_COLUMNS}
+        res = client.table("industry_signals").upsert(clean_sig).execute()
         saved_row = res.data[0] if (res.data and len(res.data) > 0) else sig_record
         logger.info("[SupabaseRepo] Confirmed Supabase write for industry signal '%s'", saved_row.get("id"))
         return saved_row
@@ -702,13 +800,15 @@ def update_industry_signal_repo(signal_id: str, updates: dict[str, Any]) -> dict
 
         patch = dict(updates)
         patch["updated_at"] = datetime.now(timezone.utc).isoformat()
+        clean_patch = {k: v for k, v in patch.items() if k in VALID_INDUSTRY_SIGNAL_COLUMNS}
 
-        res = client.table("industry_signals").update(patch).eq("id", target_id).execute()
+        res = client.table("industry_signals").update(clean_patch).eq("id", target_id).execute()
         if not res.data or len(res.data) == 0:
             raise IndustrySignalNotFoundError(f"Industry signal record '{signal_id}' not found in Supabase.")
         updated_row = res.data[0]
         logger.info("[SupabaseRepo] Confirmed Supabase update for industry signal '%s'", signal_id)
         return updated_row
+
     except SupabaseRepositoryError:
         raise
     except Exception as e:
@@ -730,3 +830,127 @@ def delete_industry_signal_repo(signal_id: str) -> bool:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed deleting industry signal id='%s': %s", signal_id, e)
         raise SupabaseRepositoryError(f"Database deletion failed for industry signal '{signal_id}': {e}") from e
+
+
+# ============================================================================
+# Phase 32F: Authoritative Supabase Repository for skill_forecasts
+# ============================================================================
+
+def get_skill_forecast(forecast_id: str) -> dict[str, Any] | None:
+    """Authoritatively fetch a single skill forecast by id from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("skill_forecasts").select("*").eq("id", forecast_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        return None
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching skill forecast id='%s': %s", forecast_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for skill forecast: {e}") from e
+
+
+def list_skill_forecasts(
+    skill_id: str | None = None,
+    period: str | None = None,
+    trend: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Authoritatively list skill forecasts directly from Supabase."""
+    try:
+        client = get_client()
+        query = client.table("skill_forecasts").select("*")
+        if skill_id:
+            query = query.eq("skill_id", skill_id)
+        if period and period.lower() != "all":
+            query = query.eq("period", period.lower())
+        if trend and trend.lower() != "all":
+            query = query.eq("trend", trend.lower())
+
+        res = query.execute()
+        forecasts = getattr(res, "data", []) or []
+
+        if offset > 0:
+            forecasts = forecasts[offset:]
+        if limit is not None:
+            forecasts = forecasts[:limit]
+
+        return forecasts
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing skill forecasts: %s", e)
+        raise SupabaseRepositoryError(f"Database listing failed for skill forecasts: {e}") from e
+
+
+def create_skill_forecast(forecast_data: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively persist a skill forecast record to Supabase via upsert."""
+    try:
+        client = get_client()
+        fc_record = dict(forecast_data)
+        if not fc_record.get("id"):
+            sid = fc_record.get("skill_id")
+            per = fc_record.get("period")
+            if sid and per:
+                existing = list_skill_forecasts(skill_id=sid, period=per)
+                if existing:
+                    fc_record["id"] = existing[0]["id"]
+                else:
+                    fc_record["id"] = f"sf-{uuid.uuid4().hex[:8]}"
+            else:
+                fc_record["id"] = f"sf-{uuid.uuid4().hex[:8]}"
+
+        res = client.table("skill_forecasts").upsert(fc_record).execute()
+        saved_row = res.data[0] if (res.data and len(res.data) > 0) else fc_record
+        logger.info("[SupabaseRepo] Confirmed Supabase write for skill forecast '%s'", saved_row.get("id"))
+        return saved_row
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed persisting skill forecast id='%s': %s", forecast_data.get("id"), e)
+        raise SupabaseRepositoryError(f"Database persistence failed for skill forecast: {e}") from e
+
+
+def update_skill_forecast_repo(forecast_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively update an existing skill forecast record in Supabase."""
+    try:
+        client = get_client()
+        existing = get_skill_forecast(forecast_id)
+        if not existing:
+            raise SkillForecastNotFoundError(f"Skill forecast record '{forecast_id}' not found in Supabase.")
+        target_id = existing.get("id") or forecast_id
+
+        patch = dict(updates)
+        res = client.table("skill_forecasts").update(patch).eq("id", target_id).execute()
+        if not res.data or len(res.data) == 0:
+            raise SkillForecastNotFoundError(f"Skill forecast record '{forecast_id}' not found in Supabase.")
+        updated_row = res.data[0]
+        logger.info("[SupabaseRepo] Confirmed Supabase update for skill forecast '%s'", forecast_id)
+        return updated_row
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed updating skill forecast id='%s': %s", forecast_id, e)
+        raise SupabaseRepositoryError(f"Database update failed for skill forecast '{forecast_id}': {e}") from e
+
+
+def delete_skill_forecast_repo(forecast_id: str) -> bool:
+    """Authoritatively delete a skill forecast record from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("skill_forecasts").delete().eq("id", forecast_id).execute()
+        deleted = bool(getattr(res, "data", []))
+        if deleted:
+            logger.info("[SupabaseRepo] Confirmed Supabase deletion for skill forecast '%s'", forecast_id)
+        return deleted
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed deleting skill forecast id='%s': %s", forecast_id, e)
+        raise SupabaseRepositoryError(f"Database deletion failed for skill forecast '{forecast_id}': {e}") from e
+
+
+update_skill_forecast = update_skill_forecast_repo
+delete_skill_forecast = delete_skill_forecast_repo

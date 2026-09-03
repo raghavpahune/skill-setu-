@@ -433,10 +433,11 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         all_courses = list_courses()
     except Exception:
         all_courses = get_demo("courses")
+    from app.repositories.supabase_repository import list_skill_forecasts
+    fc_list = list_skill_forecasts()
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why
-        fc_list = get_demo("skill_forecasts")
         matching_fc = next((f for f in fc_list if skill.lower() in f.get("skill_name", "").lower()), {})
         trend = matching_fc.get("trend", "rising")
         conf = matching_fc.get("confidence", 85)

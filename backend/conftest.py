@@ -137,7 +137,7 @@ class MockSupabaseTable:
 
 
 class MockSupabaseClient:
-    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None):
+    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None, skill_forecasts_rows=None):
         self.tables = {
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
@@ -145,6 +145,7 @@ class MockSupabaseClient:
             "student_assessments": MockSupabaseTable(assessments_rows),
             "courses": MockSupabaseTable(courses_rows),
             "industry_signals": MockSupabaseTable(industry_signals_rows),
+            "skill_forecasts": MockSupabaseTable(skill_forecasts_rows),
         }
 
     def table(self, table_name: str) -> MockSupabaseTable:
@@ -271,16 +272,66 @@ def _load_initial_industry_signals_rows() -> list[dict]:
     return rows
 
 
+def _load_initial_skill_forecasts_rows() -> list[dict]:
+    rows: list[dict] = []
+    base_dir = Path(__file__).resolve().parent.parent / "data"
+    demo_file = base_dir / "demo" / "skill_forecasts.json"
+    real_file = base_dir / "real" / "skill_forecasts.json"
+
+    seen_ids = set()
+    for file_path in (real_file, demo_file):
+        if file_path.is_file():
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                for s in data:
+                    sid = s.get("id")
+                    if sid and sid not in seen_ids:
+                        rows.append(s)
+                        seen_ids.add(sid)
+            except Exception:
+                pass
+    return rows
+
+
+_PRISTINE_FEEDBACK = deepcopy(_load_demo_feedback_rows())
+_PRISTINE_DEMANDS = deepcopy(_load_initial_demands_rows())
+_PRISTINE_PROFILES = deepcopy(_load_initial_student_profiles_rows())
+_PRISTINE_ASSESSMENTS = deepcopy(_load_initial_student_assessments_rows())
+_PRISTINE_COURSES = deepcopy(_load_initial_courses_rows())
+_PRISTINE_SIGNALS = deepcopy(_load_initial_industry_signals_rows())
+_PRISTINE_FORECASTS = deepcopy(_load_initial_skill_forecasts_rows())
+
+
+@pytest.fixture(scope="session", autouse=True)
+def preserve_real_disk_files():
+    """Snapshot and restore data/real/*.json before and after the test session."""
+    real_dir = Path(__file__).resolve().parent.parent / "data" / "real"
+    snapshots = {}
+    if real_dir.is_dir():
+        for f in real_dir.glob("*.json"):
+            try:
+                snapshots[f] = f.read_bytes()
+            except Exception:
+                pass
+    yield
+    for f, content in snapshots.items():
+        try:
+            f.write_bytes(content)
+        except Exception:
+            pass
+
+
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
     """Autouse fixture providing an isolated Supabase test double for unit test suites."""
     mock_client = MockSupabaseClient(
-        feedback_rows=_load_demo_feedback_rows(),
-        demands_rows=_load_initial_demands_rows(),
-        profiles_rows=_load_initial_student_profiles_rows(),
-        assessments_rows=_load_initial_student_assessments_rows(),
-        courses_rows=_load_initial_courses_rows(),
-        industry_signals_rows=_load_initial_industry_signals_rows(),
+        feedback_rows=deepcopy(_PRISTINE_FEEDBACK),
+        demands_rows=deepcopy(_PRISTINE_DEMANDS),
+        profiles_rows=deepcopy(_PRISTINE_PROFILES),
+        assessments_rows=deepcopy(_PRISTINE_ASSESSMENTS),
+        courses_rows=deepcopy(_PRISTINE_COURSES),
+        industry_signals_rows=deepcopy(_PRISTINE_SIGNALS),
+        skill_forecasts_rows=deepcopy(_PRISTINE_FORECASTS),
     )
     set_supabase_client(mock_client)
     yield mock_client

@@ -117,9 +117,19 @@ class IngestionScheduler:
                         self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
                         return {"status": "success", "source": source, "industry_sync": ind_res}
 
+                if source in ("skill_forecasts", "forecasts", "forecast"):
+                    from app.services.forecast_engine import persist_computed_forecasts
+                    fc_res = await loop.run_in_executor(None, persist_computed_forecasts)
+                    self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    return {"status": "success", "source": source, "forecasts_persisted": len(fc_res)}
+
                 result = await loop.run_in_executor(None, self.engine.run_sync, source)
+                if source == "all":
+                    from app.services.forecast_engine import persist_computed_forecasts
+                    await loop.run_in_executor(None, persist_computed_forecasts)
                 self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 return result
+
             finally:
                 self._is_sync_running = False
 

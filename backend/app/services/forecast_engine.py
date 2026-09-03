@@ -28,7 +28,15 @@ def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
     except Exception:
         industry_signals = []  # ponytail: non-critical, forecast degrades gracefully
     placements = get_demo("placements")
-    stored_forecasts = {f["skill_id"]: f for f in get_demo("skill_forecasts")}
+    from app.repositories.supabase_repository import list_skill_forecasts
+    raw_stored = list_skill_forecasts()
+    stored_forecasts = {}
+    for f in raw_stored:
+        sid = f.get("skill_id")
+        if not sid:
+            continue
+        if sid not in stored_forecasts or f.get("confidence", 0) > stored_forecasts[sid].get("confidence", 0):
+            stored_forecasts[sid] = f
 
     # 1. Calculate Current Job Demand Velocity per skill
     total_jobs = max(1, len(jobs))
@@ -200,3 +208,62 @@ def generate_future_skills_radar() -> dict[str, Any]:
         "declining_skills": declining_cluster,
         "domain_growth_matrix": domain_growth,
     }
+
+
+def persist_computed_forecasts(forecasts: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Authoritatively persist multi-horizon forecast projections to Supabase repository.
+
+    Translates computed multi-horizon projections into canonical 6m, 12m, 24m skill_forecasts
+    records and upserts them through the Supabase repository, ensuring zero duplicate records.
+    """
+    if forecasts is None:
+        forecasts = compute_multi_horizon_forecasts()
+
+    from app.repositories.supabase_repository import create_skill_forecast
+
+    def _score_to_demand_level(score: float) -> str:
+        if score >= 80.0:
+            return "very_high"
+        elif score >= 60.0:
+            return "high"
+        elif score >= 40.0:
+            return "medium"
+        return "low"
+
+    def _normalize_trend(t: str) -> str:
+        t_clean = str(t).lower().strip()
+        if t_clean in ("rising", "emerging"):
+            return "rising"
+        elif t_clean in ("declining", "dropping"):
+            return "declining"
+        return "stable"
+
+    persisted = []
+    for fc in forecasts:
+        sid = fc.get("skill_id")
+        if not sid:
+            continue
+        current_dem = _score_to_demand_level(fc.get("current_demand_score", 50.0))
+        trend_val = _normalize_trend(fc.get("trend", "stable"))
+        conf_val = int(fc.get("confidence_score", 80))
+
+        horizons = [
+            ("6m", fc.get("projected_6m", 50.0)),
+            ("12m", fc.get("projected_12m", 50.0)),
+            ("24m", fc.get("projected_24m", 50.0)),
+        ]
+
+        for period, proj_score in horizons:
+            fut_dem = _score_to_demand_level(proj_score)
+            record = {
+                "skill_id": sid,
+                "period": period,
+                "current_demand": current_dem,
+                "future_demand": fut_dem,
+                "trend": trend_val,
+                "confidence": conf_val,
+            }
+            saved = create_skill_forecast(record)
+            persisted.append(saved)
+
+    return persisted

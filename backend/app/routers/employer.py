@@ -273,12 +273,12 @@ async def submit_demand(
         "is_demo": False,
         "submitted_at": now_iso,
         "submitted_date": now_date,
-        "created_at": now_iso,
         "updated_at": now_iso,
         "status": "pending",
         "user_id": current_user.get("id"),
         "user_email": current_user.get("email"),
     }
+
 
     try:
         saved = create_employer_demand(demand_record)

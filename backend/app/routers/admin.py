@@ -902,3 +902,140 @@ async def get_admin_industry_ingestion_status():
         "status": "success",
         "ingestion_status": status_data,
     }
+
+
+# ============================================================================
+# Phase 32F: Admin Skill Forecasts Management
+# ============================================================================
+
+class SkillForecastAdminCreate(BaseModel):
+    skill_id: str
+    period: str = Field("12m", description="'6m' | '12m' | '24m'")
+    current_demand: str = Field("medium", description="'low' | 'medium' | 'high' | 'very_high'")
+    future_demand: str = Field("high", description="'low' | 'medium' | 'high' | 'very_high'")
+    trend: str = Field("rising", description="'rising' | 'stable' | 'declining'")
+    confidence: int = Field(80, ge=0, le=100)
+
+
+class SkillForecastAdminUpdate(BaseModel):
+    current_demand: str | None = None
+    future_demand: str | None = None
+    trend: str | None = None
+    confidence: int | None = None
+
+
+@router.get("/admin/forecasts", dependencies=[Depends(verify_admin_key)])
+async def list_admin_forecasts(
+    skill_id: str | None = Query(None),
+    period: str | None = Query(None),
+    trend: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Admin endpoint to view and filter skill forecasts directly from Supabase."""
+    from app.repositories.supabase_repository import list_skill_forecasts, SupabaseRepositoryError
+    try:
+        forecasts = list_skill_forecasts(
+            skill_id=skill_id,
+            period=period,
+            trend=trend,
+            limit=limit,
+            offset=offset,
+        )
+        return {
+            "status": "success",
+            "total": len(forecasts),
+            "forecasts": forecasts,
+        }
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed listing forecasts: {e}",
+        ) from e
+
+
+@router.post("/admin/forecasts", dependencies=[Depends(verify_admin_key)])
+async def create_admin_forecast(payload: SkillForecastAdminCreate):
+    """Admin endpoint to create or upsert a skill forecast record into Supabase."""
+    from app.repositories.supabase_repository import create_skill_forecast, SupabaseRepositoryError
+    try:
+        created = create_skill_forecast(payload.model_dump())
+        return {
+            "status": "success",
+            "message": f"Skill forecast for '{payload.skill_id}' ({payload.period}) persisted.",
+            "forecast": created,
+        }
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database persistence failed for skill forecast: {e}",
+        ) from e
+
+
+@router.patch("/admin/forecasts/{forecast_id}", dependencies=[Depends(verify_admin_key)])
+async def update_admin_forecast(forecast_id: str, updates: SkillForecastAdminUpdate):
+    """Admin endpoint to update a skill forecast record in Supabase."""
+    from app.repositories.supabase_repository import (
+        update_skill_forecast_repo,
+        SkillForecastNotFoundError,
+        SupabaseRepositoryError,
+    )
+    patch_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    if not patch_data:
+        raise HTTPException(status_code=422, detail="No fields provided for update.")
+    try:
+        updated = update_skill_forecast_repo(forecast_id, patch_data)
+        return {
+            "status": "success",
+            "message": f"Skill forecast '{forecast_id}' updated.",
+            "forecast": updated,
+        }
+    except SkillForecastNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Skill forecast '{forecast_id}' not found.")
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed for skill forecast '{forecast_id}': {e}",
+        ) from e
+
+
+@router.delete("/admin/forecasts/{forecast_id}", dependencies=[Depends(verify_admin_key)])
+async def delete_admin_forecast(forecast_id: str):
+    """Admin endpoint to delete a skill forecast record from Supabase."""
+    from app.repositories.supabase_repository import (
+        delete_skill_forecast_repo,
+        SupabaseRepositoryError,
+    )
+    try:
+        deleted = delete_skill_forecast_repo(forecast_id)
+        if deleted:
+            return {
+                "status": "success",
+                "message": f"Skill forecast '{forecast_id}' removed.",
+                "deleted_id": forecast_id,
+            }
+        raise HTTPException(status_code=404, detail=f"Skill forecast '{forecast_id}' not found.")
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database deletion failed for skill forecast '{forecast_id}': {e}",
+        ) from e
+
+
+@router.post("/admin/forecasts/recompute", dependencies=[Depends(verify_admin_key)])
+async def recompute_admin_forecasts():
+    """Admin endpoint to recompute and authoritatively persist multi-horizon forecasts to Supabase."""
+    from app.services.forecast_engine import persist_computed_forecasts
+    from app.repositories.supabase_repository import SupabaseRepositoryError
+    try:
+        persisted = persist_computed_forecasts()
+        return {
+            "status": "success",
+            "message": f"Recomputed and persisted {len(persisted)} forecast records to Supabase.",
+            "count": len(persisted),
+        }
+    except SupabaseRepositoryError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database persistence failed during forecast recomputation: {e}",
+        ) from e

@@ -1,8 +1,12 @@
 """Schemes API — student welfare and government schemes."""
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from app.db import get_demo
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
 
 
 @router.get("/schemes")

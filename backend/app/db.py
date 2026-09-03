@@ -227,8 +227,33 @@ def get_data_governance_summary() -> dict[str, Any]:
     total_real = 0
     total_demo = 0
 
+    # For migrated authoritative domains, fetch directly from Supabase repositories if available
     for tbl in tables:
-        records = _cache.get(tbl, [])
+        records: list[dict[str, Any]] = []
+        try:
+            if tbl == "student_assessments":
+                from app.repositories.supabase_repository import list_student_assessments
+                records = list_student_assessments()
+            elif tbl == "student_profiles":
+                from app.repositories.supabase_repository import list_student_profiles
+                records = list_student_profiles()
+            elif tbl == "employer_demands":
+                from app.repositories.supabase_repository import list_employer_demands
+                records = list_employer_demands()
+            elif tbl == "employer_feedback":
+                from app.repositories.supabase_repository import list_employer_feedback
+                records = list_employer_feedback()
+            elif tbl == "courses":
+                from app.repositories.supabase_repository import list_courses
+                records = list_courses()
+            elif tbl == "industry_signals":
+                from app.repositories.supabase_repository import list_industry_signals as list_signals_repo
+                records = list_signals_repo()
+            else:
+                records = _cache.get(tbl, [])
+        except Exception:
+            records = _cache.get(tbl, [])
+
         real_count = sum(
             1 for r in records
             if isinstance(r, dict) and (
@@ -255,6 +280,7 @@ def get_data_governance_summary() -> dict[str, Any]:
         "live_data_active": total_real > 0,
         "tables": summary,
     }
+
 
 
 
@@ -716,6 +742,54 @@ def get_industry_signal_by_id(sig_id: str) -> dict | None:
     """Find industry signal by ID authoritatively from Supabase."""
     from app.repositories.supabase_repository import get_industry_signal
     return get_industry_signal(sig_id)
+
+
+# ---------------------------------------------------------------------------
+# Phase 32F: Authoritative Supabase persistence for skill_forecasts
+# ---------------------------------------------------------------------------
+
+def save_skill_forecast(forecast_data: dict) -> dict:
+    """Save or insert skill forecast authoritatively into Supabase."""
+    from app.repositories.supabase_repository import create_skill_forecast
+    saved = create_skill_forecast(forecast_data)
+    if "skill_forecasts" in _cache:
+        forecasts = _cache["skill_forecasts"]
+        idx = next((i for i, f in enumerate(forecasts) if f.get("id") == saved.get("id")), None)
+        if idx is not None:
+            forecasts[idx] = saved
+        else:
+            forecasts.insert(0, saved)
+    return saved
+
+
+def update_skill_forecast(forecast_id: str, updates: dict) -> dict | None:
+    """Update fields on a skill forecast record authoritatively in Supabase."""
+    from app.repositories.supabase_repository import update_skill_forecast_repo, SkillForecastNotFoundError
+    try:
+        updated = update_skill_forecast_repo(forecast_id, updates)
+        if "skill_forecasts" in _cache:
+            for f in _cache["skill_forecasts"]:
+                if f.get("id") == forecast_id:
+                    f.update(updated)
+                    break
+        return updated
+    except SkillForecastNotFoundError:
+        return None
+
+
+def delete_skill_forecast(forecast_id: str) -> bool:
+    """Delete skill forecast authoritatively from Supabase."""
+    from app.repositories.supabase_repository import delete_skill_forecast_repo
+    deleted = delete_skill_forecast_repo(forecast_id)
+    if "skill_forecasts" in _cache:
+        _cache["skill_forecasts"] = [f for f in _cache["skill_forecasts"] if f.get("id") != forecast_id]
+    return deleted
+
+
+def get_skill_forecast_by_id(forecast_id: str) -> dict | None:
+    """Find skill forecast by ID authoritatively from Supabase."""
+    from app.repositories.supabase_repository import get_skill_forecast
+    return get_skill_forecast(forecast_id)
 
 
 # ---------------------------------------------------------------------------

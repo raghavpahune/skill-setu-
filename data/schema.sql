@@ -311,10 +311,13 @@ CREATE TABLE IF NOT EXISTS employer_demands (
     validated_by TEXT,
     source TEXT DEFAULT 'EMPLOYER_SUBMITTED',
     is_demo BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT now(),
     submitted_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 ALTER TABLE employer_demands ADD COLUMN IF NOT EXISTS user_email TEXT;
+ALTER TABLE employer_demands ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+
 
 -- COURSES Table extensions for Phase 25 Institute Pipeline
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Vocational & Technical';

@@ -6,7 +6,8 @@ from app.services.gap_engine import compute_gaps
 def get_curriculum_recommendations() -> list[dict]:
     """Generate curriculum recommendations based on skill gaps, forecasts, and industry signals."""
     gaps = compute_gaps()
-    forecasts = get_demo("skill_forecasts")
+    from app.repositories.supabase_repository import list_skill_forecasts
+    forecasts = list_skill_forecasts()
     try:
         from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
         signals = list_industry_signals_repo()

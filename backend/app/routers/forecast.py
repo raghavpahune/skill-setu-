@@ -1,11 +1,15 @@
 """Skill Forecast API — future demand predictions and multi-horizon intelligence."""
+import logging
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, status
 from app.services.forecast_engine import (
     compute_multi_horizon_forecasts,
     get_skill_forecast_trajectory,
     generate_future_skills_radar,
 )
+from app.repositories.supabase_repository import SupabaseRepositoryError
+
+logger = logging.getLogger("skillsetu.forecast")
 
 router = APIRouter()
 
@@ -17,7 +21,14 @@ async def list_forecasts(
     category: Optional[str] = Query(None, description="Filter by category"),
 ):
     """List skill forecasts with multi-horizon projections (backward compatible + extended)."""
-    forecasts = compute_multi_horizon_forecasts()
+    try:
+        forecasts = compute_multi_horizon_forecasts()
+    except (SupabaseRepositoryError, Exception) as e:
+        logger.error("[ForecastAPI] Database query failed for forecasts: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed for forecasts: {e}",
+        ) from e
 
     if trend:
         t_clean = trend.strip().upper()
@@ -39,13 +50,28 @@ async def list_forecasts(
 @router.get("/forecast/radar")
 async def future_skills_radar():
     """Return future skills radar matrix across rising, emerging, and stable clusters."""
-    return generate_future_skills_radar()
+    try:
+        return generate_future_skills_radar()
+    except (SupabaseRepositoryError, Exception) as e:
+        logger.error("[ForecastAPI] Database query failed for future skills radar: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed for future skills radar: {e}",
+        ) from e
 
 
 @router.get("/forecast/skill/{skill_id}")
 async def forecast_for_skill(skill_id: str):
     """Retrieve multi-horizon forecast trajectory for a specific skill."""
-    trajectory = get_skill_forecast_trajectory(skill_id)
+    try:
+        trajectory = get_skill_forecast_trajectory(skill_id)
+    except (SupabaseRepositoryError, Exception) as e:
+        logger.error("[ForecastAPI] Database query failed for skill '%s': %s", skill_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed for skill forecast trajectory: {e}",
+        ) from e
+
     if trajectory:
         return [trajectory]
     return []

@@ -44,18 +44,27 @@ async def alert_domains():
 async def student_industry_alerts(
     domain: str | None = Query(None, description="Domain key (ai_ml, cloud, ev, etc.) or 'all'"),
     student_id: str | None = Query(None, description="Optional student user ID for personalized skill strengthening suggestions"),
+    current_user: dict | None = Depends(get_optional_current_user),
 ):
     """Retrieve personalized technology and labour-market signals for selected domain."""
-    return get_personalized_industry_alerts(domain_id=domain, student_id=student_id)
+    resolved_id = student_id
+    if student_id == "me" and current_user:
+        resolved_id = current_user.get("id")
+    return get_personalized_industry_alerts(domain_id=domain, student_id=resolved_id)
 
 
 @router.get("/student/skill-explainability/{skill}")
 async def skill_explainability(
     skill: str,
     student_id: str | None = Query(None, description="Optional student user ID for target career alignment"),
+    current_user: dict | None = Depends(get_optional_current_user),
 ):
     """Return transparent 5-dimension evidence-based explainability breakdown for a skill."""
-    return get_skill_explainability(skill_query=skill, student_id=student_id)
+    resolved_id = student_id
+    if student_id == "me" and current_user:
+        resolved_id = current_user.get("id")
+    return get_skill_explainability(skill_query=skill, student_id=resolved_id)
+
 
 
 @router.get("/student/me/passport")
@@ -361,11 +370,19 @@ async def learning_roadmap(
         student_id = current_user.get("id")
     profiles = get_demo("student_profiles")
     skills_map = {s["id"]: s for s in get_demo("skills")}
-    forecasts = get_demo("skill_forecasts")
+    try:
+        from app.repositories.supabase_repository import list_skill_forecasts
+        forecasts = list_skill_forecasts()
+    except Exception as e:
+        logger.error("[LearningRoadmap] Supabase error for forecasts: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed for skill forecasts: {e}",
+        ) from e
 
     forecast_map = {}
     for f in forecasts:
-        if f["skill_id"] not in forecast_map:
+        if f.get("skill_id") and f["skill_id"] not in forecast_map:
             forecast_map[f["skill_id"]] = f
 
     # First check student_assessments in Supabase
