@@ -526,8 +526,11 @@ def list_student_assessments(
         query = client.table("student_assessments").select("*")
         if source and source.lower() != "all":
             query = query.eq("source", source)
-        res = query.order("created_at", desc=True).execute()
+        if hasattr(query, "order"):
+            query = query.order("created_at", desc=True)
+        res = query.execute()
         rows = res.data or []
+        rows.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         if limit is not None and limit > 0:
             rows = rows[:limit]
         return rows
