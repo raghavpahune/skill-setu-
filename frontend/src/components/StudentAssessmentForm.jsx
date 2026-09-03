@@ -73,7 +73,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
   // Form State
   const [form, setForm] = useState({
     name: user?.full_name || '',
-    education: '',
+    education: user?.education || 'B.Tech Computer Engineering',
     district: user?.district || 'Pune',
     career_goal: 'AI Engineer',
     custom_career_goal: '',
@@ -86,10 +86,11 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
   });
 
   useEffect(() => {
-    if (user?.full_name && !form.name) {
+    if (user?.full_name) {
       setForm((prev) => ({
         ...prev,
-        name: user.full_name,
+        name: prev.name || user.full_name,
+        education: prev.education || user.education || 'B.Tech Computer Engineering',
         district: user.district || prev.district,
       }));
     }
@@ -188,20 +189,30 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
 
     const targetGoal = form.career_goal === 'Custom' ? form.custom_career_goal : form.career_goal;
 
-    if (!form.name.trim() || !form.education.trim() || !targetGoal.trim()) {
-      setSubmitError('Please complete all required fields (Name, Education, Career Goal).');
+    if (!form.name.trim() || !form.education.trim()) {
+      setSubmitError('Please complete your Name and Current Education to proceed.');
       setSubmitting(false);
+      setStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (!targetGoal.trim()) {
+      setSubmitError('Please choose or enter a Target Career Goal.');
+      setSubmitting(false);
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     const payload = {
       name: form.name.trim(),
       education: form.education.trim(),
-      district: form.district,
+      district: form.district || 'Pune',
       career_goal: targetGoal.trim(),
-      interests: form.interests,
-      current_skills: form.current_skills,
-      quiz_answers: form.quiz_answers,
+      interests: form.interests || [],
+      current_skills: form.current_skills || [],
+      quiz_answers: form.quiz_answers || {},
     };
 
     try {
@@ -213,7 +224,11 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
         window.scrollTo({ top: 0, behavior: 'smooth' });
         loadAssessmentHistory();
         if (typeof onAssessmentSubmitted === 'function') {
-          onAssessmentSubmitted(res.assessment);
+          try {
+            onAssessmentSubmitted(res.assessment);
+          } catch (callbackErr) {
+            console.warn('[SkillSetu] onAssessmentSubmitted callback warning:', callbackErr);
+          }
         }
       } else {
         throw new Error(res?.error || 'Failed to evaluate assessment submission.');
@@ -225,7 +240,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
     }
   };
 
-  const activeAssessment = selectedHistoryItem || latestAssessment;
+  const activeAssessment = selectedHistoryItem || latestAssessment || (historyList.length > 0 ? historyList[0] : null);
 
   const filteredHistory = historyList.filter((item) => {
     if (historyFilter === 'USER_SUBMITTED') return item.source === 'USER_SUBMITTED';
@@ -328,7 +343,10 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
                 type="text"
                 required
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((prev) => ({ ...prev, name: val }));
+                }}
                 placeholder="e.g. Tanmay Deshmukh"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none"
               />
@@ -342,7 +360,10 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
                 type="text"
                 required
                 value={form.education}
-                onChange={(e) => setForm({ ...form, education: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((prev) => ({ ...prev, education: val }));
+                }}
                 placeholder="e.g. B.Tech Computer Engineering, Diploma Mechanical, ITI Fitter, BCA"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none"
               />
@@ -354,7 +375,10 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
               </label>
               <select
                 value={form.district}
-                onChange={(e) => setForm({ ...form, district: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((prev) => ({ ...prev, district: val }));
+                }}
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
               >
                 {MAHARASHTRA_DISTRICTS.map((d) => (
@@ -406,7 +430,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
                 <button
                   key={role}
                   type="button"
-                  onClick={() => setForm({ ...form, career_goal: role })}
+                  onClick={() => setForm((prev) => ({ ...prev, career_goal: role }))}
                   className={`p-3 rounded-xl border text-left font-bold transition-all cursor-pointer ${
                     form.career_goal === role
                       ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 ring-2 ring-teal-500/20'
@@ -421,7 +445,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
               ))}
               <button
                 type="button"
-                onClick={() => setForm({ ...form, career_goal: 'Custom' })}
+                onClick={() => setForm((prev) => ({ ...prev, career_goal: 'Custom' }))}
                 className={`p-3 rounded-xl border text-left font-bold transition-all cursor-pointer ${
                   form.career_goal === 'Custom'
                     ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 ring-2 ring-teal-500/20'
@@ -436,7 +460,10 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
               <input
                 type="text"
                 value={form.custom_career_goal}
-                onChange={(e) => setForm({ ...form, custom_career_goal: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((prev) => ({ ...prev, custom_career_goal: val }));
+                }}
                 placeholder="Enter your custom career role title (e.g. Embedded Firmware Engineer)"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none mt-2"
               />
