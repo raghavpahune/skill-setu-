@@ -2,12 +2,12 @@
 from datetime import datetime, timezone
 import uuid
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 import logging
 from app.db import get_demo, save_course, update_course, delete_course
-from app.core.security import get_current_user, require_roles
+from app.core.security import get_current_user, get_optional_current_user, require_roles
 from app.repositories.supabase_repository import (
     get_course,
     list_courses,
@@ -346,3 +346,55 @@ async def delete_my_course(
         pass
 
     return {"status": "success", "message": f"Course program '{course_id}' removed.", "deleted_id": course_id}
+
+
+# Phase 34: Institute Syllabus Ingestion & Skill Extraction
+from app.services.syllabus_extractor import extract_skills_from_syllabus
+
+
+@router.post("/institute/syllabus/extract")
+async def extract_institute_syllabus(
+    request: Request,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    """Ingest syllabus text or document file and extract aligned skills, NSQF level, and domain category."""
+    content_type = request.headers.get("content-type", "")
+    content: str | bytes = ""
+    course_name_hint: str | None = None
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        file = form.get("file")
+        if file and hasattr(file, "read"):
+            content = await file.read()
+            filename = getattr(file, "filename", "")
+            if filename:
+                course_name_hint = filename.rsplit(".", 1)[0].replace("-", " ").replace("_", " ").title()
+        text_field = form.get("syllabus_text")
+        if not content and text_field:
+            content = str(text_field)
+        if form.get("course_name"):
+            course_name_hint = str(form.get("course_name"))
+    else:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        content = body.get("syllabus_text", "")
+        course_name_hint = body.get("course_name")
+
+    if not content or (isinstance(content, str) and not content.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Syllabus content is empty. Please provide syllabus_text or upload a syllabus document.",
+        )
+
+    try:
+        return extract_skills_from_syllabus(content, course_name_hint=course_name_hint)
+    except Exception as e:
+        logger.error("[Institute] Error extracting syllabus skills: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Syllabus analysis failed: {e}",
+        ) from e
+

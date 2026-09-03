@@ -242,6 +242,52 @@ export default function InstituteDashboard() {
     certifications: 'MSBTE & DGT Certificate',
   });
 
+  // Phase 34: Syllabus Ingestion State & Handlers
+  const [syllabusText, setSyllabusText] = useState('');
+  const [extractingSyllabus, setExtractingSyllabus] = useState(false);
+
+  const handleExtractSyllabus = async () => {
+    if (!syllabusText.trim()) return;
+    setExtractingSyllabus(true);
+    try {
+      const res = await api.extractInstituteSyllabus({
+        syllabus_text: syllabusText.trim(),
+        course_name: formState.name,
+      });
+      if (res?.extracted_skills?.length > 0) {
+        setFormState((prev) => ({
+          ...prev,
+          name: prev.name.trim() || res.suggested_course_name,
+          skillsInput: res.extracted_skills.join(', '),
+          nsqf_level: res.suggested_nsqf_level || prev.nsqf_level,
+          category: res.suggested_category || prev.category,
+        }));
+        showToast('success', res.summary);
+      } else {
+        showToast('error', 'No standard taxonomy skills recognized from syllabus text.');
+      }
+    } catch (err) {
+      console.error('Syllabus extraction error:', err);
+      showToast('error', `Failed to analyze syllabus: ${err?.message || 'Server error'}`);
+    } finally {
+      setExtractingSyllabus(false);
+    }
+  };
+
+  const handleSyllabusFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result;
+      if (typeof content === 'string') {
+        setSyllabusText(content.slice(0, 10000));
+        showToast('success', `Loaded "${file.name}" into syllabus assistant. Click "Auto-Extract Skills".`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const showToast = (type, message) => {
     setToastMessage({ type, message });
     setTimeout(() => {
@@ -921,6 +967,42 @@ export default function InstituteDashboard() {
             </div>
 
             <form onSubmit={handleCreateCourse} className="space-y-3.5 text-xs">
+              {/* AI Syllabus Ingestion Assistant (Phase 34) */}
+              <div className="p-3 rounded-xl bg-teal-50/60 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-teal-950 dark:text-teal-200 text-xs flex items-center gap-1.5">
+                    <span>✨ AI Syllabus Ingestion Assistant</span>
+                  </span>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">Auto-fills skills & NSQF</span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="Paste syllabus modules or text here (e.g. Module 1: Python, ML, Neural Networks. Module 2: EV Battery Technology & BMS...)"
+                  value={syllabusText}
+                  onChange={(e) => setSyllabusText(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-800 rounded-lg text-slate-800 dark:text-slate-200 text-xs outline-none focus:ring-1 focus:ring-teal-500 font-normal"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 cursor-pointer flex items-center gap-1 hover:text-teal-600">
+                    <span>📎 Upload Document (.txt, .md)</span>
+                    <input
+                      type="file"
+                      accept=".txt,.md"
+                      className="hidden"
+                      onChange={handleSyllabusFileUpload}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={extractingSyllabus || !syllabusText.trim()}
+                    onClick={handleExtractSyllabus}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-md bg-teal-600 hover:bg-teal-700 text-white cursor-pointer disabled:opacity-50 transition"
+                  >
+                    {extractingSyllabus ? 'Extracting...' : 'Auto-Extract Skills'}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
                   Course Program Title *

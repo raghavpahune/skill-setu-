@@ -121,6 +121,7 @@ export default function EmployerDashboard() {
     experience_level: 'Entry Level (0-1 yrs)',
     hiring_challenge: '',
     additional_requirements: '',
+    gstin: '',
   });
   const [submittingDemand, setSubmittingDemand] = useState(false);
 
@@ -254,6 +255,7 @@ export default function EmployerDashboard() {
       openings_count: Number(demandForm.positions_count) || 10,
       positions_count: Number(demandForm.positions_count) || 10,
       experience_level: demandForm.experience_level,
+      gstin: demandForm.gstin?.trim() || null,
       additional_requirements: demandForm.hiring_challenge.trim() || null,
       hiring_challenge: demandForm.hiring_challenge.trim() || null,
     };
@@ -1056,6 +1058,29 @@ export default function EmployerDashboard() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Corporate GSTIN Verification (Phase 34) */}
+              <div className="p-3 rounded-lg bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-bold text-teal-900 dark:text-teal-200 flex items-center gap-1.5">
+                    <span>Corporate GSTIN Verification</span>
+                    <span className="text-[10px] font-normal text-teal-600 dark:text-teal-400">(Optional — unlocks Verified Enterprise badge)</span>
+                  </label>
+                  {demandForm.gstin && demandForm.gstin.length === 15 && (
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                      ✓ 15-char GSTIN
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={demandForm.gstin || ''}
+                  onChange={(e) => setDemandForm({ ...demandForm, gstin: e.target.value.toUpperCase() })}
+                  placeholder="e.g. 27AABCU9603R1ZN (State Code 27 for Maharashtra)"
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs focus:ring-2 focus:ring-teal-500"
+                />
               </div>
 
               {/* District & Role Title */}

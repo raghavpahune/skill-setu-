@@ -3,9 +3,10 @@ import datetime
 import uuid
 from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.core.security import get_current_user, require_roles
+from app.core.security import get_current_user, get_optional_current_user, require_roles
 from pydantic import BaseModel, Field, model_validator
 from app.db import get_demo
+from app.services.employer_verification import verify_employer_credentials, validate_gstin
 from app.repositories.supabase_repository import (
     get_employer_feedback,
     list_employer_feedback,
@@ -35,6 +36,8 @@ class DemandSubmission(BaseModel):
     company: str | None = None
     company_name: str | None = None
     employer_name: str | None = None
+    gstin: str | None = Field(default=None, description="Optional 15-character Indian GSTIN")
+    corporate_website: str | None = Field(default=None, description="Optional company domain/URL")
     industry: str = Field(..., min_length=2, max_length=150)
     district: str = Field(..., min_length=2, max_length=100)
     title: str | None = None
@@ -245,6 +248,14 @@ async def submit_demand(
     timeline = submission.hiring_timeline or submission.urgency or "Immediate (0-30 days)"
     notes = submission.additional_requirements or submission.hiring_challenge or ""
 
+    # Phase 34: Employer Identity & Corporate Pedigree verification
+    verification = verify_employer_credentials(
+        email=current_user.get("email"),
+        gstin=submission.gstin,
+        company_name=company,
+    )
+    admin_verification_note = f"[{verification['badge']}] {verification['description']}"
+
     demand_record = {
         "id": demand_id,
         "demand_id": demand_id,
@@ -275,10 +286,10 @@ async def submit_demand(
         "submitted_date": now_date,
         "updated_at": now_iso,
         "status": "pending",
+        "admin_notes": admin_verification_note,
         "user_id": current_user.get("id"),
         "user_email": current_user.get("email"),
     }
-
 
     try:
         saved = create_employer_demand(demand_record)
@@ -291,8 +302,36 @@ async def submit_demand(
     return {
         "status": "created",
         "message": "Hiring requirement submitted for validation.",
-        "demand": saved,
+        "demand": {
+            **saved,
+            "gstin": submission.gstin.strip().upper() if submission.gstin else None,
+            "verification_tier": verification["verification_tier"],
+            "verification_badge": verification["badge"],
+            "is_verified": verification["verified"],
+            "verification_details": verification,
+        },
     }
+
+
+class EmployerIdentityVerifyRequest(BaseModel):
+    email: str | None = None
+    gstin: str | None = None
+    company_name: str | None = None
+
+
+@router.post("/employer/verify-identity")
+async def verify_employer_identity_endpoint(
+    payload: EmployerIdentityVerifyRequest,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    """Verify an employer's corporate email domain and GSTIN registration credentials."""
+    target_email = payload.email or (current_user.get("email") if current_user else None)
+    target_company = payload.company_name or (current_user.get("organization_id") if current_user else None)
+    return verify_employer_credentials(
+        email=target_email,
+        gstin=payload.gstin,
+        company_name=target_company,
+    )
 
 
 @router.get("/employer/me/demands")

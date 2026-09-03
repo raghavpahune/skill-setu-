@@ -278,13 +278,21 @@ export const api = {
   }),
   getDifficultSkills: () => fetchJSON('/employer/difficult-skills'),
   getEmployerSummary: () => fetchJSON('/employer/summary'),
+  verifyEmployerIdentity: (data) => fetchJSON('/employer/verify-identity', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
 
-  // Institute Data Pipeline & Course Management (Phase 25)
+  // Institute Data Pipeline & Course Management (Phase 25 & 34)
   getInstituteCourses: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/institute/courses${query ? `?${query}` : ''}`);
   },
   getMyInstituteCourses: () => fetchJSON('/institute/my-courses'),
+  extractInstituteSyllabus: (data) => fetchJSON('/institute/syllabus/extract', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   submitInstituteCourse: (courseData) => fetchJSON('/institute/courses', {
     method: 'POST',
     body: JSON.stringify(courseData),
