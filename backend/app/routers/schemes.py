@@ -1,6 +1,7 @@
 """Schemes API — student welfare and government schemes."""
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from app.core.security import get_optional_current_user
 from app.db import get_demo
 
 logger = logging.getLogger(__name__)
@@ -101,34 +102,41 @@ async def get_scheme_metadata():
 async def recommended_schemes(
     student_id: str,
     limit: int = Query(10, ge=1, le=50),
+    current_user: dict | None = Depends(get_optional_current_user),
 ):
     """Return schemes ranked by relevance to a student profile or assessment record."""
+    resolved_id = student_id
+    if student_id == "me" and current_user:
+        resolved_id = current_user.get("id") or "me"
+
     # Query Supabase repository (authoritative system of record)
     profile = None
     try:
         from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
-        profile = get_student_profile(student_id) or get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
+        profile = get_student_profile(resolved_id) or get_student_assessment(resolved_id) or get_student_assessment_by_user(resolved_id)
     except Exception as e:
-        logger.error("[RecommendedSchemes] Supabase error for %s: %s", student_id, e)
+        logger.error("[RecommendedSchemes] Supabase error for %s: %s", resolved_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database query failed fetching student profile for recommendations: {e}",
         ) from e
 
-    if not profile and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not profile and resolved_id.startswith(("stu-", "ast-demo-", "demo-")):
         profiles = get_demo("student_profiles")
         for p in profiles:
-            if p.get("user_id") == student_id or p.get("id") == student_id:
+            if p.get("user_id") == resolved_id or p.get("id") == resolved_id:
                 profile = p
                 break
         if not profile:
             assessments = get_demo("student_assessments")
             for a in assessments:
-                if a.get("id") == student_id or a.get("user_id") == student_id:
+                if a.get("id") == resolved_id or a.get("user_id") == resolved_id:
                     profile = a
                     break
 
     if not profile:
+        if student_id == "me" or (current_user and resolved_id == current_user.get("id")):
+            return {"schemes": [], "student_id": resolved_id, "status": "unassessed"}
         raise HTTPException(status_code=404, detail=f"Student profile '{student_id}' not found.")
 
     student_skills = set()

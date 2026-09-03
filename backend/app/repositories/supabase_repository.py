@@ -255,6 +255,27 @@ VALID_STUDENT_PROFILE_COLUMNS = {
     "skill_match_pct",
 }
 
+VALID_STUDENT_ASSESSMENT_COLUMNS = {
+    "id",
+    "user_id",
+    "user_email",
+    "name",
+    "education",
+    "district",
+    "career_goal",
+    "interests",
+    "current_skills",
+    "quiz_answers",
+    "quiz_score_pct",
+    "skill_match_pct",
+    "combined_readiness_score",
+    "evaluation_summary",
+    "source",
+    "is_demo",
+    "created_at",
+    "updated_at",
+}
+
 VALID_INDUSTRY_SIGNAL_COLUMNS = {
     "id",
     "title",
@@ -525,12 +546,13 @@ def create_student_assessment(assessment_data: dict[str, Any]) -> dict[str, Any]
     """
     try:
         client = get_client()
-        res = client.table("student_assessments").upsert(assessment_data).execute()
+        clean_data = {k: v for k, v in assessment_data.items() if k in VALID_STUDENT_ASSESSMENT_COLUMNS}
+        res = client.table("student_assessments").upsert(clean_data).execute()
         if not res.data or len(res.data) == 0:
             saved_row = assessment_data
         else:
-            saved_row = res.data[0]
-        logger.info("[SupabaseRepo] Confirmed Supabase persistence for student_assessment '%s'", assessment_data.get("id"))
+            saved_row = {**assessment_data, **res.data[0]}
+        logger.info("[SupabaseRepo] Confirmed Supabase persistence for student_assessment '%s'", clean_data.get("id"))
         return saved_row
     except Exception as e:
         logger.error("[SupabaseRepo] Failed persisting student_assessment id='%s': %s", assessment_data.get("id"), e)
@@ -548,10 +570,11 @@ def update_student_assessment(assessment_id: str, updates: dict[str, Any]) -> di
     """
     try:
         client = get_client()
-        res = client.table("student_assessments").update(updates).eq("id", assessment_id).execute()
+        clean_updates = {k: v for k, v in updates.items() if k in VALID_STUDENT_ASSESSMENT_COLUMNS}
+        res = client.table("student_assessments").update(clean_updates).eq("id", assessment_id).execute()
         if not res.data or len(res.data) == 0:
             raise AssessmentNotFoundError(f"Student assessment record '{assessment_id}' not found in Supabase.")
-        updated_row = res.data[0]
+        updated_row = {**updates, **res.data[0]}
         logger.info("[SupabaseRepo] Confirmed Supabase update for student_assessment '%s'", assessment_id)
         return updated_row
     except SupabaseRepositoryError:
