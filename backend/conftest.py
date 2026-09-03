@@ -1,11 +1,18 @@
 """Pytest configuration and Supabase test doubles for SkillSetu backend test suites."""
 from __future__ import annotations
 
+import os
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-dedicated-for-pytest-conftest-environment")
+
 import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 import pytest
+
+from app.config import settings
+if not settings.jwt_secret_key:
+    settings.jwt_secret_key = "test-secret-key-dedicated-for-pytest-conftest-environment"
 
 from app.repositories.supabase_repository import set_supabase_client, reset_supabase_client
 

@@ -274,10 +274,11 @@ Select your stakeholder role above or explore one of the verified inquiries belo
           id: `cop-${Date.now()}`,
           sender: 'copilot',
           text: fallback.answer,
-          isGrounded: true,
+          isGrounded: false,
+          isFallback: true,
           demoMode: true,
-          model: fallback.model || 'Rule-Based Offline Intelligence',
-          provenanceLabel: '🛡️ Grounded Offline Intelligence (Client Fallback)',
+          model: fallback.model || 'Offline Intelligence (Static Fallback)',
+          provenanceLabel: '⚠️ Offline Static Fallback (Backend Unavailable)',
           notice: fallback.notice,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
@@ -493,7 +494,11 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
                   <span>{m.sender === 'user' ? '👤' : '✨'}</span>
                   <span>{m.sender === 'user' ? `You (${m.role || role})` : 'SkillSetu Intelligence Copilot'}</span>
                   {m.provenanceLabel && (
-                    <span className="text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 normal-case ml-1">
+                    <span className={`text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded normal-case ml-1 ${
+                      m.isFallback
+                        ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                        : 'bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200'
+                    }`}>
                       {m.provenanceLabel}
                     </span>
                   )}

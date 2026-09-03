@@ -17,9 +17,9 @@ services:
       - key: CORS_ORIGINS
         value: "https://skill-setu-raghavpahune-8496.vercel.app"
       - key: ADMIN_API_KEY
-        value: "demo-admin-key-2026"
+        sync: false
       - key: JWT_SECRET_KEY
-        value: "skillsetu-secure-jwt-secret-key-2026-production"
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY

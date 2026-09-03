@@ -55,10 +55,11 @@ The current SkillSetu Maharashtra dataset does not contain sufficient **${label}
 
 #### Recommendation:
 To track ${label} demand systematically, submit candidate skill feedback via the Employer Dashboard or configure specialized tech job ingestion feeds.`,
-        data_grounded: true,
+        data_grounded: false,
         demo_mode: true,
-        model: 'Rule-Based Offline Intelligence (Client Fallback)',
-        notice: 'Live backend connecting. Delivered via offline intelligence.',
+        is_fallback: true,
+        model: 'Rule-Based Offline Intelligence (Static Fallback)',
+        notice: 'Live backend unavailable. Response is static fallback intelligence.',
       };
     }
   }
@@ -88,10 +89,11 @@ ${isPune ? '**Pune** (46 jobs), ' : ''}**Pune** (46 jobs), **Mumbai** (25 jobs),
 
 #### Recommended Action:
 Expand industry-aligned practical training in **Python** at regional technical institutions to bridge the 13% curriculum deficit.`,
-      data_grounded: true,
+      data_grounded: false,
       demo_mode: true,
-      model: 'Rule-Based Offline Intelligence (Client Fallback)',
-      notice: 'Live backend connecting. Delivered via offline intelligence.',
+      is_fallback: true,
+      model: 'Rule-Based Offline Intelligence (Static Fallback)',
+      notice: 'Live backend unavailable. Response is static fallback intelligence.',
     };
   }
 
@@ -126,10 +128,11 @@ Here is the current SkillSetu intelligence briefing for **${dName}**, grounded i
 1. **Seat Reallocation:** Increase sanctioned seats in high-demand technical specializations.
 2. **NAPS Apprenticeship Integration:** Partner with local manufacturing units for subsidized hands-on training.
 3. **Faculty Enablement:** Conduct industry immersion workshops for ITI instructors.`,
-      data_grounded: true,
+      data_grounded: false,
       demo_mode: true,
-      model: 'Rule-Based Offline Intelligence (Client Fallback)',
-      notice: 'Live backend connecting. Delivered via offline intelligence.',
+      is_fallback: true,
+      model: 'Rule-Based Offline Intelligence (Static Fallback)',
+      notice: 'Live backend unavailable. Response is static fallback intelligence.',
     };
   }
 
@@ -153,10 +156,11 @@ Based on verified SkillSetu assessment data and Maharashtra industrial hiring tr
 
 #### 🚀 Recommended Action:
 Bridge top priority technical deficits through hands-on capstone projects and apply for state welfare toolkits.`,
-      data_grounded: true,
+      data_grounded: false,
       demo_mode: true,
-      model: 'Rule-Based Offline Intelligence (Client Fallback)',
-      notice: 'Delivered via grounded deterministic intelligence.',
+      is_fallback: true,
+      model: 'Rule-Based Offline Intelligence (Static Fallback)',
+      notice: 'Live backend unavailable. Response is static fallback intelligence.',
     };
   }
 
@@ -175,9 +179,11 @@ Comparison of employer job specifications against accredited vocational curricul
 | **Robotics** | Automation | **MEDIUM** | 9% | 2% | **7%** |
 
 > **Note:** Deficits represent unmet hiring demand across Maharashtra industrial clusters (Pune, Mumbai, Nagpur).`,
-      data_grounded: true,
+      data_grounded: false,
       demo_mode: true,
-      model: 'Rule-Based Offline Intelligence (Client Fallback)',
+      is_fallback: true,
+      model: 'Rule-Based Offline Intelligence (Static Fallback)',
+      notice: 'Live backend unavailable. Response is static fallback intelligence.',
     };
   }
 
@@ -192,8 +198,10 @@ SkillSetu continuously indexes 55+ skills, 560+ job postings, and 27 accredited 
 * *'What are the biggest skill gaps in Pune?'*
 * *'What is the demand for Go developer?'*
 * *'Which vocational courses show high placement rates?'*`,
-    data_grounded: true,
+    data_grounded: false,
     demo_mode: true,
-    model: 'Rule-Based Offline Intelligence (Client Fallback)',
+    is_fallback: true,
+    model: 'Rule-Based Offline Intelligence (Static Fallback)',
+    notice: 'Live backend unavailable. Response is static fallback intelligence.',
   };
 }

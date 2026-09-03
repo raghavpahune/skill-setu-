@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     auto_sync_enabled: bool = True
     sync_interval_hours: int = 24
     sync_on_startup: bool = False
-    jwt_secret_key: str = "skillsetu-secure-jwt-secret-key-2026-production"
+    jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     demo_auth_enabled: bool = True
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     def ai_available(self) -> bool:
         return bool(self.gemini_api_key)
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

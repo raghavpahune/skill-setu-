@@ -33,6 +33,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a signed JWT access token."""
+    secret = (settings.jwt_secret_key or "").strip()
+    if not secret:
+        raise RuntimeError("JWT_SECRET_KEY is mandatory and not configured. Refusing to issue token with an insecure default.")
+
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     if expires_delta:
@@ -47,7 +51,7 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     })
     encoded_jwt = jwt.encode(
         to_encode,
-        settings.jwt_secret_key,
+        secret,
         algorithm=settings.jwt_algorithm,
     )
     return encoded_jwt
@@ -55,10 +59,14 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
 
 def decode_access_token(token: str) -> dict[str, Any] | None:
     """Decode and validate a JWT access token."""
+    secret = (settings.jwt_secret_key or "").strip()
+    if not secret:
+        raise RuntimeError("JWT_SECRET_KEY is mandatory and not configured. Refusing to validate token with an insecure default.")
+
     try:
         payload = jwt.decode(
             token,
-            settings.jwt_secret_key,
+            secret,
             algorithms=[settings.jwt_algorithm],
         )
         return payload

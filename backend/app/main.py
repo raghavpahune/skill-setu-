@@ -15,6 +15,13 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import os
+    is_prod = bool(os.getenv("RENDER") or os.getenv("ENVIRONMENT") == "production" or not settings.use_demo_data)
+    if is_prod and not (settings.jwt_secret_key and settings.jwt_secret_key.strip()):
+        raise RuntimeError(
+            "FATAL: Production JWT secret is mandatory. Set JWT_SECRET_KEY in production environment variables."
+        )
+
     # Startup: initialize database layer (demo data + Supabase overlay)
     from app.db import init_db
     init_db()

@@ -403,10 +403,13 @@ def update_employer_demand_status(
 
     matched = None
     try:
-        from app.repositories.supabase_repository import update_employer_demand
+        from app.repositories.supabase_repository import update_employer_demand, DemandNotFoundError
         matched = update_employer_demand(demand_id, payload)
-    except Exception:
-        pass
+    except DemandNotFoundError:
+        matched = None
+    except Exception as e:
+        logger.error("[DB] Supabase update failed for employer_demand '%s': %s", demand_id, e)
+        raise
 
     if not _cache:
         init_db()
@@ -433,8 +436,9 @@ def delete_employer_demand(demand_id: str) -> bool:
     try:
         from app.repositories.supabase_repository import delete_employer_demand_repo
         repo_deleted = delete_employer_demand_repo(demand_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("[DB] Supabase delete failed for employer_demand '%s': %s", demand_id, e)
+        raise
 
     if not _cache:
         init_db()
@@ -576,11 +580,14 @@ def save_course(course_data: dict) -> dict:
 
 def update_course(course_id: str, updates: dict) -> dict | None:
     """Update fields on a course record in Supabase repository and sync cache/disk."""
-    from app.repositories.supabase_repository import update_course_repo
+    from app.repositories.supabase_repository import update_course_repo, CourseNotFoundError
     try:
         update_course_repo(course_id, updates)
+    except CourseNotFoundError:
+        pass
     except Exception as e:
-        logger.warning("[DB] Failed updating course in Supabase repository: %s", e)
+        logger.error("[DB] Failed updating course in Supabase repository: %s", e)
+        raise
 
     if not _cache:
         init_db()
@@ -602,11 +609,11 @@ def update_course(course_id: str, updates: dict) -> dict | None:
 def delete_course(course_id: str) -> bool:
     """Delete course record from Supabase repository and sync cache/disk."""
     from app.repositories.supabase_repository import delete_course_repo
-    repo_deleted = False
     try:
         repo_deleted = delete_course_repo(course_id)
     except Exception as e:
-        logger.warning("[DB] Failed deleting course in Supabase repository: %s", e)
+        logger.error("[DB] Failed deleting course in Supabase repository: %s", e)
+        raise
 
     if not _cache:
         init_db()
@@ -630,6 +637,17 @@ def save_gov_opportunity(data: dict) -> dict:
     data["updated_at"] = now_iso
     data.setdefault("source", "USER_SUBMITTED")
     data["is_demo"] = False
+
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("gov_opportunities").upsert(data).execute()
+            logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
+        except Exception as e:
+            logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
+            from app.repositories.supabase_repository import SupabaseRepositoryError
+            raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
+
     records = _cache.setdefault("gov_opportunities", [])
     gid = data.get("id")
     existing_idx = next((i for i, g in enumerate(records) if gid and g.get("id") == gid), None)
@@ -639,19 +657,21 @@ def save_gov_opportunity(data: dict) -> dict:
         records.insert(0, data)
     _flush_real_table("gov_opportunities")
 
-    client = get_supabase_client()
-    if client:
-        try:
-            client.table("gov_opportunities").upsert(data).execute()
-            logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
-        except Exception as e:
-            logger.warning("[DB] Failed persisting gov opportunity to Supabase: %s", e)
-
     return data
 
 
 def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
     """Update fields on a government opportunity record and flush to disk."""
+    client = get_supabase_client()
+    if client:
+        try:
+            res = client.table("gov_opportunities").update(updates).eq("id", opp_id).execute()
+            logger.info("[DB] Updated gov opportunity '%s' in Supabase.", opp_id)
+        except Exception as e:
+            logger.error("[DB] Failed updating gov opportunity in Supabase: %s", e)
+            from app.repositories.supabase_repository import SupabaseRepositoryError
+            raise SupabaseRepositoryError(f"Database update failed for gov opportunity: {e}") from e
+
     if not _cache:
         init_db()
     records = _cache.get("gov_opportunities", [])
@@ -665,19 +685,22 @@ def update_gov_opportunity(opp_id: str, updates: dict) -> dict | None:
 
     if matched:
         _flush_real_table("gov_opportunities")
-        client = get_supabase_client()
-        if client:
-            try:
-                client.table("gov_opportunities").update(updates).eq("id", opp_id).execute()
-                logger.info("[DB] Updated gov opportunity '%s' in Supabase.", opp_id)
-            except Exception as e:
-                logger.warning("[DB] Failed updating gov opportunity in Supabase: %s", e)
 
     return matched
 
 
 def delete_gov_opportunity(opp_id: str) -> bool:
     """Delete government opportunity record from cache, disk storage, and Supabase."""
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("gov_opportunities").delete().eq("id", opp_id).execute()
+            logger.info("[DB] Deleted gov opportunity '%s' from Supabase.", opp_id)
+        except Exception as e:
+            logger.error("[DB] Failed deleting gov opportunity from Supabase: %s", e)
+            from app.repositories.supabase_repository import SupabaseRepositoryError
+            raise SupabaseRepositoryError(f"Database deletion failed for gov opportunity: {e}") from e
+
     if not _cache:
         init_db()
     records = _cache.get("gov_opportunities", [])
@@ -687,13 +710,6 @@ def delete_gov_opportunity(opp_id: str) -> bool:
 
     if deleted:
         _flush_real_table("gov_opportunities")
-        client = get_supabase_client()
-        if client:
-            try:
-                client.table("gov_opportunities").delete().eq("id", opp_id).execute()
-                logger.info("[DB] Deleted gov opportunity '%s' from Supabase.", opp_id)
-            except Exception as e:
-                logger.warning("[DB] Failed deleting gov opportunity from Supabase: %s", e)
 
     return deleted
 # ---------------------------------------------------------------------------
@@ -934,6 +950,16 @@ def save_user(user_data: dict) -> dict:
     user_data["updated_at"] = now_iso
     user_data.setdefault("source", "USER_SUBMITTED")
     user_data["is_demo"] = False
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("users").upsert(user_data).execute()
+            logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
+        except Exception as e:
+            logger.error("[DB] Failed persisting user to Supabase: %s", e)
+            from app.repositories.supabase_repository import SupabaseRepositoryError
+            raise SupabaseRepositoryError(f"Database persistence failed for user: {e}") from e
+
     users = _cache.setdefault("users", [])
     existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
     if existing_idx is not None:
@@ -942,15 +968,6 @@ def save_user(user_data: dict) -> dict:
         users.append(user_data)
 
     _flush_real_table("users")
-
-    client = get_supabase_client()
-    if client:
-        try:
-            client.table("users").upsert(user_data).execute()
-            logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
-        except Exception as e:
-            logger.warning("[DB] Failed persisting user to Supabase: %s", e)
-
     return user_data
 
 

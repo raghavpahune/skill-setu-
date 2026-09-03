@@ -368,12 +368,19 @@ async def update_demand_validation_status(demand_id: str, update: DemandValidati
             detail="Status must be one of: 'VALIDATED', 'REJECTED', 'PENDING'.",
         )
 
-    updated = update_employer_demand_status(
-        demand_id=demand_id,
-        new_status=target_status,
-        admin_notes=update.admin_notes,
-        validated_by=update.validated_by or "Administrator",
-    )
+    try:
+        updated = update_employer_demand_status(
+            demand_id=demand_id,
+            new_status=target_status,
+            admin_notes=update.admin_notes,
+            validated_by=update.validated_by or "Administrator",
+        )
+    except Exception as e:
+        logger.error("[AdminRouter] Supabase error updating demand status: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database update failed for employer demand: {e}",
+        ) from e
 
     if not updated:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
@@ -388,7 +395,15 @@ async def update_demand_validation_status(demand_id: str, update: DemandValidati
 @router.delete("/admin/employer/demands/{demand_id}", dependencies=[Depends(verify_admin_key)])
 async def delete_admin_employer_demand(demand_id: str):
     """Delete employer demand record from system memory cache and database."""
-    deleted = delete_employer_demand(demand_id)
+    try:
+        deleted = delete_employer_demand(demand_id)
+    except Exception as e:
+        logger.error("[AdminRouter] Supabase error deleting demand: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database deletion failed for employer demand: {e}",
+        ) from e
+
     if deleted:
         return {
             "status": "success",
