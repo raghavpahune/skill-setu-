@@ -137,13 +137,14 @@ class MockSupabaseTable:
 
 
 class MockSupabaseClient:
-    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None):
+    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None):
         self.tables = {
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
             "student_profiles": MockSupabaseTable(profiles_rows),
             "student_assessments": MockSupabaseTable(assessments_rows),
             "courses": MockSupabaseTable(courses_rows),
+            "industry_signals": MockSupabaseTable(industry_signals_rows),
         }
 
     def table(self, table_name: str) -> MockSupabaseTable:
@@ -249,6 +250,27 @@ def _load_initial_courses_rows() -> list[dict]:
     return rows
 
 
+def _load_initial_industry_signals_rows() -> list[dict]:
+    rows: list[dict] = []
+    base_dir = Path(__file__).resolve().parent.parent / "data"
+    demo_file = base_dir / "demo" / "industry_signals.json"
+    real_file = base_dir / "real" / "industry_signals.json"
+
+    seen_ids = set()
+    for file_path in (real_file, demo_file):
+        if file_path.is_file():
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                for s in data:
+                    sid = s.get("id")
+                    if sid and sid not in seen_ids:
+                        rows.append(s)
+                        seen_ids.add(sid)
+            except Exception:
+                pass
+    return rows
+
+
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
     """Autouse fixture providing an isolated Supabase test double for unit test suites."""
@@ -258,6 +280,7 @@ def mock_supabase_for_tests():
         profiles_rows=_load_initial_student_profiles_rows(),
         assessments_rows=_load_initial_student_assessments_rows(),
         courses_rows=_load_initial_courses_rows(),
+        industry_signals_rows=_load_initial_industry_signals_rows(),
     )
     set_supabase_client(mock_client)
     yield mock_client

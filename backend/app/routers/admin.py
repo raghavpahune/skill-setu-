@@ -757,7 +757,11 @@ async def list_admin_industry_signals(
     offset: int = Query(0, ge=0),
 ):
     """Admin endpoint to view, filter, and audit all industry signals including pending/rejected."""
-    raw_signals = get_demo("industry_signals")
+    from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo, SupabaseRepositoryError
+    try:
+        raw_signals = list_industry_signals_repo()
+    except SupabaseRepositoryError as e:
+        raise HTTPException(status_code=500, detail=f"Industry signals database unavailable: {e}")
     skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
 
     # Normalize all records for admin view

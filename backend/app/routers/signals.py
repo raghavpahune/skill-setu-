@@ -5,10 +5,18 @@ Provides:
 - GET /api/industry/signals/{id} (Public: detail of approved, active signal)
 - GET /api/signals & /api/signals/{id} (Backward compatibility aliases)
 """
+import logging
 from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 from app.db import get_demo
 from app.ingestion.industry_intelligence import calculate_freshness, STATUS_APPROVED
+from app.repositories.supabase_repository import (
+    list_industry_signals as list_industry_signals_repo,
+    get_industry_signal as get_industry_signal_repo,
+    SupabaseRepositoryError,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -40,14 +48,14 @@ def _normalize_signal_output(sig: dict[str, Any], skills_map: dict[str, str]) ->
         "technology": sig.get("technology") or sig.get("industry") or "Emerging Technology",
         "skills": skills,
         "tools": sig.get("tools", []),
-        "source_name": sig.get("source_name") or sig.get("source") or "Industry Intelligence",
-        "source": sig.get("source") or sig.get("source_name") or "Industry Intelligence",
+        "source_name": sig.get("source_name") or sig.get("source") or "Industry Analysis",
+        "source": sig.get("source") or sig.get("source_name") or "Industry Analysis",
         "source_url": sig.get("source_url") or "https://data.gov.in",
         "source_type": sig.get("source_type") or "INDUSTRY_ANNOUNCEMENT",
         "published_at": published_at,
         "collected_at": sig.get("collected_at") or published_at,
         "updated_at": sig.get("updated_at") or published_at,
-        "signal_date": published_at[:10],
+        "signal_date": published_at[:10] if published_at else "2026-01-01",
         "impact_level": sig.get("impact_level", "high"),
         "validation_status": val_status,
         "is_active": is_active,
@@ -73,7 +81,14 @@ async def list_industry_signals(
     offset: int = Query(0, ge=0),
 ):
     """Retrieve public, approved, active industry intelligence signals."""
-    raw_signals = get_demo("industry_signals")
+    try:
+        raw_signals = list_industry_signals_repo()
+    except SupabaseRepositoryError as e:
+        logger.error("[Signals] Failed listing industry signals from Supabase: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database failure listing industry signals: {e}",
+        )
     skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
 
     normalized = [_normalize_signal_output(s, skills_map) for s in raw_signals]
@@ -123,13 +138,18 @@ async def list_industry_signals(
 @router.get("/industry/signals/{signal_id}")
 async def get_industry_signal(signal_id: str):
     """Retrieve detailed metadata for an approved active industry signal."""
-    raw_signals = get_demo("industry_signals")
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
-
-    matched = next((s for s in raw_signals if s.get("id") == signal_id), None)
+    try:
+        matched = get_industry_signal_repo(signal_id)
+    except SupabaseRepositoryError as e:
+        logger.error("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database failure fetching industry signal: {e}",
+        )
     if not matched:
         raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
 
+    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
     normalized = _normalize_signal_output(matched, skills_map)
     if not normalized.get("is_active") or normalized.get("validation_status") != STATUS_APPROVED:
         raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' is not active or approved.")
@@ -141,7 +161,14 @@ async def get_industry_signal(signal_id: str):
 @router.get("/signals")
 async def legacy_list_signals():
     """Legacy backward-compatible endpoint for existing dashboard widgets."""
-    raw_signals = get_demo("industry_signals")
+    try:
+        raw_signals = list_industry_signals_repo()
+    except SupabaseRepositoryError as e:
+        logger.error("[Signals] Failed listing signals: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database failure listing signals: {e}",
+        )
     skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
     results = [_normalize_signal_output(s, skills_map) for s in raw_signals if s.get("is_active", True)]
     results.sort(key=lambda x: x.get("published_at", ""), reverse=True)
@@ -151,9 +178,15 @@ async def legacy_list_signals():
 @router.get("/signals/{signal_id}")
 async def legacy_get_signal(signal_id: str):
     """Legacy backward-compatible detail endpoint."""
-    raw_signals = get_demo("industry_signals")
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
-    matched = next((s for s in raw_signals if s.get("id") == signal_id), None)
+    try:
+        matched = get_industry_signal_repo(signal_id)
+    except SupabaseRepositoryError as e:
+        logger.error("[Signals] Failed fetching signal '%s': %s", signal_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database failure fetching signal: {e}",
+        )
     if not matched:
         return {"error": "not found"}
+    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
     return _normalize_signal_output(matched, skills_map)

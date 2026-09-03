@@ -103,7 +103,11 @@ def get_personalized_industry_alerts(
     student_id: str | None = None,
 ) -> dict[str, Any]:
     """Retrieve personalized technology and labour-market signals for a domain."""
-    signals_all = {s["id"]: s for s in get_demo("industry_signals")}
+    try:
+        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+        signals_all = {s["id"]: s for s in list_industry_signals_repo()}
+    except Exception:
+        signals_all = {}  # ponytail: non-critical supplement, degrade gracefully
     skills_map = {s["id"]: s for s in get_demo("skills")}
     jobs = get_demo("jobs")
     job_skills = get_demo("job_skills")
@@ -328,7 +332,11 @@ def get_skill_explainability(
     except Exception:
         feedback = get_demo("employer_feedback")
     difficult_skills = get_demo("difficult_skills")
-    signals = get_demo("industry_signals")
+    try:
+        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+        signals = list_industry_signals_repo()
+    except Exception:
+        signals = []  # ponytail: non-critical supplement, degrade gracefully
     gaps_list = compute_gaps()
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 

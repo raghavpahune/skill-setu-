@@ -340,8 +340,11 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                     "is_demo": c.get("is_demo", True),
                 })
 
-        # Connect with active fresh industry signals (Phase 26)
-        all_signals = get_demo("industry_signals")
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            all_signals = list_industry_signals_repo()
+        except Exception:
+            all_signals = []  # ponytail: non-critical supplement, degrade gracefully
         role_signals = []
         for s in all_signals:
             if not s.get("is_active", True) or s.get("validation_status", "APPROVED") != "APPROVED":

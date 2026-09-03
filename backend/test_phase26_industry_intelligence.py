@@ -66,7 +66,10 @@ def get_auth_header(user_id: str, email: str, role: str) -> dict[str, str]:
 def test_automated_ingestion_idempotency_and_deduplication():
     """Verify that running ingestion multiple times is idempotent and deduplicates records."""
     from app.db import _cache
+    from app.repositories.supabase_repository import get_client
     _cache["industry_signals"] = []
+    # Phase 32E: ingestion reads from Supabase, so clear mock table too
+    get_client().table("industry_signals").rows.clear()
     summary_1 = industry_ingestor.ingest_from_feeds()
     assert summary_1["status"] in ("success", "partial_success")
     assert summary_1["records_added"] > 0
@@ -82,6 +85,9 @@ def test_automated_ingestion_idempotency_and_deduplication():
 
 def test_malformed_record_rejection():
     """Verify malformed incoming records are rejected with descriptive error logging."""
+    from app.repositories.supabase_repository import get_client
+    # Phase 32E: clear mock so valid record is not deduped against existing data
+    get_client().table("industry_signals").rows.clear()
     malformed_feeds = [
         {"title": "Abc", "description": "Too short", "source_url": "invalid"},  # Fails min length & missing fields
         {"title": "Valid Title for Industry Telemetry", "description": "Valid long description detailing the shift in industrial hiring...", "source_url": "https://nasscom.in", "source_name": "NASSCOM"},

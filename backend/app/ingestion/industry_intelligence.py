@@ -329,8 +329,11 @@ class IndustryIntelligenceIngestor:
 
     def get_ingestion_status(self) -> dict[str, Any]:
         """Return status metrics and audit stats of the intelligence pipeline."""
-        from app.db import get_demo
-        signals = get_demo("industry_signals")
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            signals = list_industry_signals_repo()
+        except Exception:
+            signals = []  # ponytail: status degrades, report zeros
         
         # Breakdown metrics
         total = len(signals)
@@ -422,7 +425,11 @@ class IndustryIntelligenceIngestor:
         )
 
         feed_data = feeds if feeds is not None else SAMPLE_VERIFIED_FEEDS
-        existing_signals = get_demo("industry_signals")
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            existing_signals = list_industry_signals_repo()
+        except Exception:
+            existing_signals = []  # ponytail: dedup from empty baseline if Supabase down
 
         # Map existing signatures and IDs
         existing_signatures = {

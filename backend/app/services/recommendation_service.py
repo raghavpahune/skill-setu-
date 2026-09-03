@@ -7,7 +7,11 @@ def get_curriculum_recommendations() -> list[dict]:
     """Generate curriculum recommendations based on skill gaps, forecasts, and industry signals."""
     gaps = compute_gaps()
     forecasts = get_demo("skill_forecasts")
-    signals = get_demo("industry_signals")
+    try:
+        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+        signals = list_industry_signals_repo()
+    except Exception:
+        signals = []  # ponytail: non-critical supplement, degrade gracefully
     skills_map = {s["id"]: s for s in get_demo("skills")}
 
     # Build forecast lookup (best period per skill)

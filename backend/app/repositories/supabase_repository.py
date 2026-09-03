@@ -6,6 +6,8 @@ Eliminates reliance on in-memory _cache and JSON writes for migrated domains.
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger("skillsetu.repository.supabase")
@@ -40,6 +42,11 @@ class ProfileNotFoundError(SupabaseRepositoryError):
 
 class CourseNotFoundError(SupabaseRepositoryError):
     """Raised when a course record cannot be located in Supabase."""
+    pass
+
+
+class IndustrySignalNotFoundError(SupabaseRepositoryError):
+    """Raised when an industry signal record cannot be located in Supabase."""
     pass
 
 
@@ -595,3 +602,131 @@ def delete_course_repo(course_id: str) -> bool:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed deleting course id='%s': %s", course_id, e)
         raise SupabaseRepositoryError(f"Database deletion failed for course '{course_id}': {e}") from e
+
+
+# ============================================================================
+# Phase 32E: Authoritative Supabase Repository for industry_signals
+# ============================================================================
+
+def get_industry_signal(signal_id: str) -> dict[str, Any] | None:
+    """Authoritatively fetch a single industry signal by id from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("industry_signals").select("*").eq("id", signal_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        return None
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching industry signal id='%s': %s", signal_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for industry signal: {e}") from e
+
+
+def list_industry_signals(
+    category: str | None = None,
+    industry: str | None = None,
+    status: str | None = None,
+    is_active: bool | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Authoritatively list industry signals directly from Supabase."""
+    try:
+        client = get_client()
+        query = client.table("industry_signals").select("*")
+        if category and category.lower() != "all":
+            query = query.eq("category", category)
+        if status and status.lower() != "all":
+            query = query.eq("validation_status", status)
+        if is_active is not None:
+            query = query.eq("is_active", is_active)
+
+        res = query.execute()
+        signals = getattr(res, "data", []) or []
+
+        if industry and industry.lower() != "all":
+            ind_lower = industry.lower()
+            signals = [
+                s for s in signals
+                if ind_lower in (s.get("industry") or "").lower()
+                or ind_lower in (s.get("technology") or "").lower()
+            ]
+
+        if offset > 0:
+            signals = signals[offset:]
+        if limit is not None:
+            signals = signals[:limit]
+
+        return signals
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing industry signals: %s", e)
+        raise SupabaseRepositoryError(f"Database listing failed for industry signals: {e}") from e
+
+
+def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively persist an industry signal record to Supabase via upsert."""
+    try:
+        client = get_client()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        sig_record = dict(signal_data)
+        if not sig_record.get("id"):
+            sig_record["id"] = f"sig-{uuid.uuid4().hex[:8]}"
+        sig_record.setdefault("created_at", now_iso)
+        sig_record["updated_at"] = now_iso
+        sig_record.setdefault("source", "USER_SUBMITTED")
+        sig_record.setdefault("is_demo", False)
+        sig_record.setdefault("data_provenance", "VERIFIED_EXTERNAL_FEED")
+
+        res = client.table("industry_signals").upsert(sig_record).execute()
+        saved_row = res.data[0] if (res.data and len(res.data) > 0) else sig_record
+        logger.info("[SupabaseRepo] Confirmed Supabase write for industry signal '%s'", saved_row.get("id"))
+        return saved_row
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed persisting industry signal id='%s': %s", signal_data.get("id"), e)
+        raise SupabaseRepositoryError(f"Database persistence failed for industry signal: {e}") from e
+
+
+def update_industry_signal_repo(signal_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    """Authoritatively update an existing industry signal record in Supabase."""
+    try:
+        client = get_client()
+        existing = get_industry_signal(signal_id)
+        if not existing:
+            raise IndustrySignalNotFoundError(f"Industry signal record '{signal_id}' not found in Supabase.")
+        target_id = existing.get("id") or signal_id
+
+        patch = dict(updates)
+        patch["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        res = client.table("industry_signals").update(patch).eq("id", target_id).execute()
+        if not res.data or len(res.data) == 0:
+            raise IndustrySignalNotFoundError(f"Industry signal record '{signal_id}' not found in Supabase.")
+        updated_row = res.data[0]
+        logger.info("[SupabaseRepo] Confirmed Supabase update for industry signal '%s'", signal_id)
+        return updated_row
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed updating industry signal id='%s': %s", signal_id, e)
+        raise SupabaseRepositoryError(f"Database update failed for industry signal '{signal_id}': {e}") from e
+
+
+def delete_industry_signal_repo(signal_id: str) -> bool:
+    """Authoritatively delete an industry signal record from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("industry_signals").delete().eq("id", signal_id).execute()
+        deleted = bool(getattr(res, "data", []))
+        if deleted:
+            logger.info("[SupabaseRepo] Confirmed Supabase deletion for industry signal '%s'", signal_id)
+        return deleted
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed deleting industry signal id='%s': %s", signal_id, e)
+        raise SupabaseRepositoryError(f"Database deletion failed for industry signal '{signal_id}': {e}") from e
