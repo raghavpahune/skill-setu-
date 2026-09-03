@@ -526,7 +526,7 @@ def list_student_assessments(
         query = client.table("student_assessments").select("*")
         if source and source.lower() != "all":
             query = query.eq("source", source)
-        res = query.execute()
+        res = query.order("created_at", desc=True).execute()
         rows = res.data or []
         if limit is not None and limit > 0:
             rows = rows[:limit]

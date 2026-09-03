@@ -102,7 +102,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
 
   const loadAssessmentHistory = () => {
     setLoadingHistory(true);
-    api.getStudentAssessments({ limit: 20 })
+    api.getStudentAssessments({ limit: 50 })
       .then((res) => {
         if (res?.assessments) {
           setHistoryList(res.assessments);
@@ -1015,7 +1015,8 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                   >
                     <td className="p-3 font-bold text-slate-900 dark:text-white">
-                      {item.name}
+                      <div>{item.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono font-normal">{item.id}</div>
                     </td>
                     <td className="p-3 text-slate-600 dark:text-slate-300">
                       <div>{item.education}</div>
