@@ -27,7 +27,111 @@ class DemoProvider(LLMProvider):
                 f"To track {tech_name} demand systematically, submit candidate skill feedback via the Employer Dashboard or configure specialized tech job ingestion feeds."
             )
 
-        # 2. Handle verified indexed skill queries (e.g. Python, PLC Programming, React)
+        # 2. Handle Context-Aware Student Skill Recommendation Query (Phase 18 / Ask Copilot handoff)
+        if ctx.get("queried_skill") and (
+            ctx.get("student_recommendation_context")
+            or ctx.get("recommendation_handoff")
+            or ctx.get("query_type") == "skill_recommendation"
+            or any(w in prompt_lower for w in ("target role", "target career", "why learn", "why should i learn", "skillsetu profile", "my profile", "recommendation"))
+        ):
+            s = ctx["queried_skill"]
+            srec = ctx.get("student_recommendation_context") or {}
+            handoff = ctx.get("recommendation_handoff") or {}
+
+            cand_name = srec.get("candidate_name") or handoff.get("student_name") or "Candidate"
+            target_role = srec.get("target_career_goal") or srec.get("top_recommended_role") or handoff.get("target_role") or "Target Career"
+            sname = s.get("name", "This Competency")
+            category = s.get("category", "Technical Specialization")
+            nsqf = s.get("nsqf_level") or 7
+            demand_pct = s.get("demand_pct", 0)
+            demand_count = s.get("demand_count", 0)
+            total_jobs = s.get("total_jobs_tracked", 0)
+            gap_pct = s.get("gap_pct", 0)
+            priority = s.get("priority", "HIGH")
+            dist_map = s.get("district_distribution", {})
+            dist_str = ", ".join([f"**{d}** ({c} jobs)" for d, c in dist_map.items()]) if dist_map else "**Pune**, **Mumbai**, and **Nagpur** industrial clusters"
+
+            # Missing prerequisites & candidate alignment
+            missing_skills = srec.get("missing_skills") or handoff.get("missing_prerequisites") or []
+            matching_skills = srec.get("matching_skills", [])
+            readiness_score = srec.get("readiness_score", 0)
+            is_acquired = srec.get("is_queried_skill_acquired", False)
+            is_missing = srec.get("is_queried_skill_missing", True)
+
+            status_badge = "⚠️ Missing Prerequisite" if is_missing else "✓ Acquired Competency"
+            prereq_list = [m for m in missing_skills if m.lower() != sname.lower()]
+            prereqs_str = ", ".join(prereq_list) if prereq_list else "Fundamental technical baseline in place"
+
+            # Relevant courses from dataset
+            sample_courses = s.get("sample_courses") or handoff.get("relevant_courses") or []
+            if sample_courses:
+                courses_md = "\n".join([
+                    f"* **{c.get('name', 'Course')}** — {c.get('institute', 'State Technical Institute')}" + (f" ({c.get('district')})" if c.get('district') else "")
+                    for c in sample_courses
+                ])
+            else:
+                courses_md = f"* *No accredited SkillSetu course currently teaching '{sname}' was found in the Maharashtra curriculum index.*"
+
+            if target_role.lower() == "ai engineer":
+                domain_rationale = (
+                    f"**{sname}** is the foundational driver for autonomous intelligence pipelines, "
+                    f"contextual reasoning agents, and enterprise workflow automation. For an **{target_role}**, "
+                    f"mastery of {sname} bridges high-level algorithms into industrial production systems."
+                )
+                tools_str = "LangChain, LlamaIndex, Vector Databases (Chroma / PGVector), Hugging Face"
+                project_str = "Build an end-to-end Enterprise RAG Intelligence Pipeline for Maharashtra Labour Data"
+            elif "data" in target_role.lower():
+                domain_rationale = (
+                    f"**{sname}** enables deep exploratory data analysis, predictive statistical modelling, "
+                    f"and automated feature extraction directly feeding your **{target_role}** pipeline."
+                )
+                tools_str = "Pandas, NumPy, Scikit-Learn, Power BI / Tableau"
+                project_str = "Construct a Real-time Labour Demand Forecasting Dashboard"
+            elif "cloud" in target_role.lower():
+                domain_rationale = (
+                    f"**{sname}** underpins resilient, scalable cloud architectures and zero-downtime microservices "
+                    f"vital for a modern **{target_role}**."
+                )
+                tools_str = "Docker, Kubernetes, AWS/Azure CLI, Terraform, GitHub Actions"
+                project_str = "Deploy an Autoscaling Multi-Region Container Cluster on Cloud Infrastructure"
+            else:
+                domain_rationale = (
+                    f"**{sname}** is an essential technical competency required to meet verified employer hiring "
+                    f"specifications for **{target_role}**."
+                )
+                tools_str = f"Industry standard developer tooling for {sname}"
+                project_str = f"Develop a production-grade capstone project demonstrating {sname} application"
+
+            return (
+                f"### Career Recommendation Intelligence: Why Learn {sname}?\n\n"
+                f"Personalized briefing for **{cand_name}** targeting **{target_role}** based on verified Maharashtra labour intelligence:\n\n"
+                f"#### 🎯 A. Why This Skill Matters\n"
+                f"{domain_rationale}\n\n"
+                f"#### 📊 B. Current Maharashtra Labour-Market Demand & Signals\n"
+                f"* **Statewide Hiring Demand:** Appears in **{demand_pct}%** of tracked job postings (**{demand_count}** active openings across Maharashtra).\n"
+                f"* **Curriculum Deficit Gap:** **{gap_pct}%** talent deficit across regional training institutes ({priority} Priority Deficit).\n"
+                f"* **Key Hiring Clusters:** {dist_str}.\n"
+                f"* **Target Role Benchmark:** Essential competency for **{target_role}** (NSQF Level {nsqf}).\n\n"
+                f"#### 👤 C. Student Alignment & Missing Prerequisites\n"
+                f"* **Target Career Goal:** **{target_role}**\n"
+                f"* **Candidate Competency Status:** **{status_badge}** for {sname}.\n"
+                f"* **Current Readiness Score:** **{readiness_score}%** for {target_role}.\n"
+                f"* **Missing Prerequisites / Gaps to Bridge:** {prereqs_str}.\n\n"
+                f"#### 🏫 D. Relevant Accredited SkillSetu Courses & Training\n"
+                f"{courses_md}\n\n"
+                f"#### 🚀 E. Practical Step-by-Step Learning Path\n"
+                f"1. **Prerequisites Baseline:** Core foundations ({prereqs_str})\n"
+                f"2. **Core Concepts:** Foundational principles and underlying architecture of {sname}\n"
+                f"3. **Industry Tooling:** Hands-on application using {tools_str}\n"
+                f"4. **Practical Capstone Project:** {project_str}\n"
+                f"5. **Advanced Competency:** Performance tuning, security, and enterprise deployment\n"
+                f"6. **Credential / NSQF Alignment:** NSQF Level {nsqf} state-recognized assessment\n"
+                f"7. **Target Employment Role:** Onboarding into active **{target_role}** vacancies\n\n"
+                f"#### ⚡ F. Concrete Next Action\n"
+                f"Review accredited training modules listed above or initiate your modular learning roadmap in the Student Dashboard to bridge your {gap_pct}% deficit gap."
+            )
+
+        # 2b. Handle verified indexed skill queries (general overview)
         if ctx.get("data_available_for_skill") is True and ctx.get("queried_skill"):
             s = ctx["queried_skill"]
             dist_map = s.get("district_distribution", {})

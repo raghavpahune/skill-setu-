@@ -83,8 +83,12 @@ export default function CopilotChat({
   initialPrompt = '',
   initialDistrict = '',
   initialStudentId = '',
+  initialTopic = '',
+  recommendationContext = null,
+  autoSend = false,
 }) {
   const { role: authRole, isAuthenticated } = useAuth();
+  const hasAutoSentRef = useRef(false);
 
   const effectiveDefaultRole = useMemo(() => {
     if (!isAuthenticated) return defaultRole;
@@ -206,6 +210,29 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     }
   }, [initialPrompt]);
 
+  // Context-aware auto-submission from Career Recommendations (Phase 18)
+  useEffect(() => {
+    const topic = recommendationContext?.topic || initialTopic;
+    if (!topic || hasAutoSentRef.current) return;
+
+    const targetRole =
+      recommendationContext?.target_role ||
+      (students.find((s) => s.user_id === (initialStudentId || studentId))?.target_role) ||
+      'AI Engineer';
+
+    const contextualQuery = `Explain why I should learn ${topic} based on my SkillSetu profile and current Maharashtra labour-market intelligence. My target role is ${targetRole}. Show the relevant demand signals, required competencies, my missing prerequisites, relevant SkillSetu courses/training, and a practical learning path.`;
+
+    setQuestion(contextualQuery);
+
+    if (autoSend || recommendationContext) {
+      hasAutoSentRef.current = true;
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        window.history.replaceState({}, document.title);
+      }
+      handleSend(contextualQuery, recommendationContext);
+    }
+  }, [initialTopic, recommendationContext, autoSend, students, initialStudentId, studentId]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -224,7 +251,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
 
   const activeRoleDef = ROLE_DEFINITIONS.find((r) => r.id === role) || ROLE_DEFINITIONS[0];
 
-  const handleSend = async (queryText = question) => {
+  const handleSend = async (queryText = question, contextData = recommendationContext) => {
     const trimmed = queryText.trim();
     if (!trimmed || loading) return;
 
@@ -248,7 +275,13 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     setLoading(true);
 
     try {
-      const res = await api.askCopilot(trimmed, role, district || undefined, (role === 'student' ? studentId : undefined) || undefined);
+      const res = await api.askCopilot(
+        trimmed,
+        role,
+        district || undefined,
+        (role === 'student' ? (studentId || initialStudentId) : undefined) || undefined,
+        contextData || undefined
+      );
       setErrorState(null);
       setMessages((prev) => [
         ...prev,
@@ -427,6 +460,34 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
           <span className="text-[11px] text-slate-500 dark:text-slate-400">
             Queries ground in candidate assessment, skill gaps, validated employer demand, and schemes.
           </span>
+        </div>
+      )}
+
+      {/* Active Career Recommendation Handoff Context Banner (Phase 18) */}
+      {recommendationContext && (
+        <div className="bg-teal-50 dark:bg-teal-950/70 px-4 py-2 border-b border-teal-200 dark:border-teal-800/80 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse shrink-0"></span>
+            <span className="font-bold text-teal-900 dark:text-teal-200">
+              Active Recommendation Context:
+            </span>
+            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-700 text-teal-800 dark:text-teal-300 font-mono text-[11px] font-bold">
+              {recommendationContext.topic}
+            </span>
+            {recommendationContext.target_role && (
+              <span className="text-slate-600 dark:text-slate-300 text-[11px]">
+                • Target: <strong className="text-slate-800 dark:text-white">{recommendationContext.target_role}</strong>
+              </span>
+            )}
+            {recommendationContext.missing_prerequisites?.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                Prerequisite Gap
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-mono text-teal-700 dark:text-teal-400">
+            <span>🛡️ Grounded in Maharashtra Intelligence</span>
+          </div>
         </div>
       )}
 

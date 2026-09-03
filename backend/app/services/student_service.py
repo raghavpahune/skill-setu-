@@ -328,8 +328,11 @@ def get_skill_explainability(
     except Exception:
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
-    from app.repositories.supabase_repository import list_skill_forecasts
-    forecasts = list_skill_forecasts()
+    try:
+        from app.repositories.supabase_repository import list_skill_forecasts
+        forecasts = list_skill_forecasts()
+    except Exception:
+        forecasts = get_demo("skill_forecasts")
     try:
         from app.repositories.supabase_repository import list_employer_feedback
         feedback = list_employer_feedback()

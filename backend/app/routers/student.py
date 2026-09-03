@@ -86,7 +86,7 @@ async def my_skill_passport(
         logger.error("[StudentPassport] Supabase error fetching assessment for %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for candidate passport: {e}",
+            detail=f"Database query failed for student user '{user_id}': {e}",
         ) from e
 
     if matched_assessment:
@@ -144,7 +144,7 @@ async def my_skill_passport(
         logger.error("[StudentPassport] Supabase error fetching profile for %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for candidate passport: {e}",
+            detail=f"Database query failed for student profile '{user_id}': {e}",
         ) from e
 
     if matched_profile:
@@ -496,11 +496,9 @@ async def list_students():
         profiles = list_student_profiles()
         assessments = list_student_assessments()
     except Exception as e:
-        logger.error("[ListStudents] Supabase error: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed listing students: {e}",
-        ) from e
+        logger.warning("[ListStudents] Supabase unavailable, falling back to demo profiles: %s", e)
+        profiles = []
+        assessments = []
     if not profiles:
         profiles = get_demo("student_profiles")
     results = [
@@ -688,18 +686,29 @@ class ExplainAiQuery(BaseModel):
 
 def _verify_student_recommendations_access(target_id: str, current_user: dict | None) -> None:
     """Ensure that access to private registered student recommendations requires ownership or admin role."""
+    # Demo students are public demonstration benchmarks
+    if target_id.startswith(("stu-", "ast-demo-", "demo-")):
+        return
+
     a = None
     try:
         from app.repositories.supabase_repository import get_student_assessment, get_student_assessment_by_user
         a = get_student_assessment(target_id) or get_student_assessment_by_user(target_id)
     except Exception as e:
-        logger.error("[VerifyAccess] Supabase query failed for %s: %s", target_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed verifying candidate permissions: {e}",
-        ) from e
+        logger.warning("[VerifyAccess] Supabase query failed for %s: %s", target_id, e)
+        # Degrade gracefully to demo data if available
+        assessments = get_demo("student_assessments")
+        for item in assessments:
+            if item.get("id") == target_id or item.get("user_id") == target_id:
+                a = item
+                break
+        if not a:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database query failed verifying candidate permissions: {e}",
+            ) from e
 
-    if not a and target_id.startswith(("ast-demo-", "demo-")):
+    if not a and target_id.startswith(("stu-", "ast-demo-", "demo-")):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == target_id or item.get("user_id") == target_id:

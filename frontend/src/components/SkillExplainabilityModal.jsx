@@ -332,11 +332,41 @@ export default function SkillExplainabilityModal({
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <Link
-              to="/student/copilot"
+              to={{
+                pathname: '/student/copilot',
+                search: `?topic=${encodeURIComponent(skill?.name || skillNameFallback || 'This Competency')}${studentId ? `&student_id=${encodeURIComponent(studentId)}` : ''}`,
+              }}
+              state={{
+                fromRecommendation: true,
+                autoSend: true,
+                recommendationContext: {
+                  topic: skill?.name || skillNameFallback || 'This Competency',
+                  recommendation_title: `Why Learn ${skill?.name || skillNameFallback || 'This Competency'}?`,
+                  target_role: studentAlign?.target_role || '',
+                  student_name: studentAlign?.student_name || '',
+                  student_id: studentId || '',
+                  missing_prerequisites: !studentAlign?.is_acquired ? [skill?.name || skillNameFallback || 'This Competency'] : [],
+                  demand_signals: expl?.dimension_1_demand_surge ? {
+                    demand_pct: expl.dimension_1_demand_surge.demand_pct,
+                    active_vacancies_count: expl.dimension_1_demand_surge.active_vacancies_count,
+                    top_hiring_districts: expl.dimension_1_demand_surge.top_hiring_districts,
+                    relevant_roles: expl.dimension_1_demand_surge.relevant_roles,
+                  } : null,
+                  future_forecast: expl?.dimension_2_future_forecast || null,
+                  employer_consensus: expl?.dimension_3_employer_consensus || null,
+                  relevant_courses: (expl?.dimension_4_curriculum_deficit?.teaching_courses || []).map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    institute: c.institute,
+                    district: c.district,
+                  })),
+                  source: 'SkillSetu Grounded Labour Intelligence',
+                },
+              }}
               onClick={onClose}
               className="px-3 py-1.5 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors inline-block"
             >
-              Ask Copilot About {skill?.name || 'This Skill'} →
+              Ask Copilot About {skill?.name || skillNameFallback || 'This Skill'} →
             </Link>
             <button
               onClick={onClose}

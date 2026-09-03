@@ -10,6 +10,7 @@ class CopilotQuery(BaseModel):
     role: str = "student"  # government, institute, student, employer
     district: str | None = None
     student_id: str | None = None
+    context_data: dict | None = None
 
 
 class CareerExplainQuery(BaseModel):
@@ -28,6 +29,7 @@ async def ask_copilot(query: CopilotQuery):
         role=query.role,
         district=query.district,
         student_id=query.student_id,
+        context_data=query.context_data,
     )
     return answer
 

@@ -1,11 +1,13 @@
 """Curriculum API — course health audit, obsolescence detection, and syllabus modernization."""
+import logging
 from typing import Optional
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, status
 from app.services.curriculum_engine import (
     audit_all_courses,
     get_course_modernization_blueprint,
 )
 
+logger = logging.getLogger("skillsetu.curriculum")
 router = APIRouter()
 
 
@@ -16,7 +18,14 @@ async def get_curriculum_audit(
     category: Optional[str] = Query(None, description="Filter by sector category"),
 ):
     """Retrieve state-wide institutional course health, modernity scores, and obsolescence audit."""
-    courses = audit_all_courses()
+    try:
+        courses = audit_all_courses()
+    except Exception as e:
+        logger.error("[CurriculumAudit] Course audit failure: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to complete curriculum audit due to database or analytical service failure.",
+        ) from e
 
     if district:
         d_clean = district.strip().lower()
@@ -40,7 +49,14 @@ async def get_curriculum_audit(
 @router.get("/curriculum/summary")
 async def get_curriculum_summary():
     """Aggregate KPI statistics for institutional and government dashboards."""
-    courses = audit_all_courses()
+    try:
+        courses = audit_all_courses()
+    except Exception as e:
+        logger.error("[CurriculumSummary] Course summary failure: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to compute curriculum summary due to database or analytical service failure.",
+        ) from e
     total = len(courses)
 
     critical_obsolete = sum(1 for c in courses if c["obsolescence_risk"] == "CRITICAL_OBSOLETE")

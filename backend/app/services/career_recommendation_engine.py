@@ -118,8 +118,9 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
         if p:
             return p
     except SupabaseRepositoryError as e:
-        logger.error("[RecommendationEngine] Supabase repository error resolving student '%s': %s", student_id, e)
-        raise RuntimeError(f"Database error resolving student profile: {e}") from e
+        logger.warning("[RecommendationEngine] Supabase repository unavailable resolving student '%s': %s", student_id, e)
+        if not student_id.startswith(("stu-", "ast-demo-", "demo-")):
+            raise RuntimeError(f"Database error resolving student profile: {e}") from e
 
     # 2. Only allow explicit demo fixture IDs for legitimate demo candidate selector
     # NEVER fall back to demo records for production student IDs (e.g. usr-student-*, UUIDs, etc.)
@@ -433,8 +434,11 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         all_courses = list_courses()
     except Exception:
         all_courses = get_demo("courses")
-    from app.repositories.supabase_repository import list_skill_forecasts
-    fc_list = list_skill_forecasts()
+    try:
+        from app.repositories.supabase_repository import list_skill_forecasts
+        fc_list = list_skill_forecasts()
+    except Exception:
+        fc_list = get_demo("skill_forecasts")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why
