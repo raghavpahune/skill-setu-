@@ -14,9 +14,32 @@ export default function Layout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    api.getHealth()
-      .then((res) => setHealth(res))
-      .catch(() => setHealth({ status: 'offline', demo_mode: true }));
+    let cancelled = false;
+    let timer = null;
+
+    const fetchHealth = (attempt = 1) => {
+      api.getHealth()
+        .then((res) => {
+          if (!cancelled && res) {
+            setHealth(res);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            if (attempt < 4) {
+              timer = setTimeout(() => fetchHealth(attempt + 1), 3000);
+            } else {
+              setHealth({ status: 'offline', demo_mode: true });
+            }
+          }
+        });
+    };
+
+    fetchHealth(1);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   // Close mobile menu on route change
@@ -269,9 +292,22 @@ export default function Layout({ children }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            <span className="hidden xl:inline-flex px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-mono font-medium">
-              {health.demo_mode ? 'DEMO DATA' : 'LIVE DB'}
-            </span>
+            {health.status === 'connecting' ? (
+              <span className="hidden xl:inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-mono font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span>WARMING UP</span>
+              </span>
+            ) : health.status === 'offline' ? (
+              <span className="hidden xl:inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/15 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-500/30 text-[11px] font-mono font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span>OFFLINE CACHE</span>
+              </span>
+            ) : (
+              <span className="hidden xl:inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-mono font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>{health.demo_mode ? 'DEMO OVERLAY' : 'LIVE DB'}</span>
+              </span>
+            )}
 
             <button
               onClick={startTour}

@@ -1,0 +1,46 @@
+name: Production Backend Warm-Up & Health Probe
+
+on:
+  schedule:
+    # Run every 14 minutes to prevent Render free/starter instance cold spin-down
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+    # Allows manual instant trigger right before SIH stage demonstration
+
+jobs:
+  warmup:
+    name: Warm-Up Render Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Canonical Health Endpoint
+        run: |
+          URL="https://skill-setu-backend-jklo.onrender.com/api/health"
+          echo "Pinging SkillSetu Canonical Health: $URL"
+          
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=0
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            START_TIME=$(date +%s%N)
+            HTTP_CODE=$(curl -s -o /tmp/health_response.json -w "%{http_code}" --max-time 20 "$URL" || echo "000")
+            END_TIME=$(date +%s%N)
+            DURATION=$(( (END_TIME - START_TIME) / 1000000 ))
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "SUCCESS: Backend is warm and responsive (HTTP 200 in ${DURATION}ms)."
+              cat /tmp/health_response.json
+              SUCCESS=1
+              break
+            else
+              echo "Attempt $ATTEMPT returned HTTP $HTTP_CODE (took ${DURATION}ms). Retrying in 5s..."
+              sleep 5
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
+          
+          if [ $SUCCESS -ne 1 ]; then
+            echo "WARNING: Warm-up probe completed without HTTP 200 within $MAX_ATTEMPTS attempts."
+            exit 1
+          fi
