@@ -1,11 +1,12 @@
 import React from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
 import CopilotChat from '../components/CopilotChat';
 import { useAuth } from '../context/AuthContext';
 
 export default function CopilotPage({ roleOverride }) {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { role: authRole, isAuthenticated } = useAuth();
   const urlRole = searchParams.get('role');
   const validRoles = ['government', 'institute', 'student', 'employer', 'admin'];
@@ -22,6 +23,10 @@ export default function CopilotPage({ roleOverride }) {
   const initialPrompt = searchParams.get('q') || '';
   const urlDistrict = searchParams.get('district') || '';
   const urlStudentId = searchParams.get('student_id') || searchParams.get('student') || '';
+  const urlTopic = searchParams.get('topic') || '';
+  const recommendationContext = location.state?.recommendationContext || null;
+  const initialStudentId = recommendationContext?.student_id || location.state?.student_id || urlStudentId || '';
+  const autoSend = location.state?.autoSend ?? Boolean(urlTopic && !initialPrompt);
 
   return (
     <Layout>
@@ -43,7 +48,10 @@ export default function CopilotPage({ roleOverride }) {
             defaultRole={initialRole}
             initialPrompt={initialPrompt}
             initialDistrict={urlDistrict}
-            initialStudentId={urlStudentId}
+            initialStudentId={initialStudentId}
+            initialTopic={urlTopic}
+            recommendationContext={recommendationContext}
+            autoSend={autoSend}
           />
         </div>
       </div>

@@ -20,7 +20,7 @@ import app.db as db
 
 client = TestClient(app)
 
-VERCEL_PROD_ORIGIN = "https://skill-setu-raghavpahune-8496.vercel.app"
+VERCEL_PROD_ORIGIN = "https://skill-setu-rust.vercel.app"
 
 
 def get_auth_token(email: str, password: str = "Password@123") -> str:

@@ -328,8 +328,66 @@ def get_skill_explainability(
     except Exception:
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
-    from app.repositories.supabase_repository import list_skill_forecasts
-    forecasts = list_skill_forecasts()
+    # 0. Resolve student record BEFORE deciding whether demo forecast fallback is allowed
+    resolved_student = None
+    _authoritative_lookup_failed = False
+    if student_id:
+        try:
+            from app.repositories.supabase_repository import (
+                get_student_profile,
+                get_student_assessment,
+                get_student_assessment_by_user,
+            )
+            resolved_student = (
+                get_student_profile(student_id)
+                or get_student_assessment(student_id)
+                or get_student_assessment_by_user(student_id)
+            )
+        except ImportError:
+            pass  # ponytail: supabase module unavailable — test/local env
+        except Exception as e:
+            from app.repositories.supabase_repository import SupabaseConnectionError
+            if isinstance(e, SupabaseConnectionError):
+                # Supabase not configured — expected in test/demo environments
+                logger.info("[StudentService] Supabase not configured for student %s, will check demo fixtures", student_id)
+            else:
+                # Real authoritative lookup failure — do NOT fall through to demo
+                logger.error("[StudentService] Authoritative Supabase lookup failed for student %s: %s", student_id, e)
+                _authoritative_lookup_failed = True
+
+        # Only search demo fixtures if authoritative lookup did NOT fail (it either succeeded with no result, or Supabase wasn't configured)
+        if not resolved_student and not _authoritative_lookup_failed and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+            profiles = get_demo("student_profiles")
+            for item in profiles:
+                if item.get("user_id") == student_id or item.get("id") == student_id:
+                    resolved_student = item
+                    break
+
+        if _authoritative_lookup_failed and not resolved_student:
+            raise RuntimeError("Failed to resolve student record") from None
+
+
+    # Only allow get_demo("skill_forecasts") when the resolved student record explicitly has is_demo=True or source=DEMO_SYNTHETIC.
+    # For unresolved students, real users, USER_SUBMITTED students, and stu-* IDs that belong to real users:
+    # do NOT silently use demo forecasts.
+    is_explicit_demo = bool(
+        resolved_student
+        and (resolved_student.get("is_demo") is True or resolved_student.get("source") == "DEMO_SYNTHETIC")
+        and resolved_student.get("source") != "USER_SUBMITTED"
+        and resolved_student.get("is_demo") is not False
+    )
+    fc_from_repo = False
+    try:
+        from app.repositories.supabase_repository import list_skill_forecasts
+        forecasts = list_skill_forecasts()
+        fc_from_repo = True
+    except Exception as e:
+        if is_explicit_demo:
+            logger.warning("[SkillExplainability] Supabase forecasts unavailable, using demo fixtures for demo student %s: %s", student_id, e)
+            forecasts = get_demo("skill_forecasts")
+        else:
+            logger.exception("[SkillExplainability] Supabase forecast query failed for non-demo student %s: %s", student_id, e)
+            raise RuntimeError("Database error fetching skill forecasts.") from e
     try:
         from app.repositories.supabase_repository import list_employer_feedback
         feedback = list_employer_feedback()
@@ -405,8 +463,10 @@ def get_skill_explainability(
     if skill_fc_records:
         # Choose best period or 12m
         fc_12m = next((f for f in skill_fc_records if f.get("period") == "12m"), skill_fc_records[0])
+        fc_verified = bool(fc_from_repo and not fc_12m.get("is_demo", False) and fc_12m.get("source") != "DEMO_SYNTHETIC")
         dimension_forecast = {
-            "verified": True,
+            "verified": fc_verified,
+            "forecast_source": fc_12m.get("source", "SUPABASE_AUTHORITATIVE" if fc_from_repo else "DEMO_SYNTHETIC"),
             "period": fc_12m.get("period", "12m"),
             "future_demand": fc_12m.get("future_demand", "high").replace("_", " ").upper(),
             "trend": fc_12m.get("trend", "rising"),
@@ -416,6 +476,8 @@ def get_skill_explainability(
     else:
         dimension_forecast = {
             "verified": False,
+            "forecast_verified": False,
+            "forecast_source": "UNAVAILABLE",
             "future_demand": "UNAVAILABLE",
             "trend": "unknown",
             "confidence_pct": None,
@@ -501,20 +563,7 @@ def get_skill_explainability(
     # 7. Student Personalization Overlay (if student_id supplied)
     student_alignment = None
     if student_id:
-        p = None
-        try:
-            from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
-            p = get_student_profile(student_id) or get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
-        except Exception as e:
-            logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
-            p = None
-
-        if not p and student_id.startswith(("stu-", "ast-demo-", "demo-")):
-            profiles = get_demo("student_profiles")
-            for item in profiles:
-                if item["user_id"] == student_id:
-                    p = item
-                    break
+        p = resolved_student
         if p:
             skills_list = p.get("skills", []) + p.get("current_skills", [])
             has_skill = any((sk.get("skill_id") == sid or sk.get("skill_name", "").lower() == skill_name.lower()) if isinstance(sk, dict) else sk == sid for sk in skills_list)

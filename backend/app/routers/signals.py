@@ -84,10 +84,10 @@ async def list_industry_signals(
     try:
         raw_signals = list_industry_signals_repo()
     except SupabaseRepositoryError as e:
-        logger.error("[Signals] Failed listing industry signals from Supabase: %s", e)
+        logger.exception("[Signals] Failed listing industry signals from Supabase: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database failure listing industry signals: {e}",
+            detail="Database failure listing industry signals.",
         )
     skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
 
@@ -141,10 +141,10 @@ async def get_industry_signal(signal_id: str):
     try:
         matched = get_industry_signal_repo(signal_id)
     except SupabaseRepositoryError as e:
-        logger.error("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)
+        logger.exception("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database failure fetching industry signal: {e}",
+            detail="Database failure fetching industry signal.",
         )
     if not matched:
         raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
@@ -164,10 +164,10 @@ async def legacy_list_signals():
     try:
         raw_signals = list_industry_signals_repo()
     except SupabaseRepositoryError as e:
-        logger.error("[Signals] Failed listing signals: %s", e)
+        logger.exception("[Signals] Failed listing signals: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database failure listing signals: {e}",
+            detail="Database failure listing signals.",
         )
     skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
     results = [_normalize_signal_output(s, skills_map) for s in raw_signals if s.get("is_active", True)]
@@ -181,10 +181,10 @@ async def legacy_get_signal(signal_id: str):
     try:
         matched = get_industry_signal_repo(signal_id)
     except SupabaseRepositoryError as e:
-        logger.error("[Signals] Failed fetching signal '%s': %s", signal_id, e)
+        logger.exception("[Signals] Failed fetching signal '%s': %s", signal_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database failure fetching signal: {e}",
+            detail="Database failure fetching signal.",
         )
     if not matched:
         return {"error": "not found"}

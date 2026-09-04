@@ -24,10 +24,10 @@ async def list_forecasts(
     try:
         forecasts = compute_multi_horizon_forecasts()
     except (SupabaseRepositoryError, Exception) as e:
-        logger.error("[ForecastAPI] Database query failed for forecasts: %s", e)
+        logger.exception("[ForecastAPI] Database query failed for forecasts: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for forecasts: {e}",
+            detail="Database query failed for forecasts.",
         ) from e
 
     if trend:
@@ -53,10 +53,10 @@ async def future_skills_radar():
     try:
         return generate_future_skills_radar()
     except (SupabaseRepositoryError, Exception) as e:
-        logger.error("[ForecastAPI] Database query failed for future skills radar: %s", e)
+        logger.exception("[ForecastAPI] Database query failed for future skills radar: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for future skills radar: {e}",
+            detail="Database query failed for future skills radar.",
         ) from e
 
 
@@ -66,10 +66,10 @@ async def forecast_for_skill(skill_id: str):
     try:
         trajectory = get_skill_forecast_trajectory(skill_id)
     except (SupabaseRepositoryError, Exception) as e:
-        logger.error("[ForecastAPI] Database query failed for skill '%s': %s", skill_id, e)
+        logger.exception("[ForecastAPI] Database query failed for skill '%s': %s", skill_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for skill forecast trajectory: {e}",
+            detail="Database query failed for skill forecast trajectory.",
         ) from e
 
     if trajectory:

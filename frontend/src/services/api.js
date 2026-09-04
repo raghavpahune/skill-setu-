@@ -207,10 +207,9 @@ export const api = {
   },
 
 
-  // AI Copilot
-  askCopilot: (question, role = 'student', district = null, studentId = null) => fetchJSON('/copilot/ask', {
+  askCopilot: (question, role = 'student', district = null, studentId = null, contextData = null) => fetchJSON('/copilot/ask', {
     method: 'POST',
-    body: JSON.stringify({ question, role, district, student_id: studentId }),
+    body: JSON.stringify({ question, role, district, student_id: studentId, context_data: contextData }),
   }),
   explainCareerCopilot: (studentId, question = null, district = null) => fetchJSON('/copilot/explain-career', {
     method: 'POST',

@@ -118,8 +118,9 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
         if p:
             return p
     except SupabaseRepositoryError as e:
-        logger.error("[RecommendationEngine] Supabase repository error resolving student '%s': %s", student_id, e)
-        raise RuntimeError(f"Database error resolving student profile: {e}") from e
+        logger.warning("[RecommendationEngine] Supabase repository unavailable resolving student '%s': %s", student_id, e)
+        if not student_id.startswith(("stu-", "ast-demo-", "demo-")):
+            raise RuntimeError(f"Database error resolving student profile: {e}") from e
 
     # 2. Only allow explicit demo fixture IDs for legitimate demo candidate selector
     # NEVER fall back to demo records for production student IDs (e.g. usr-student-*, UUIDs, etc.)
@@ -433,14 +434,33 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         all_courses = list_courses()
     except Exception:
         all_courses = get_demo("courses")
-    from app.repositories.supabase_repository import list_skill_forecasts
-    fc_list = list_skill_forecasts()
+    is_real_candidate = not student_id.startswith(("stu-", "ast-demo-", "demo-")) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
+
+    fc_from_repo = False
+    try:
+        from app.repositories.supabase_repository import list_skill_forecasts
+        fc_list = list_skill_forecasts()
+        fc_from_repo = True
+    except Exception as e:
+        if is_real_candidate:
+            logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
+            raise RuntimeError("Database error fetching skill forecasts for candidate roadmap.") from e
+        logger.warning("[RecommendationEngine] Supabase forecasts unavailable, using demo fixtures for demo student '%s': %s", student_id, e)
+        fc_list = get_demo("skill_forecasts")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why
-        matching_fc = next((f for f in fc_list if skill.lower() in f.get("skill_name", "").lower()), {})
-        trend = matching_fc.get("trend", "rising")
-        conf = matching_fc.get("confidence", 85)
+        matching_fc = next((f for f in fc_list if skill.lower() in f.get("skill_name", "").lower()), None)
+        if matching_fc:
+            trend = matching_fc.get("trend", "rising")
+            conf = matching_fc.get("confidence", 85)
+            fc_source = matching_fc.get("source", "SUPABASE_AUTHORITATIVE" if fc_from_repo else "DEMO_SYNTHETIC")
+            fc_verified = bool(fc_from_repo and not matching_fc.get("is_demo", False) and matching_fc.get("source") != "DEMO_SYNTHETIC")
+        else:
+            trend = "unknown"
+            conf = None
+            fc_source = "UNAVAILABLE"
+            fc_verified = False
 
         # Match institute training courses for this specific missing skill
         training_options = []
@@ -476,7 +496,9 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "priority": "HIGH" if idx <= 2 else "MEDIUM",
             "trend": trend,
             "demand_confidence": conf,
-            "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence).",
+            "forecast_source": fc_source,
+            "forecast_verified": fc_verified,
+            "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence)." if conf else f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with current market requirements.",
             "action_item": f"Complete hands-on practical modules for {skill} through recommended vocational institutes.",
             "matched_institute_training": training_options[:2],
             "matched_industry_signals": skill_signals[:2],
@@ -488,8 +510,10 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                 "step": 1,
                 "skill_name": "Production Capstone Project",
                 "priority": "HIGH",
-                "trend": "rising",
-                "demand_confidence": 95,
+                "trend": "unknown",
+                "demand_confidence": None,
+                "forecast_source": "UNAVAILABLE",
+                "forecast_verified": False,
                 "why_learn": "Candidate meets all baseline prerequisites. Building an end-to-end industrial portfolio is the final bridge to placement.",
                 "action_item": "Deploy a production-ready application and prepare technical case studies.",
             },
@@ -497,8 +521,10 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                 "step": 2,
                 "skill_name": "Direct Industry Placement / Apprenticeship",
                 "priority": "HIGH",
-                "trend": "rising",
-                "demand_confidence": 90,
+                "trend": "unknown",
+                "demand_confidence": None,
+                "forecast_source": "UNAVAILABLE",
+                "forecast_verified": False,
                 "why_learn": "Directly interview with verified employers and NAPS registered partners.",
                 "action_item": "Submit resume to validated hiring partners in Pune / Mumbai corridors.",
             }

@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import uuid
 import re
+import logging
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -14,6 +15,7 @@ from app.core.security import (
 )
 from app.db import get_user_by_email, get_user_by_id, save_user
 
+logger = logging.getLogger("skillsetu.auth")
 router = APIRouter()
 
 ALLOWED_PUBLIC_ROLES = {"STUDENT", "EMPLOYER", "INSTITUTE", "GOVERNMENT"}
@@ -100,7 +102,14 @@ async def register(req: RegisterRequest):
         "updated_at": now_iso,
     }
 
-    saved = save_user(new_user)
+    try:
+        saved = save_user(new_user)
+    except Exception as e:
+        logger.exception("[Auth] Failed persisting user: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database persistence failed for user registration.",
+        ) from e
     token = create_access_token({
         "sub": saved["id"],
         "email": saved["email"],

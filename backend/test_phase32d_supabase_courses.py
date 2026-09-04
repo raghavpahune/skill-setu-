@@ -19,7 +19,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from app.main import app
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.repositories.supabase_repository import (
     get_course,
     list_courses,
@@ -44,12 +44,14 @@ save_user({
     "role": "INSTITUTE",
     "organization_id": "inst-vjti",
     "full_name": "VJTI Principal",
+    "hashed_password": hash_password("Password@123"),
 })
 save_user({
     "id": "usr-student-p32d",
     "email": "student_p32d@skillsetu.gov.in",
     "role": "STUDENT",
     "full_name": "Student Tester",
+    "hashed_password": hash_password("Password@123"),
 })
 
 INSTITUTE_1_TOKEN = create_access_token({

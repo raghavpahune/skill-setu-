@@ -1,11 +1,13 @@
 """Districts API — district-level training plans and platform metrics."""
-from fastapi import APIRouter
+import logging
+from fastapi import APIRouter, HTTPException, status
 from app.services.district_service import (
     get_district_plan,
     get_all_districts,
     get_platform_metrics_summary,
 )
 
+logger = logging.getLogger("skillsetu.districts")
 router = APIRouter()
 
 
@@ -24,5 +26,12 @@ async def district_platform_metrics():
 @router.get("/districts/{name}/plan")
 async def district_plan(name: str):
     """Retrieve 11-point comprehensive workforce action plan for a district."""
-    return get_district_plan(name)
+    try:
+        return get_district_plan(name)
+    except Exception as e:
+        logger.error("[DistrictPlan] Failed generating district plan for '%s': %s", name, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to generate district plan for '{name}' due to database or analytical service failure.",
+        ) from e
 

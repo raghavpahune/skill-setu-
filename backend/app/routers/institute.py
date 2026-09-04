@@ -107,10 +107,10 @@ async def create_institute_course(
     try:
         saved = create_course(course_record)
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed creating course in Supabase: %s", e)
+        logger.exception("[Institute] Failed creating course in Supabase: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database persistence failed for course: {e}",
+            detail="Database persistence failed for course.",
         )
 
     # Sync cache/local table if cache is active
@@ -134,10 +134,10 @@ async def list_my_courses(current_user: dict = Depends(require_roles(["INSTITUTE
     try:
         all_courses = list_courses()
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed querying courses from Supabase: %s", e)
+        logger.exception("[Institute] Failed querying courses from Supabase: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for courses: {e}",
+            detail="Database query failed for courses.",
         )
 
     user_id = current_user.get("id")
@@ -177,10 +177,10 @@ async def list_institute_courses(
             status=status_filter,
         )
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed querying courses from Supabase: %s", e)
+        logger.exception("[Institute] Failed querying courses from Supabase: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for courses: {e}",
+            detail="Database query failed for courses.",
         )
 
     results = all_courses
@@ -227,10 +227,10 @@ async def get_institute_course(course_id: str):
     try:
         c = get_course(course_id)
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed fetching course '%s' from Supabase: %s", course_id, e)
+        logger.exception("[Institute] Failed fetching course '%s' from Supabase: %s", course_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for course '{course_id}': {e}",
+            detail=f"Database query failed for course '{course_id}'.",
         )
     if c:
         return {"status": "success", "course": c}
@@ -248,10 +248,10 @@ async def update_my_course(
     try:
         matched = get_course(course_id)
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed fetching course '%s' for update: %s", course_id, e)
+        logger.exception("[Institute] Failed fetching course '%s' for update: %s", course_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for course '{course_id}': {e}",
+            detail=f"Database query failed for course '{course_id}'.",
         )
     if not matched:
         raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
@@ -288,10 +288,10 @@ async def update_my_course(
     except CourseNotFoundError:
         raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed updating course '%s' in Supabase: %s", course_id, e)
+        logger.exception("[Institute] Failed updating course '%s' in Supabase: %s", course_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database update failed for course: {e}",
+            detail="Database update failed for course.",
         )
 
     try:
@@ -311,10 +311,10 @@ async def delete_my_course(
     try:
         matched = get_course(course_id)
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed fetching course '%s' for deletion: %s", course_id, e)
+        logger.exception("[Institute] Failed fetching course '%s' for deletion: %s", course_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for course '{course_id}': {e}",
+            detail=f"Database query failed for course '{course_id}'.",
         )
     if not matched:
         raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found.")
@@ -334,10 +334,10 @@ async def delete_my_course(
     try:
         deleted = delete_course_repo(course_id)
     except SupabaseRepositoryError as e:
-        logger.error("[Institute] Failed deleting course '%s' from Supabase: %s", course_id, e)
+        logger.exception("[Institute] Failed deleting course '%s' from Supabase: %s", course_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database deletion failed for course: {e}",
+            detail="Database deletion failed for course.",
         )
 
     try:
@@ -392,9 +392,9 @@ async def extract_institute_syllabus(
     try:
         return extract_skills_from_syllabus(content, course_name_hint=course_name_hint)
     except Exception as e:
-        logger.error("[Institute] Error extracting syllabus skills: %s", e)
+        logger.exception("[Institute] Error extracting syllabus skills: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Syllabus analysis failed: {e}",
+            detail="Syllabus analysis failed.",
         ) from e
 

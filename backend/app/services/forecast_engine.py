@@ -7,9 +7,12 @@ by combining:
 3. Live industry signals & technology breakthroughs.
 4. Graduate placement feedback.
 """
+import logging
 from typing import Any
 from app.db import get_demo
 from app.services.career_recommendation_engine import is_live_employer_demand
+
+logger = logging.getLogger("skillsetu.forecast_engine")
 
 
 def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
