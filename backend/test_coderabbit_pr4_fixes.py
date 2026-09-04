@@ -420,9 +420,11 @@ def test_recommendation_and_gov_opportunities_provenance_routing():
         "is_demo": False,
     }
 
+    mock_sb = MagicMock()
+    mock_sb.table.return_value.select.return_value.execute.return_value.data = []
     with patch("app.services.career_recommendation_engine._resolve_student_profile", return_value=real_profile):
         with patch("app.repositories.supabase_repository.list_schemes", return_value=[]):
-            with patch("app.services.career_recommendation_engine.get_demo", return_value=[]):
+            with patch("app.db.get_supabase_client", return_value=mock_sb):
                 rec = compute_career_recommendations("usr-real-student-456")
                 assert "recommended_careers" in rec
                 assert rec["data_provenance"]["government_opportunities_source"] == "NO_OFFICIAL_MATCHES"
@@ -476,11 +478,16 @@ def test_review4_get_scheme_validates_uuid_before_querying_id():
     }
     from app.repositories.supabase_repository import get_client
     client = get_client()
-    client.table("schemes").insert(scheme_data).execute()
-
-    res = get_scheme(non_uuid_code)
-    assert res is not None
-    assert res["scheme_code"] == non_uuid_code
+    try:
+        client.table("schemes").insert(scheme_data).execute()
+        res = get_scheme(non_uuid_code)
+        assert res is not None
+        assert res["scheme_code"] == non_uuid_code
+    finally:
+        try:
+            client.table("schemes").delete().eq("id", valid_id).execute()
+        except Exception:
+            pass
 
 
 def test_review4_recommended_schemes_resolved_id_demo_check():
@@ -543,9 +550,11 @@ def test_review4_real_opps_sandbox_simulation_excluded():
         }
     ]
 
+    mock_sb = MagicMock()
+    mock_sb.table.return_value.select.return_value.execute.return_value.data = sandbox_opps
     with patch("app.services.career_recommendation_engine._resolve_student_profile", return_value=real_profile):
         with patch("app.repositories.supabase_repository.list_schemes", return_value=[]):
-            with patch("app.services.career_recommendation_engine.get_demo", return_value=sandbox_opps):
+            with patch("app.db.get_supabase_client", return_value=mock_sb):
                 rec = compute_career_recommendations("usr-real-candidate-99")
                 assert rec["data_provenance"]["government_opportunities_source"] == "NO_OFFICIAL_MATCHES"
 
@@ -608,9 +617,11 @@ def test_review5_student_assessment_preserves_demo_provenance():
 
 def test_review5_schema_and_migration_external_id_contract():
     """Schema and migration must define external_id and non-partial unique constraints/indexes."""
-    with open("data/schema.sql", "r", encoding="utf-8") as f:
+    from pathlib import Path
+    project_root = Path(__file__).resolve().parent.parent
+    with open(project_root / "data" / "schema.sql", "r", encoding="utf-8") as f:
         schema_sql = f.read()
-    with open("data/migrations/20260904_add_provenance_columns.sql", "r", encoding="utf-8") as f:
+    with open(project_root / "data" / "migrations" / "20260904_add_provenance_columns.sql", "r", encoding="utf-8") as f:
         migration_sql = f.read()
 
     assert "external_id TEXT" in schema_sql
@@ -685,3 +696,46 @@ def test_review6_authenticated_assessment_provenance_isolation():
         assert ast_demo["source_label"] == "Demo Assessment Simulation"
         assert ast_demo["data_provenance"] == "DEMO_SYNTHETIC"
         assert ast_demo["id"].startswith("ast-demo-")
+
+
+def test_review7_email_lookup_does_not_recreate_revoked_account():
+    """Finding 1 (Review 7): get_user_by_email and get_user_by_id must not recreate deleted accounts."""
+    from app.db import _cache, get_user_by_email, get_user_by_id, list_users, init_demo_users
+
+    # Ensure baseline is loaded initially
+    init_demo_users()
+    assert get_user_by_email("student@skillsetu.gov.in") is not None
+
+    # Simulate operator removing / revoking the account
+    _cache["users"] = [u for u in _cache.get("users", []) if u.get("id") != "usr-student-001" and u.get("email") != "student@skillsetu.gov.in"]
+
+    # Authentication lookup must return None and MUST NOT resurrect the account
+    assert get_user_by_email("student@skillsetu.gov.in") is None
+    assert get_user_by_id("usr-student-001") is None
+    assert not any(u.get("id") == "usr-student-001" for u in list_users())
+
+    # Re-initialize demo baseline for subsequent tests
+    init_demo_users()
+    assert get_user_by_email("student@skillsetu.gov.in") is not None
+
+
+def test_review7_conftest_fixture_table_independence():
+    """Finding 2 (Review 7): Fixture loads missing tables and demo users even if _cache is partially populated."""
+    from app.db import _cache
+
+    # Partially populate _cache simulating a dirty cache from an earlier test
+    _cache["partial_dummy"] = [{"id": "dummy-1"}]
+    # Remove schemes to simulate a missing table in partial cache
+    _cache.pop("schemes", None)
+
+    # Invoking the fixture logic directly should recover missing tables and demo accounts
+    from app.db import load_demo_data, load_real_data, init_demo_users
+    for tbl in ("skills", "jobs", "schemes", "gov_opportunities"):
+        if tbl not in _cache or not _cache[tbl]:
+            load_demo_data()
+            load_real_data()
+            break
+    init_demo_users()
+
+    assert "schemes" in _cache and len(_cache["schemes"]) > 0
+    assert any(u.get("email") == "student@skillsetu.gov.in" for u in _cache.get("users", []))

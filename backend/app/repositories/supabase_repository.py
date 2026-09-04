@@ -1207,3 +1207,17 @@ def upsert_schemes(schemes_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed upserting schemes: %s", e)
         raise SupabaseRepositoryError(f"Database upsert failed for schemes: {e}") from e
+
+
+def list_skills(limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
+    """Authoritatively list skills from Supabase."""
+    try:
+        client = get_client()
+        query = client.table("skills").select("*")
+        res = query.range(offset, offset + limit - 1).execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing skills: %s", e)
+        raise SupabaseRepositoryError(f"Database listing failed for skills: {e}") from e

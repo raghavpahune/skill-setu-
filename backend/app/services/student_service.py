@@ -107,20 +107,22 @@ def get_personalized_industry_alerts(
     student_id: str | None = None,
 ) -> dict[str, Any]:
     """Retrieve personalized technology and labour-market signals for a domain."""
+    is_demo_req = bool(not student_id or is_demo_student_id(student_id))
     try:
         from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
         signals_all = {s["id"]: s for s in list_industry_signals_repo()}
     except Exception:
         signals_all = {}  # ponytail: non-critical supplement, degrade gracefully
+
     skills_map = {s["id"]: s for s in get_demo("skills")}
-    is_demo_req = bool(not student_id or is_demo_student_id(student_id))
+
     try:
         from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
         repo_jobs = list_jobs_repo(limit=10000)
         if repo_jobs:
             jobs = repo_jobs
-            job_ids = {j.get("id") for j in jobs}
-            repo_js = list_job_skills_repo()
+            job_ids = {j.get("id") for j in jobs if j.get("id")}
+            repo_js = list_job_skills_repo(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         elif is_demo_req:
             jobs = get_demo("jobs")
@@ -139,8 +141,8 @@ def get_personalized_industry_alerts(
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
-        courses = get_demo("courses")
-    course_skills = get_demo("course_skills")
+        courses = [] if not is_demo_req else get_demo("courses")
+    course_skills = [] if not is_demo_req else get_demo("course_skills")
     gaps_list = compute_gaps(is_demo=is_demo_req)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 
@@ -318,7 +320,7 @@ def get_personalized_industry_alerts(
             "skills_to_strengthen": skills_to_strengthen[:4],
             "actionable_next_steps": actionable_steps,
             "related_courses": related_courses,
-            "data_provenance": "GROUNDED_DEMO_DATASET",
+            "data_provenance": "GROUNDED_DEMO_DATASET" if is_demo_req else "SUPABASE_AUTHORITATIVE",
         })
 
     return {
@@ -339,16 +341,16 @@ def get_skill_explainability(
     student_id: str | None = None,
 ) -> dict[str, Any]:
     """Provide a transparent, 5-point evidence-based explainability breakdown for a skill."""
+    is_demo_req = bool(not student_id or is_demo_student_id(student_id))
     skills_list = get_demo("skills")
     skills_map = {s["id"]: s for s in skills_list}
-    is_demo_req = bool(not student_id or is_demo_student_id(student_id))
     try:
         from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
         repo_jobs = list_jobs_repo(limit=10000)
         if repo_jobs:
             jobs = repo_jobs
-            job_ids = {j.get("id") for j in jobs}
-            repo_js = list_job_skills_repo()
+            job_ids = {j.get("id") for j in jobs if j.get("id")}
+            repo_js = list_job_skills_repo(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         elif is_demo_req:
             jobs = get_demo("jobs")
@@ -367,8 +369,8 @@ def get_skill_explainability(
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
-        courses = get_demo("courses")
-    course_skills = get_demo("course_skills")
+        courses = [] if not is_demo_req else get_demo("courses")
+    course_skills = [] if not is_demo_req else get_demo("course_skills")
     # 0. Resolve student record BEFORE deciding whether demo forecast fallback is allowed
     resolved_student = None
     _authoritative_lookup_failed = False
@@ -431,9 +433,9 @@ def get_skill_explainability(
             raise RuntimeError("Database error fetching skill forecasts.") from e
     try:
         from app.repositories.supabase_repository import list_employer_feedback
-        feedback = list_employer_feedback()
+        feedback = list_employer_feedback() or []
     except Exception:
-        feedback = get_demo("employer_feedback")
+        feedback = [] if not is_explicit_demo else get_demo("employer_feedback")
     difficult_skills = get_demo("difficult_skills")
     try:
         from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
@@ -489,8 +491,9 @@ def get_skill_explainability(
     role_counts = Counter(j.get("title", "") for j in matching_job_objs)
     relevant_roles = [r for r, _ in role_counts.most_common(4)]
 
+    demand_verified = bool(vacancies_count > 0 and (not is_demo_req or is_explicit_demo)) if not is_demo_req else True
     dimension_demand = {
-        "verified": True,
+        "verified": demand_verified,
         "demand_pct": demand_pct,
         "active_vacancies_count": vacancies_count,
         "demand_surge_label": f"↑ {demand_pct}% of indexed Maharashtra job postings",
@@ -635,7 +638,7 @@ def get_skill_explainability(
             "dimension_5_academic_rationale": dimension_rationale,
         },
         "student_alignment": student_alignment,
-        "data_provenance": "SKILLSETU_GROUNDED_INTELLIGENCE",
+        "data_provenance": "GROUNDED_DEMO_DATASET" if is_demo_req else "SUPABASE_AUTHORITATIVE",
     }
 
 

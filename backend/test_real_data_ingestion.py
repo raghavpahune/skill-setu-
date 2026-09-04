@@ -322,11 +322,13 @@ def test_verification_failure_generic_employer():
 # ============================================================================
 def test_supabase_unavailable_handling():
     """When Supabase client is None / unconfigured, repository raises SupabaseConnectionError."""
-    set_supabase_client(None)
-    with patch("app.db.get_supabase_client", return_value=None):
-        with pytest.raises(SupabaseConnectionError):
-            list_jobs()
-    reset_supabase_client()
+    try:
+        set_supabase_client(None)
+        with patch("app.db.get_supabase_client", return_value=None):
+            with pytest.raises(SupabaseConnectionError):
+                list_jobs()
+    finally:
+        reset_supabase_client()
 
 
 # ============================================================================

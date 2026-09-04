@@ -56,21 +56,43 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
         except Exception as e:
             logger.warning("[ForecastEngine] Employer demands unavailable: %s", e)
             employer_demands = [] if is_demo is False else get_demo("employer_demands")
-    try:
-        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-        industry_signals = list_industry_signals_repo()
-    except Exception:
-        industry_signals = []  # ponytail: non-critical, forecast degrades gracefully
-    placements = get_demo("placements")
-    from app.repositories.supabase_repository import list_skill_forecasts
-    raw_stored = list_skill_forecasts()
-    stored_forecasts = {}
-    for f in raw_stored:
-        sid = f.get("skill_id")
-        if not sid:
-            continue
-        if sid not in stored_forecasts or f.get("confidence", 0) > stored_forecasts[sid].get("confidence", 0):
-            stored_forecasts[sid] = f
+    if is_demo is True:
+        industry_signals = get_demo("industry_signals")
+        stored_forecasts = {f.get("skill_id"): f for f in get_demo("skill_forecasts") if f.get("skill_id")}
+        placements = get_demo("placements")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            industry_signals = list_industry_signals_repo()
+        except Exception:
+            industry_signals = [] if is_demo is False else get_demo("industry_signals")
+
+        try:
+            from app.repositories.supabase_repository import list_skill_forecasts, SupabaseRepositoryError
+            raw_stored = list_skill_forecasts()
+        except SupabaseRepositoryError:
+            raise
+        except Exception:
+            raw_stored = [] if is_demo is False else get_demo("skill_forecasts")
+
+        stored_forecasts = {}
+        for f in raw_stored:
+            sid = f.get("skill_id")
+            if not sid:
+                continue
+            if sid not in stored_forecasts or f.get("confidence", 0) > stored_forecasts[sid].get("confidence", 0):
+                stored_forecasts[sid] = f
+
+        if is_demo is False:
+            try:
+                from app.db import get_supabase_client
+                client = get_supabase_client()
+                res = client.table("placements").select("*").execute() if client else None
+                placements = getattr(res, "data", []) or []
+            except Exception:
+                placements = []
+        else:
+            placements = get_demo("placements")
 
     # 1. Calculate Current Job Demand Velocity per skill
     total_jobs = max(1, len(jobs))

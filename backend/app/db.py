@@ -925,8 +925,6 @@ def get_user_by_email(email: str) -> dict | None:
     """Find user record by case-insensitive email address."""
     if not _cache:
         init_db()
-    if not any(u.get("id") == "usr-student-001" for u in _cache.get("users", [])):
-        init_demo_users()
     users = _cache.get("users", [])
     clean_email = email.strip().lower()
     for u in users:
@@ -939,8 +937,6 @@ def get_user_by_id(user_id: str) -> dict | None:
     """Find user record by ID."""
     if not _cache:
         init_db()
-    if not any(u.get("id") == "usr-student-001" for u in _cache.get("users", [])):
-        init_demo_users()
     users = _cache.get("users", [])
     for u in users:
         if u.get("id") == user_id:
@@ -952,8 +948,6 @@ def list_users() -> list[dict]:
     """Return all user accounts."""
     if not _cache:
         init_db()
-    if not any(u.get("id") == "usr-student-001" for u in _cache.get("users", [])):
-        init_demo_users()
     return _cache.get("users", [])
 
 

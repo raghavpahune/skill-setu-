@@ -74,6 +74,9 @@ class SyncEngine:
             total_added = 0
             total_updated = 0
             src_norm = (source_name or "all").lower().strip()
+            valid_sources = {"all", "data.gov.in", "schemes", "ogd", "adzuna", "jobs"}
+            if src_norm not in valid_sources:
+                raise ValueError(f"Unsupported sync source selector '{source_name}'. Supported selectors: {sorted(valid_sources)}")
 
             # ----------------------------------------------------------------
             # 1. Ingest Schemes and Opportunities from data.gov.in
@@ -186,12 +189,16 @@ class SyncEngine:
 
         for s in incoming_schemes:
             c_hash = s.get("content_hash")
-            s_key = (s.get("source"), s.get("external_id"))
+            source = s.get("source")
+            ext_id = s.get("external_id")
+            has_stable_key = bool(source and ext_id)
+            s_key = (source, ext_id)
 
             target_idx = None
-            # Stable key match first, then hash fallback
-            if s_key[0] and s_key[1] and s_key in source_id_index:
-                target_idx = source_id_index[s_key]
+            # Stable key match is authoritative. Only fall back to hash if record has no stable key.
+            if has_stable_key:
+                if s_key in source_id_index:
+                    target_idx = source_id_index[s_key]
             elif c_hash and c_hash in hash_index:
                 target_idx = hash_index[c_hash]
 
@@ -249,12 +256,18 @@ class SyncEngine:
 
         for job in incoming_jobs:
             c_hash = job.get("content_hash")
-            j_key = (job.get("source"), job.get("external_id"))
+            source = job.get("source")
+            ext_id = job.get("external_id") or job.get("ext_id")
+            if ext_id and not job.get("external_id"):
+                job["external_id"] = ext_id
+            has_stable_key = bool(source and ext_id)
+            j_key = (source, ext_id)
 
             target_idx = None
-            # Stable key match first, then hash fallback
-            if j_key[0] and j_key[1] and j_key in source_id_index:
-                target_idx = source_id_index[j_key]
+            # Stable key match is authoritative. Only fall back to hash if record has no stable key.
+            if has_stable_key:
+                if j_key in source_id_index:
+                    target_idx = source_id_index[j_key]
             elif c_hash and c_hash in hash_index:
                 target_idx = hash_index[c_hash]
 

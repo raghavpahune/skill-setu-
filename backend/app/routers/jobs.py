@@ -1,8 +1,9 @@
-"""Jobs API — labour market demand data."""
+import logging
 from collections import Counter
 from fastapi import APIRouter, Query
 from app.db import get_demo
 
+logger = logging.getLogger("skillsetu.routers.jobs")
 router = APIRouter()
 
 
@@ -14,19 +15,30 @@ async def list_jobs(
     limit: int = 50,
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
-    if is_demo is not True:
-        try:
-            from app.repositories.supabase_repository import list_jobs as list_jobs_repo
-            repo_jobs = list_jobs_repo(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit)
-            if repo_jobs:
-                return repo_jobs
-        except Exception:
-            if is_demo is False:
-                return []  # fail closed: no silent demo fallback for real requests
+    if is_demo is True:
+        jobs = get_demo("jobs")
+        if district:
+            jobs = [j for j in jobs if j["district"].lower() == district.lower()]
+        if industry:
+            jobs = [j for j in jobs if j["industry"].lower() == industry.lower()]
+        if opportunity_type:
+            jobs = [j for j in jobs if j.get("opportunity_type", "job").lower() == opportunity_type.lower()]
+        return jobs[:limit]
 
+    # For real or unspecified mode, attempt authoritative repository lookup
+    try:
+        from app.repositories.supabase_repository import list_jobs as list_jobs_repo
+        repo_jobs = list_jobs_repo(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit)
+        if repo_jobs:
+            return repo_jobs
         if is_demo is False:
-            return []  # no repo data available and caller explicitly wants real data
+            return []
+    except Exception as exc:
+        logger.warning("[Jobs API] Authoritative repository lookup failed: %s", exc)
+        if is_demo is False:
+            return []
 
+    # Backward compatibility fallback: when is_demo is unspecified (None) and DB has no jobs / fails
     jobs = get_demo("jobs")
     if district:
         jobs = [j for j in jobs if j["district"].lower() == district.lower()]

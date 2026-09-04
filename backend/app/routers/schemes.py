@@ -101,7 +101,7 @@ async def get_scheme_metadata(
     else:
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-            db_schemes = list_schemes_repo()
+            db_schemes = list_schemes_repo(limit=1000)
             if db_schemes:
                 schemes = db_schemes
             elif is_demo is False:
@@ -280,15 +280,12 @@ async def get_scheme(scheme_id: str, is_demo: bool | None = None):
         if is_demo is False:
             raise HTTPException(status_code=503, detail="Authoritative scheme database unavailable")
 
-    # 3. If explicit real request (is_demo=False), fail closed
-    if is_demo is False:
-        raise HTTPException(status_code=404, detail="Scheme not found")
-
-    # 4. Fallback to demo fixtures only when is_demo is not explicitly False
-    schemes = get_demo("schemes")
-    for s in schemes:
-        if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():
-            return s
+    # 3. Fallback to demo fixtures when is_demo was not explicitly False
+    if is_demo is None:
+        schemes = get_demo("schemes")
+        for s in schemes:
+            if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():
+                return s
 
     raise HTTPException(status_code=404, detail="Scheme not found")
 

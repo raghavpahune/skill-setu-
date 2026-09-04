@@ -316,7 +316,7 @@ def extract_skills_and_unmapped(
 
         if not is_matched:
             # Check synonyms
-            for syn in skill.get("synonyms", []):
+            for syn in (skill.get("synonyms") or []):
                 if not syn:
                     continue
                 syn_clean = syn.strip()

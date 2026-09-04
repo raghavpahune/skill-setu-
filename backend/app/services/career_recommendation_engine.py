@@ -260,7 +260,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     validated_demands = _get_validated_employer_demands()
 
     # 3. Extract Government Opportunities & Welfare Schemes
-    if is_demo_student_id(student_id) or source_provenance == "DEMO_SYNTHETIC":
+    if is_demo_student_id(student_id) or profile.get("is_demo") or source_provenance == "DEMO_SYNTHETIC":
         gov_opportunities = get_demo("gov_opportunities")
         schemes = get_demo("schemes")
         gov_opps_source = "DEMO_SYNTHETIC"
@@ -273,7 +273,18 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
             schemes = []
 
-        all_opps = get_demo("gov_opportunities")
+        try:
+            from app.db import get_supabase_client
+            client = get_supabase_client()
+            if client:
+                res = client.table("gov_opportunities").select("*").execute()
+                all_opps = getattr(res, "data", []) or []
+            else:
+                all_opps = []
+        except Exception as e:
+            logger.warning("Failed querying authoritative gov_opportunities for student '%s': %s", student_id, e)
+            all_opps = []
+
         real_opps = [
             o for o in all_opps
             if o.get("is_demo") is False
@@ -282,7 +293,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             and (o.get("data_provenance") == "GOVERNMENT_OFFICIAL" or o.get("source") in ("DATAGOV_IN", "OGD_DATAGOV_IN", "USER_SUBMITTED", "ADMIN_CREATED"))
         ]
         gov_opportunities = real_opps
-        gov_opps_source = "GOVERNMENT_OFFICIAL" if (gov_opportunities or schemes) else "NO_OFFICIAL_MATCHES"
+        gov_opps_source = "GOVERNMENT_OFFICIAL" if gov_opportunities else "NO_OFFICIAL_MATCHES"
 
     # 4. Evaluate each Career Role in Benchmark Taxonomy
     career_evaluations = []

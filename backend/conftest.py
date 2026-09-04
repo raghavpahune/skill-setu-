@@ -21,6 +21,8 @@ class MockSupabaseQuery:
     def __init__(self, table: MockSupabaseTable):
         self.table = table
         self.filters: list[tuple[str, Any]] = []
+        self._in_filters: list[tuple[str, list[Any]]] = []
+        self._ilike_filters: list[tuple[str, str]] = []
         self._action = "select"
         self._mutation_data: Any | None = None
 
@@ -52,6 +54,14 @@ class MockSupabaseQuery:
         self.filters.append((column, value))
         return self
 
+    def in_(self, column: str, values: list[Any]):
+        self._in_filters.append((column, list(values)))
+        return self
+
+    def ilike(self, column: str, pattern: str):
+        self._ilike_filters.append((column, pattern))
+        return self
+
     def range(self, start: int, end: int):
         self._range = (start, end)
         return self
@@ -61,6 +71,8 @@ class MockSupabaseQuery:
         return self
 
     def execute(self):
+        import re
+
         if (
             self.table.should_fail
             or (self._action == "update" and self.table.should_fail_update)
@@ -70,6 +82,20 @@ class MockSupabaseQuery:
         ):
             raise RuntimeError("Simulated Supabase PostgreSQL database connection error")
 
+        def matches_filters(row: dict) -> bool:
+            for col, val in self.filters:
+                if str(row.get(col, "")).lower() != str(val).lower():
+                    return False
+            for col, vals in getattr(self, "_in_filters", []):
+                if row.get(col) not in vals:
+                    return False
+            for col, pattern in getattr(self, "_ilike_filters", []):
+                val = str(row.get(col, "")).lower()
+                pat = "^" + re.escape(pattern.lower()).replace(r"\%", ".*") + "$"
+                if not re.search(pat, val):
+                    return False
+            return True
+
         if self._action in ("insert", "upsert"):
             items = [self._mutation_data] if isinstance(self._mutation_data, dict) else list(self._mutation_data)
             result_rows = []
@@ -78,7 +104,16 @@ class MockSupabaseQuery:
                 idx = None
                 if on_conflict_cols:
                     idx = next(
-                        (i for i, r in enumerate(self.table.rows) if all(r.get(c) == item.get(c) for c in on_conflict_cols)),
+                        (
+                            i
+                            for i, r in enumerate(self.table.rows)
+                            if all(
+                                item.get(c) is not None
+                                and r.get(c) is not None
+                                and r.get(c) == item.get(c)
+                                for c in on_conflict_cols
+                            )
+                        ),
                         None,
                     )
                 if idx is None:
@@ -97,12 +132,7 @@ class MockSupabaseQuery:
             deleted_rows = []
             surviving_rows = []
             for row in self.table.rows:
-                match = True
-                for col, val in self.filters:
-                    if str(row.get(col, "")).lower() != str(val).lower():
-                        match = False
-                        break
-                if match:
+                if matches_filters(row):
                     deleted_rows.append(row)
                 else:
                     surviving_rows.append(row)
@@ -113,12 +143,7 @@ class MockSupabaseQuery:
         matching_rows = []
         matching_indices = []
         for idx, row in enumerate(self.table.rows):
-            match = True
-            for col, val in self.filters:
-                if str(row.get(col, "")).lower() != str(val).lower():
-                    match = False
-                    break
-            if match:
+            if matches_filters(row):
                 matching_rows.append(row)
                 matching_indices.append(idx)
 
@@ -325,6 +350,27 @@ def _load_initial_skill_forecasts_rows() -> list[dict]:
     return rows
 
 
+def _load_initial_gov_opportunities_rows() -> list[dict]:
+    rows: list[dict] = []
+    base_dir = Path(__file__).resolve().parent.parent / "data"
+    demo_file = base_dir / "demo" / "gov_opportunities.json"
+    real_file = base_dir / "real" / "gov_opportunities.json"
+
+    seen_ids = set()
+    for file_path in (real_file, demo_file):
+        if file_path.is_file():
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                for o in data:
+                    oid = o.get("id")
+                    if oid and oid not in seen_ids:
+                        rows.append(o)
+                        seen_ids.add(oid)
+            except Exception:
+                pass
+    return rows
+
+
 _PRISTINE_FEEDBACK = deepcopy(_load_demo_feedback_rows())
 _PRISTINE_DEMANDS = deepcopy(_load_initial_demands_rows())
 _PRISTINE_PROFILES = deepcopy(_load_initial_student_profiles_rows())
@@ -332,6 +378,7 @@ _PRISTINE_ASSESSMENTS = deepcopy(_load_initial_student_assessments_rows())
 _PRISTINE_COURSES = deepcopy(_load_initial_courses_rows())
 _PRISTINE_SIGNALS = deepcopy(_load_initial_industry_signals_rows())
 _PRISTINE_FORECASTS = deepcopy(_load_initial_skill_forecasts_rows())
+_PRISTINE_GOV_OPPORTUNITIES = deepcopy(_load_initial_gov_opportunities_rows())
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -357,11 +404,12 @@ def preserve_real_disk_files():
 def mock_supabase_for_tests():
     """Autouse fixture providing an isolated Supabase test double for unit test suites."""
     from app.db import _cache, load_demo_data, load_real_data, init_demo_users
-    if not _cache:
-        load_demo_data()
-        load_real_data()
-    if not _cache.get("users"):
-        init_demo_users()
+    for tbl in ("skills", "jobs", "schemes", "gov_opportunities"):
+        if tbl not in _cache or not _cache[tbl]:
+            load_demo_data()
+            break
+    load_real_data()
+    init_demo_users()
 
     mock_client = MockSupabaseClient(
         feedback_rows=deepcopy(_PRISTINE_FEEDBACK),
@@ -372,7 +420,7 @@ def mock_supabase_for_tests():
         industry_signals_rows=deepcopy(_PRISTINE_SIGNALS),
         skill_forecasts_rows=deepcopy(_PRISTINE_FORECASTS),
         schemes_rows=deepcopy(_cache.get("schemes", [])),
-        gov_opportunities_rows=deepcopy(_cache.get("gov_opportunities", [])),
+        gov_opportunities_rows=deepcopy(_PRISTINE_GOV_OPPORTUNITIES),
     )
     set_supabase_client(mock_client)
     yield mock_client

@@ -16,8 +16,8 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
         try:
             from app.repositories.supabase_repository import list_jobs, list_job_skills
             jobs = list_jobs(limit=10000) or []
-            job_ids = {j.get("id") for j in jobs}
-            repo_js = list_job_skills()
+            job_ids = {j.get("id") for j in jobs if j.get("id")}
+            repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         except Exception:
             jobs = []
@@ -33,8 +33,8 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
             repo_jobs = list_jobs(limit=10000)
             if repo_jobs:
                 jobs = repo_jobs
-                job_ids = {j.get("id") for j in jobs}
-                repo_js = list_job_skills()
+                job_ids = {j.get("id") for j in jobs if j.get("id")}
+                repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
                 job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
             else:
                 jobs = get_demo("jobs")
@@ -43,13 +43,14 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
             jobs = get_demo("jobs")
             job_skills = get_demo("job_skills")
 
-    course_skills_data = get_demo("course_skills")
+    course_skills_data = [] if is_demo is False else get_demo("course_skills")
+    skills_map = {s["id"]: s for s in get_demo("skills")}
+
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
         courses = [] if is_demo is False else get_demo("courses")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
 
     # Filter jobs by district if specified
     if district:
@@ -64,11 +65,21 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
     demand_counts = Counter(js["skill_id"] for js in filtered_js)
 
     # Phase 14: Incorporate validated first-party employer demands
-    try:
-        from app.repositories.supabase_repository import list_employer_demands
-        employer_demands = list_employer_demands()
-    except Exception:
+    if is_demo is True:
         employer_demands = get_demo("employer_demands")
+    elif is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            employer_demands = list_employer_demands(is_demo=False) or []
+        except Exception:
+            employer_demands = []
+    else:
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            repo_demands = list_employer_demands()
+            employer_demands = repo_demands if repo_demands else get_demo("employer_demands")
+        except Exception:
+            employer_demands = get_demo("employer_demands")
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     validated_demands = [
         d for d in employer_demands

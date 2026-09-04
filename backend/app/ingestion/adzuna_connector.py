@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from typing import Any
+import uuid
 import httpx
 from pydantic import BaseModel, Field
 
@@ -63,7 +64,7 @@ class ValidatedIngestedJob(BaseModel):
     source: str = "ADZUNA_API"
     source_type: str = SOURCE_TYPE_LIVE_API
     source_label: str = "Adzuna India Live API Feed"
-    posted_date: str
+    posted_date: str | None = None
     opportunity_type: str = "job"
     external_id: str
     portal_source: str = "adzuna"
@@ -235,13 +236,10 @@ class AdzunaConnector(BaseSourceAdapter):
             # Industry mapping
             cat_label = validated_raw.category.get("label") or "Engineering & Technical"
 
-            # Publication date
-            raw_created = validated_raw.created
-            posted_date = raw_created[:10] if raw_created and len(raw_created) >= 10 else "2026-08-01"
-
             # Snapshot vs Live classification
             is_snapshot = bool(validated_raw.is_snapshot or raw.get("is_snapshot"))
             snapshot_capture_ts = validated_raw.snapshot_captured_at or raw.get("snapshot_captured_at")
+            raw_created = validated_raw.created or raw.get("created")
 
             if is_snapshot:
                 source_type = SOURCE_TYPE_VERIFIED_SNAPSHOT
@@ -259,6 +257,16 @@ class AdzunaConnector(BaseSourceAdapter):
                 fetched_at = now_utc
                 freshness = compute_freshness(published_at=raw_created)
                 confidence_score = 90
+
+            # Publication date: use real provider date, fetched_at for live data, snapshot_captured_at for snapshot data, or None when unknown
+            if raw_created and len(raw_created) >= 10:
+                posted_date = raw_created[:10]
+            elif is_snapshot and snapshot_capture_ts and len(snapshot_capture_ts) >= 10:
+                posted_date = snapshot_capture_ts[:10]
+            elif not is_snapshot and fetched_at and len(fetched_at) >= 10:
+                posted_date = fetched_at[:10]
+            else:
+                posted_date = None
 
             # External ID and URLs
             ext_id = str(validated_raw.id)
@@ -288,7 +296,8 @@ class AdzunaConnector(BaseSourceAdapter):
                 except (ValueError, TypeError):
                     pass
 
-            job_id = f"job-adz-{content_hash[:12]}"
+            # Deterministic UUID identifier for PostgreSQL/Supabase UUID jobs.id compatibility
+            job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"ADZUNA_API:{ext_id}"))
 
             # Verification: Structural checks on provider payload
             is_verified, v_method, _ = self.verify_record({

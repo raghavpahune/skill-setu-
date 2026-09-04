@@ -45,9 +45,11 @@ DATAGOV_BASE_URL = "https://api.data.gov.in/resource"
 
 class RawDataGovRecord(BaseModel):
     """Validation schema for generic raw record from data.gov.in resources."""
+    model_config = {"populate_by_name": True}
+
     document_id: str | int | None = None
     id: str | int | None = None
-    _year: str | None = None
+    year: str | None = Field(default=None, alias="_year")
     financial_year: str | None = None
     amount_allocated: str | float | int | None = None
     state_ut_name: str | None = None
@@ -114,7 +116,7 @@ class ValidatedIngestedOpportunity(BaseModel):
     source: str = "OGD_DATAGOV_IN"
     source_type: str = SOURCE_TYPE_LIVE_API
     source_label: str
-    posted_date: str
+    posted_date: str | None = None
     status: str = "active"
     source_url: str = "https://data.gov.in"
     resource_id: str | None = None
@@ -343,8 +345,7 @@ class DataGovConnector(BaseSourceAdapter):
                 validated = ValidatedIngestedScheme.model_validate(scheme_dict)
                 schemes.append(validated.model_dump())
             except Exception as e:
-                logger.warning("[DataGov] Validation error on scholarship scheme: %s", e)
-                schemes.append(scheme_dict)
+                logger.warning("[DataGov] Discarding invalid scholarship scheme: %s", e)
 
         return schemes
 
@@ -430,8 +431,7 @@ class DataGovConnector(BaseSourceAdapter):
                 validated = ValidatedIngestedScheme.model_validate(scheme_dict)
                 schemes.append(validated.model_dump())
             except Exception as e:
-                logger.warning("[DataGov] Validation error on CTS scheme: %s", e)
-                schemes.append(scheme_dict)
+                logger.warning("[DataGov] Discarding invalid CTS scheme: %s", e)
 
         return schemes
 
@@ -498,7 +498,7 @@ class DataGovConnector(BaseSourceAdapter):
                 "source": "OGD_DATAGOV_IN",
                 "source_type": source_type,
                 "source_label": source_label,
-                "posted_date": "2026-08-01",
+                "posted_date": fetched_at[:10] if fetched_at and len(fetched_at) >= 10 else None,
                 "status": "active",
                 "source_url": url,
                 "resource_id": resource_id,
@@ -520,8 +520,7 @@ class DataGovConnector(BaseSourceAdapter):
                 validated = ValidatedIngestedOpportunity.model_validate(opp_dict)
                 opportunities.append(validated.model_dump())
             except Exception as e:
-                logger.warning("[DataGov] Validation error on NAPS opportunity: %s", e)
-                opportunities.append(opp_dict)
+                logger.warning("[DataGov] Discarding invalid NAPS opportunity: %s", e)
 
         return opportunities
 
@@ -533,13 +532,13 @@ class DataGovConnector(BaseSourceAdapter):
         """Transform PMKVY vocational training records into opportunities (jobs table)."""
         opportunities = []
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
         for idx, rec in enumerate(raw_records, start=1):
             doc_id = str(rec.get("document_id") or rec.get("id") or f"pmkvy-{idx}")
-            state = rec.get("state_ut") or "Maharashtra"
+            state_str = str(rec.get("state_ut") or rec.get("state") or rec.get("state_ut_name") or "Maharashtra").strip()
+            raw_district = str(rec.get("district") or rec.get("district_name") or ("Pune" if "maharashtra" in state_str.lower() else "Mumbai City"))
+            district = normalize_maharashtra_district(raw_district, default="Pune")
             title = "Short-Term Vocational Training & NSQF Certification"
             company = "PMKVY Accredited Training Partner"
-            district = "Pune" if "Maharashtra" in state else "Mumbai"
             url = "https://www.skillindiadigital.gov.in"
             ext_id = f"PMKVY_TRN_{doc_id}"
             is_sandbox = bool(rec.get("is_sandbox", False))
@@ -583,11 +582,11 @@ class DataGovConnector(BaseSourceAdapter):
                 "min_education": "10th Standard or ITI",
                 "vacancies_count": 25,
                 "apply_url": url,
-                "description": f"Free NSQF-aligned skill training under PMKVY in {state}. Includes assessment fee waiver, certificate, and job placement support.",
+                "description": f"Short-term NSQF-aligned job role training under PMKVY in {district} district with government fee sponsorship and assessment certification.",
                 "source": "OGD_DATAGOV_IN",
                 "source_type": source_type,
                 "source_label": source_label,
-                "posted_date": "2026-08-15",
+                "posted_date": fetched_at[:10] if fetched_at and len(fetched_at) >= 10 else None,
                 "status": "active",
                 "source_url": url,
                 "resource_id": resource_id,
@@ -609,8 +608,7 @@ class DataGovConnector(BaseSourceAdapter):
                 validated = ValidatedIngestedOpportunity.model_validate(opp_dict)
                 opportunities.append(validated.model_dump())
             except Exception as e:
-                logger.warning("[DataGov] Validation error on PMKVY opportunity: %s", e)
-                opportunities.append(opp_dict)
+                logger.warning("[DataGov] Discarding invalid PMKVY opportunity: %s", e)
 
         return opportunities
 

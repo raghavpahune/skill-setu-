@@ -49,13 +49,13 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 0;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
 
--- Backfill pre-existing rows according to their authoritative source classification
+-- Backfill pre-existing rows only when provenance fields are missing
 UPDATE jobs
-   SET source_type = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END,
-       verification_status = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END,
-       confidence = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 90 END,
-       is_demo = CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END
- WHERE source IS NOT NULL;
+   SET source_type = COALESCE(source_type, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END),
+       verification_status = COALESCE(verification_status, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END),
+       confidence = COALESCE(confidence, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 90 END),
+       is_demo = COALESCE(is_demo, CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END)
+ WHERE source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL;
 
 
 -- ----------------------------------------------------------------------------
@@ -97,13 +97,13 @@ ALTER TABLE schemes ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 0;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
 
--- Backfill pre-existing rows according to their authoritative source classification
+-- Backfill pre-existing rows only when provenance fields are missing
 UPDATE schemes
-   SET source_type = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END,
-       verification_status = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END,
-       confidence = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 95 END,
-       is_demo = CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END
- WHERE source IS NOT NULL;
+   SET source_type = COALESCE(source_type, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END),
+       verification_status = COALESCE(verification_status, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END),
+       confidence = COALESCE(confidence, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 95 END),
+       is_demo = COALESCE(is_demo, CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END)
+ WHERE source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL;
 
 
 -- ----------------------------------------------------------------------------
