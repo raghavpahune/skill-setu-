@@ -193,13 +193,16 @@ async def recommended_schemes(
 
     if is_demo_student_id(student_id) or profile.get("is_demo") or profile.get("source") == "DEMO_SYNTHETIC":
         schemes = get_demo("schemes")
+        note = "Recommendations based on skill/education/district overlap with demo dataset. Verify eligibility on official portals before applying."
     else:
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
             db_schemes = list_schemes_repo(status="active", limit=100)
-            schemes = db_schemes if db_schemes else get_demo("schemes")
-        except Exception:
-            schemes = get_demo("schemes")
+            schemes = db_schemes or []
+        except Exception as e:
+            logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
+            schemes = []
+        note = "Recommendations based on official government schemes repository. Verify eligibility on official portals before applying."
     scored = []
     for s in schemes:
         if s.get("status", "active").lower() != "active":
@@ -251,13 +254,37 @@ async def recommended_schemes(
         "student_id": student_id,
         "total_matches": len(scored),
         "schemes": scored[:limit],
-        "provenance_note": "Recommendations based on skill/education/district overlap with demo dataset. Verify eligibility on official portals before applying.",
+        "provenance_note": note,
     }
 
 
 @router.get("/schemes/{scheme_id}")
-async def get_scheme(scheme_id: str):
+async def get_scheme(scheme_id: str, is_demo: bool | None = None):
     """Get single scheme details by ID or scheme code."""
+    # 1. Explicit demo requested or demo ID prefix
+    if is_demo is True or scheme_id.startswith("sch-demo-") or scheme_id.startswith("demo-"):
+        schemes = get_demo("schemes")
+        for s in schemes:
+            if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():
+                return s
+        raise HTTPException(status_code=404, detail="Scheme not found")
+
+    # 2. Query authoritative repository
+    try:
+        from app.repositories.supabase_repository import get_scheme as get_scheme_repo
+        record = get_scheme_repo(scheme_id)
+        if record:
+            return record
+    except Exception as e:
+        logger.warning("Repository error fetching scheme '%s': %s", scheme_id, e)
+        if is_demo is False:
+            raise HTTPException(status_code=503, detail="Authoritative scheme database unavailable")
+
+    # 3. If explicit real request (is_demo=False), fail closed
+    if is_demo is False:
+        raise HTTPException(status_code=404, detail="Scheme not found")
+
+    # 4. Fallback to demo fixtures only when is_demo is not explicitly False
     schemes = get_demo("schemes")
     for s in schemes:
         if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():

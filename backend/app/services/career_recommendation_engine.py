@@ -263,17 +263,20 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     if is_demo_student_id(student_id) or source_provenance == "DEMO_SYNTHETIC":
         gov_opportunities = get_demo("gov_opportunities")
         schemes = get_demo("schemes")
+        gov_opps_source = "DEMO_SYNTHETIC"
     else:
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
             db_schemes = list_schemes_repo(status="active", limit=100)
-            schemes = db_schemes if db_schemes else get_demo("schemes")
-        except Exception:
-            schemes = get_demo("schemes")
+            schemes = db_schemes or []
+        except Exception as e:
+            logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
+            schemes = []
 
         all_opps = get_demo("gov_opportunities")
-        real_opps = [o for o in all_opps if o.get("is_demo") is False or o.get("source") != "DEMO_SYNTHETIC"]
-        gov_opportunities = real_opps if real_opps else all_opps
+        real_opps = [o for o in all_opps if o.get("is_demo") is False or (o.get("source") and o.get("source") != "DEMO_SYNTHETIC")]
+        gov_opportunities = real_opps
+        gov_opps_source = "GOVERNMENT_OFFICIAL" if (gov_opportunities or schemes) else "NO_OFFICIAL_MATCHES"
 
     # 4. Evaluate each Career Role in Benchmark Taxonomy
     career_evaluations = []
@@ -601,7 +604,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "student_profile_source": source_provenance,
             "employer_demand_source": "EMPLOYER_SUBMITTED_VALIDATED",
             "employer_validation_rule": "Strictly VALIDATED employer submissions only",
-            "government_opportunities_source": "DEMO_SYNTHETIC" if (is_demo_student_id(student_id) or source_provenance == "DEMO_SYNTHETIC") else "GOVERNMENT_OFFICIAL",
+            "government_opportunities_source": gov_opps_source,
             "disclaimer": "All recommendations are computed deterministically from verified SkillSetu datasets. No ungrounded claims are made.",
         },
     }

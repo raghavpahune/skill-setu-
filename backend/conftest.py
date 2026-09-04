@@ -167,7 +167,7 @@ class MockSupabaseTable:
 
 
 class MockSupabaseClient:
-    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None, skill_forecasts_rows=None):
+    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None, skill_forecasts_rows=None, schemes_rows=None, gov_opportunities_rows=None):
         self.tables = {
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
@@ -176,6 +176,8 @@ class MockSupabaseClient:
             "courses": MockSupabaseTable(courses_rows),
             "industry_signals": MockSupabaseTable(industry_signals_rows),
             "skill_forecasts": MockSupabaseTable(skill_forecasts_rows),
+            "schemes": MockSupabaseTable(schemes_rows),
+            "gov_opportunities": MockSupabaseTable(gov_opportunities_rows),
         }
 
     def table(self, table_name: str) -> MockSupabaseTable:
@@ -354,6 +356,10 @@ def preserve_real_disk_files():
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
     """Autouse fixture providing an isolated Supabase test double for unit test suites."""
+    from app.db import _cache, init_db
+    if not _cache:
+        init_db()
+
     mock_client = MockSupabaseClient(
         feedback_rows=deepcopy(_PRISTINE_FEEDBACK),
         demands_rows=deepcopy(_PRISTINE_DEMANDS),
@@ -362,6 +368,8 @@ def mock_supabase_for_tests():
         courses_rows=deepcopy(_PRISTINE_COURSES),
         industry_signals_rows=deepcopy(_PRISTINE_SIGNALS),
         skill_forecasts_rows=deepcopy(_PRISTINE_FORECASTS),
+        schemes_rows=deepcopy(_cache.get("schemes", [])),
+        gov_opportunities_rows=deepcopy(_cache.get("gov_opportunities", [])),
     )
     set_supabase_client(mock_client)
     yield mock_client

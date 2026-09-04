@@ -421,5 +421,36 @@ def test_recommendation_and_gov_opportunities_provenance_routing():
 
     with patch("app.services.career_recommendation_engine._resolve_student_profile", return_value=real_profile):
         with patch("app.repositories.supabase_repository.list_schemes", return_value=[]):
-            rec = compute_career_recommendations("usr-real-student-456")
-            assert "recommended_careers" in rec
+            with patch("app.services.career_recommendation_engine.get_demo", return_value=[]):
+                rec = compute_career_recommendations("usr-real-student-456")
+                assert "recommended_careers" in rec
+                assert rec["data_provenance"]["government_opportunities_source"] == "NO_OFFICIAL_MATCHES"
+
+
+def test_review3_schemes_get_scheme_authoritative_and_fail_closed():
+    """Verify get_scheme queries authoritative repository and fails closed on is_demo=False."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+
+    repo_scheme = {
+        "id": "sch-auth-999",
+        "scheme_code": "OGD-TEST-999",
+        "name": "Authoritative Maharashtra Scheme",
+        "status": "active",
+        "source": "DATAGOV_IN",
+        "is_demo": False,
+    }
+    with patch("app.repositories.supabase_repository.get_scheme", return_value=repo_scheme):
+        res = client.get("/api/schemes/sch-auth-999")
+        assert res.status_code == 200
+        assert res.json()["name"] == "Authoritative Maharashtra Scheme"
+
+    with patch("app.repositories.supabase_repository.get_scheme", return_value=None):
+        res = client.get("/api/schemes/sch-missing-123?is_demo=false")
+        assert res.status_code == 404
+
+        res_demo = client.get("/api/schemes/sch-001?is_demo=true")
+        assert res_demo.status_code == 200
+        assert "title" in res_demo.json() or "name" in res_demo.json()

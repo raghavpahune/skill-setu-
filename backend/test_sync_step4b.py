@@ -51,6 +51,7 @@ def test_connector_and_transformers():
 
 def test_sync_engine_and_deduplication():
     print("Testing SyncEngine & Deduplication...")
+    load_demo_data()
     engine = SyncEngine()
 
     # Initial Run: Should add new records

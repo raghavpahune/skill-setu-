@@ -280,9 +280,21 @@ async def recommended_gov_opportunities(
         opportunities = get_demo("gov_opportunities")
         note = "Recommendations are based on skill/district/interest overlap with demo dataset. Verify eligibility on official portals before applying."
     else:
-        all_opps = get_demo("gov_opportunities")
-        real_opps = [o for o in all_opps if o.get("is_demo") is False or o.get("source") != "DEMO_SYNTHETIC"]
-        opportunities = real_opps if real_opps else all_opps
+        try:
+            from app.repositories.supabase_repository import get_client
+            client = get_client()
+            res = client.table("gov_opportunities").select("*").eq("status", "active").execute()
+            db_opps = res.data or []
+        except Exception:
+            db_opps = []
+
+        cache_real_opps = [
+            o for o in get_demo("gov_opportunities")
+            if o.get("is_demo") is False or o.get("data_provenance") == "GOVERNMENT_OFFICIAL"
+        ]
+        seen_ids = {d.get("id") for d in db_opps if isinstance(d, dict)}
+        real_opps = db_opps + [o for o in cache_real_opps if o.get("id") not in seen_ids]
+        opportunities = real_opps
         note = "Recommendations are based on official government opportunities and schemes. Verify eligibility on official portals before applying."
 
     ranked = _match_student_to_opportunities(opportunities, profile)

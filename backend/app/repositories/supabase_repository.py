@@ -1125,12 +1125,15 @@ VALID_SCHEME_COLUMNS: set[str] = {
 
 
 def get_scheme(scheme_id: str) -> dict[str, Any] | None:
-    """Fetch single scheme by id directly from Supabase."""
+    """Fetch single scheme by id or scheme_code directly from Supabase."""
     try:
         client = get_client()
         res = client.table("schemes").select("*").eq("id", scheme_id).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]
+        res_code = client.table("schemes").select("*").eq("scheme_code", scheme_id).execute()
+        if res_code.data and len(res_code.data) > 0:
+            return res_code.data[0]
         return None
     except SupabaseRepositoryError:
         raise
