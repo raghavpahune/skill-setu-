@@ -23,7 +23,12 @@ async def list_schemes(
     offset: int = Query(0, ge=0),
 ):
     """List available student welfare, scholarship, and government schemes with optional filters."""
-    schemes = get_demo("schemes")
+    try:
+        from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+        db_schemes = list_schemes_repo()
+        schemes = db_schemes if db_schemes else get_demo("schemes")
+    except Exception:
+        schemes = get_demo("schemes")
 
     filtered = []
     for s in schemes:
@@ -77,7 +82,12 @@ async def list_schemes(
 @router.get("/schemes/categories")
 async def get_scheme_metadata():
     """Return distinct categories, scheme types, and course types for UI filtering."""
-    schemes = get_demo("schemes")
+    try:
+        from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+        db_schemes = list_schemes_repo()
+        schemes = db_schemes if db_schemes else get_demo("schemes")
+    except Exception:
+        schemes = get_demo("schemes")
     categories = set()
     scheme_types = set()
     course_types = set()

@@ -13,6 +13,14 @@ async def list_jobs(
     opportunity_type: str | None = None,
     limit: int = 50,
 ):
+    try:
+        from app.repositories.supabase_repository import list_jobs as list_jobs_repo
+        repo_jobs = list_jobs_repo(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit)
+        if repo_jobs:
+            return repo_jobs
+    except Exception:
+        pass
+
     jobs = get_demo("jobs")
     if district:
         jobs = [j for j in jobs if j["district"].lower() == district.lower()]

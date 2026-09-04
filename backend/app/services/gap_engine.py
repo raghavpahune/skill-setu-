@@ -4,21 +4,49 @@ from app.db import get_demo
 from app.services.career_recommendation_engine import is_live_employer_demand
 
 
-def compute_gaps(district: str | None = None) -> list[dict]:
+def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> list[dict]:
     """Compute skill gaps: demand_score - coverage_score per skill.
 
     Demand score: % of job postings requiring this skill (0-100).
     Coverage score: weighted average of course coverage × training capacity.
     Gap = demand - coverage. Negative gaps are clamped to 0.
     """
-    jobs = get_demo("jobs")
-    job_skills = get_demo("job_skills")
+    if is_demo is False:
+        # Real/authoritative request: read authoritative jobs from repository
+        try:
+            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            jobs = list_jobs() or []
+            repo_js = list_job_skills()
+            job_skills = repo_js if repo_js else []
+        except Exception:
+            jobs = []
+            job_skills = []
+    elif is_demo is True:
+        # Explicit demo mode
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
+    else:
+        # Unspecified: query repository first, fall back to demo fixtures if empty
+        try:
+            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            repo_jobs = list_jobs()
+            if repo_jobs:
+                jobs = repo_jobs
+                repo_js = list_job_skills()
+                job_skills = repo_js if repo_js else []
+            else:
+                jobs = get_demo("jobs")
+                job_skills = get_demo("job_skills")
+        except Exception:
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+
     course_skills_data = get_demo("course_skills")
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
-        courses = get_demo("courses")
+        courses = [] if is_demo is False else get_demo("courses")
     skills_map = {s["id"]: s for s in get_demo("skills")}
 
     # Filter jobs by district if specified

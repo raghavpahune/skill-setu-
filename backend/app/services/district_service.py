@@ -8,14 +8,28 @@ from app.services.gap_engine import compute_gaps
 from app.services.curriculum_engine import audit_all_courses, EQUIPMENT_CATALOG, TRAINER_UPGRADE_CATALOG
 
 
-def get_all_districts() -> list[dict]:
+def get_all_districts(is_demo: bool | None = None) -> list[dict]:
     """List all districts with job counts and course counts."""
-    jobs = get_demo("jobs")
+    if is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_jobs
+            jobs = list_jobs() or []
+        except Exception:
+            jobs = []
+    elif is_demo is True:
+        jobs = get_demo("jobs")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_jobs
+            repo_jobs = list_jobs()
+            jobs = repo_jobs if repo_jobs else get_demo("jobs")
+        except Exception:
+            jobs = get_demo("jobs")
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
-        courses = get_demo("courses")
+        courses = [] if is_demo is False else get_demo("courses")
     
     job_counts = Counter(j["district"] for j in jobs if j.get("district"))
     course_counts = Counter(c["district"] for c in courses if c.get("district"))
@@ -32,9 +46,23 @@ def get_all_districts() -> list[dict]:
     ]
 
 
-def get_district_plan(district: str) -> dict[str, Any]:
+def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, Any]:
     """Generate a comprehensive training plan for a district covering all §13 requirements."""
-    jobs = get_demo("jobs")
+    if is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_jobs
+            jobs = list_jobs() or []
+        except Exception:
+            jobs = []
+    elif is_demo is True:
+        jobs = get_demo("jobs")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_jobs
+            repo_jobs = list_jobs()
+            jobs = repo_jobs if repo_jobs else get_demo("jobs")
+        except Exception:
+            jobs = get_demo("jobs")
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
@@ -265,14 +293,28 @@ def get_district_plan(district: str) -> dict[str, Any]:
     }
 
 
-def get_platform_metrics_summary() -> dict[str, Any]:
+def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
     """Compute the 7 platform-level success metrics specified in PROJECT_SPEC Section 33."""
-    jobs = get_demo("jobs")
+    if is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_jobs
+            jobs = list_jobs() or []
+        except Exception:
+            jobs = []
+    elif is_demo is True:
+        jobs = get_demo("jobs")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_jobs
+            repo_jobs = list_jobs()
+            jobs = repo_jobs if repo_jobs else get_demo("jobs")
+        except Exception:
+            jobs = get_demo("jobs")
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
-        courses = get_demo("courses")
+        courses = [] if is_demo is False else get_demo("courses")
     placements = get_demo("placements")
     skills = get_demo("skills")
     employers = get_demo("employers")
@@ -280,9 +322,9 @@ def get_platform_metrics_summary() -> dict[str, Any]:
         from app.repositories.supabase_repository import list_employer_feedback
         employer_feedback = list_employer_feedback()
     except Exception:
-        employer_feedback = get_demo("employer_feedback")
+        employer_feedback = [] if is_demo is False else get_demo("employer_feedback")
     audited_courses = audit_all_courses()
-    gaps = compute_gaps()
+    gaps = compute_gaps(is_demo=is_demo)
 
     # 1. State-wide Placement Rate
     total_students = sum(p.get("student_count", 0) for p in placements)

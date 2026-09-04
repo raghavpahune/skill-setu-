@@ -7,10 +7,10 @@ router = APIRouter()
 
 
 @router.get("/gaps")
-async def list_gaps():
-    return compute_gaps()
+async def list_gaps(is_demo: bool | None = None):
+    return compute_gaps(is_demo=is_demo)
 
 
 @router.get("/gaps/district/{district}")
-async def gaps_by_district(district: str):
-    return compute_gaps(district=district)
+async def gaps_by_district(district: str, is_demo: bool | None = None):
+    return compute_gaps(district=district, is_demo=is_demo)

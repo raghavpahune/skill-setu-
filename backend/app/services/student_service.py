@@ -112,15 +112,34 @@ def get_personalized_industry_alerts(
     except Exception:
         signals_all = {}  # ponytail: non-critical supplement, degrade gracefully
     skills_map = {s["id"]: s for s in get_demo("skills")}
-    jobs = get_demo("jobs")
-    job_skills = get_demo("job_skills")
+    is_demo_req = not student_id or student_id.startswith(("stu-", "ast-demo-", "demo-"))
+    try:
+        from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
+        repo_jobs = list_jobs_repo()
+        if repo_jobs:
+            jobs = repo_jobs
+            repo_js = list_job_skills_repo()
+            job_skills = repo_js if repo_js else []
+        elif is_demo_req:
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+        else:
+            jobs = []
+            job_skills = []
+    except Exception:
+        if is_demo_req:
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+        else:
+            jobs = []
+            job_skills = []
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
     except Exception:
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
-    gaps_list = compute_gaps()
+    gaps_list = compute_gaps(is_demo=is_demo_req)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 
     # Student context if provided
@@ -320,8 +339,27 @@ def get_skill_explainability(
     """Provide a transparent, 5-point evidence-based explainability breakdown for a skill."""
     skills_list = get_demo("skills")
     skills_map = {s["id"]: s for s in skills_list}
-    jobs = get_demo("jobs")
-    job_skills = get_demo("job_skills")
+    is_demo_req = not student_id or student_id.startswith(("stu-", "ast-demo-", "demo-"))
+    try:
+        from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
+        repo_jobs = list_jobs_repo()
+        if repo_jobs:
+            jobs = repo_jobs
+            repo_js = list_job_skills_repo()
+            job_skills = repo_js if repo_js else []
+        elif is_demo_req:
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+        else:
+            jobs = []
+            job_skills = []
+    except Exception:
+        if is_demo_req:
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+        else:
+            jobs = []
+            job_skills = []
     try:
         from app.repositories.supabase_repository import list_courses
         courses = list_courses()
@@ -399,7 +437,7 @@ def get_skill_explainability(
         signals = list_industry_signals_repo()
     except Exception:
         signals = []  # ponytail: non-critical supplement, degrade gracefully
-    gaps_list = compute_gaps()
+    gaps_list = compute_gaps(is_demo=is_demo_req)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 
     # 1. Resolve target skill by ID or case-insensitive name/synonym
@@ -710,7 +748,9 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
     except Exception:
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
-    gaps_list = compute_gaps()
+    uid = str(submission_data.get("user_id") or submission_data.get("id") or "")
+    is_demo_sub = bool(submission_data.get("is_demo", False) or uid.startswith(("stu-", "ast-demo-", "demo-")))
+    gaps_list = compute_gaps(is_demo=is_demo_sub)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 
     # Add synonym lookups

@@ -15,16 +15,41 @@ from app.services.career_recommendation_engine import is_live_employer_demand
 logger = logging.getLogger("skillsetu.forecast_engine")
 
 
-def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
+def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Compute 6m, 12m, 24m forecast trajectories and confidence for all skills."""
     skills = get_demo("skills")
-    jobs = get_demo("jobs")
-    job_skills = get_demo("job_skills")
+    if is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            jobs = list_jobs() or []
+            repo_js = list_job_skills()
+            job_skills = repo_js if repo_js else []
+        except Exception as e:
+            logger.warning("[ForecastEngine] Supabase unavailable for real forecast request: %s", e)
+            jobs = []
+            job_skills = []
+    elif is_demo is True:
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            repo_jobs = list_jobs()
+            if repo_jobs:
+                jobs = repo_jobs
+                repo_js = list_job_skills()
+                job_skills = repo_js if repo_js else []
+            else:
+                jobs = get_demo("jobs")
+                job_skills = get_demo("job_skills")
+        except Exception:
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
     try:
         from app.repositories.supabase_repository import list_employer_demands
         employer_demands = list_employer_demands()
     except Exception:
-        employer_demands = get_demo("employer_demands")
+        employer_demands = [] if is_demo is False else get_demo("employer_demands")
     try:
         from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
         industry_signals = list_industry_signals_repo()
@@ -165,18 +190,18 @@ def compute_multi_horizon_forecasts() -> list[dict[str, Any]]:
     return forecast_results
 
 
-def get_skill_forecast_trajectory(skill_id: str) -> dict[str, Any] | None:
+def get_skill_forecast_trajectory(skill_id: str, is_demo: bool | None = None) -> dict[str, Any] | None:
     """Retrieve detailed forecast trajectory for an individual skill."""
-    all_fc = compute_multi_horizon_forecasts()
+    all_fc = compute_multi_horizon_forecasts(is_demo=is_demo)
     for fc in all_fc:
         if fc["skill_id"] == skill_id or fc["skill_name"].lower() == skill_id.lower():
             return fc
     return None
 
 
-def generate_future_skills_radar() -> dict[str, Any]:
+def generate_future_skills_radar(is_demo: bool | None = None) -> dict[str, Any]:
     """Generate categorized radar clusters of emerging, high-growth, and mature skills."""
-    all_fc = compute_multi_horizon_forecasts()
+    all_fc = compute_multi_horizon_forecasts(is_demo=is_demo)
 
     rising_cluster = [f for f in all_fc if f["trend"] == "RISING"][:8]
     emerging_cluster = [f for f in all_fc if f["trend"] == "EMERGING"][:6]
