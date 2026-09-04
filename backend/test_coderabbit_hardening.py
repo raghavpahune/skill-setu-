@@ -5,15 +5,21 @@ from unittest.mock import patch
 
 from app.main import app
 from app.core.security import create_access_token, verify_password, hash_password
-from app.db import get_demo, get_user_by_email, save_user
+from app.db import get_demo, get_user_by_email, save_user, _cache
 from app.services.career_recommendation_engine import compute_career_recommendations
 from app.services.student_service import get_skill_explainability
 
 client = TestClient(app)
 
-# Provision test users explicitly (load_real_data no longer loads users.json)
-save_user({"id": "usr-student-001", "email": "student@skillsetu.gov.in", "role": "STUDENT", "full_name": "Aarav Sharma", "hashed_password": hash_password("Password@123")})
-save_user({"id": "usr-student-002", "email": "student2@skillsetu.gov.in", "role": "STUDENT", "full_name": "Priya Deshmukh", "hashed_password": hash_password("Password@123")})
+
+@pytest.fixture(autouse=True, scope="module")
+def _provision_test_users():
+    """Provision test users in-memory for this module's tests."""
+    save_user({"id": "usr-student-001", "email": "student@skillsetu.gov.in", "role": "STUDENT", "full_name": "Aarav Sharma", "hashed_password": hash_password("Password@123")})
+    save_user({"id": "usr-student-002", "email": "student2@skillsetu.gov.in", "role": "STUDENT", "full_name": "Priya Deshmukh", "hashed_password": hash_password("Password@123")})
+    # ponytail: no teardown cleanup — save_user now flushes to users_runtime.json (not the
+    # fixture file users.json), so these accounts don't contaminate the fixture file.
+    # Other test modules also provision these same users at import time.
 
 STUDENT1_TOKEN = create_access_token({"sub": "usr-student-001", "email": "student@skillsetu.gov.in", "role": "STUDENT"})
 STUDENT2_TOKEN = create_access_token({"sub": "usr-student-002", "email": "student2@skillsetu.gov.in", "role": "STUDENT"})
@@ -318,11 +324,15 @@ def test_unavailable_forecast_no_fabricated_trend_or_confidence():
     # Force empty forecast so all roadmap skills get UNAVAILABLE
     with patch("app.repositories.supabase_repository.list_skill_forecasts", return_value=[]):
         rec = compute_career_recommendations("stu-001")
-        for step in rec.get("personalized_roadmap", []):
-            if step.get("forecast_source") == "UNAVAILABLE":
-                assert step.get("trend") == "unknown", f"UNAVAILABLE forecast step has trend={step.get('trend')}, expected 'unknown'"
-                assert step.get("demand_confidence") is None, f"UNAVAILABLE forecast step has demand_confidence={step.get('demand_confidence')}, expected None"
-                assert step.get("forecast_verified") is False
+        unavailable_steps = [
+            step for step in rec.get("personalized_roadmap", [])
+            if step.get("forecast_source") == "UNAVAILABLE"
+        ]
+        assert len(unavailable_steps) > 0, "Expected at least one UNAVAILABLE forecast step in roadmap"
+        for step in unavailable_steps:
+            assert step.get("trend") == "unknown", f"UNAVAILABLE forecast step has trend={step.get('trend')}, expected 'unknown'"
+            assert step.get("demand_confidence") is None, f"UNAVAILABLE forecast step has demand_confidence={step.get('demand_confidence')}, expected None"
+            assert step.get("forecast_verified") is False
 
 
 # ============================================================================
@@ -347,17 +357,39 @@ def test_authoritative_lookup_failure_blocks_demo_fallback():
 # ============================================================================
 def test_load_real_data_skips_users_json():
     """load_real_data() must not load users.json — fixture accounts must not enter the auth cache."""
-    from app.db import load_real_data, _cache
-    # Remember current user count
-    users_before = list(_cache.get("users", []))
-    # Re-run load_real_data (idempotent for non-users tables)
-    load_real_data()
-    users_after = list(_cache.get("users", []))
-    # No new users should have been added from data/real/users.json
-    new_emails = {u.get("email") for u in users_after} - {u.get("email") for u in users_before}
-    # Specifically, the known fixture email must NOT appear from file loading
-    assert "student_p32d@skillsetu.gov.in" not in new_emails, \
-        "load_real_data() must skip users.json to prevent fixture accounts from becoming login identities"
+    from app.db import load_real_data, _cache, _find_real_data_dir
+    import json
+
+    real_dir = _find_real_data_dir()
+    fixture_file = real_dir / "users.json"
+    assert fixture_file.exists(), "data/real/users.json fixture file must exist for this test"
+
+    # Read the fixture file to get emails it contains
+    fixture_users = json.loads(fixture_file.read_text(encoding="utf-8"))
+    fixture_emails = {u.get("email") for u in fixture_users if isinstance(u, dict)}
+    assert len(fixture_emails) > 0, "users.json must contain at least one user"
+
+    # Clear users from cache entirely, then run load_real_data
+    # This isolates the test: only users loaded by load_real_data will appear
+    saved_users = _cache.pop("users", [])
+    try:
+        load_real_data()
+        loaded_emails = {u.get("email") for u in _cache.get("users", []) if isinstance(u, dict)}
+        # users_runtime.json emails may appear (those are runtime-persisted, which is fine)
+        # But fixture-only emails (in users.json but NOT in users_runtime.json) must NOT appear
+        runtime_file = real_dir / "users_runtime.json"
+        runtime_emails = set()
+        if runtime_file.exists():
+            runtime_users = json.loads(runtime_file.read_text(encoding="utf-8"))
+            runtime_emails = {u.get("email") for u in runtime_users if isinstance(u, dict)}
+        # Fixture-only = emails in users.json that are NOT also in users_runtime.json
+        fixture_only_emails = fixture_emails - runtime_emails
+        leaked = fixture_only_emails & loaded_emails
+        assert not leaked, \
+            f"load_real_data() loaded fixture-only emails from users.json: {leaked}"
+    finally:
+        # Restore the saved users cache
+        _cache["users"] = saved_users
 
 
 def test_runtime_registered_user_can_still_login():
