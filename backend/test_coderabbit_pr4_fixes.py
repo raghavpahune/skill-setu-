@@ -547,3 +547,72 @@ def test_review4_real_opps_sandbox_simulation_excluded():
             with patch("app.services.career_recommendation_engine.get_demo", return_value=sandbox_opps):
                 rec = compute_career_recommendations("usr-real-candidate-99")
                 assert rec["data_provenance"]["government_opportunities_source"] == "NO_OFFICIAL_MATCHES"
+
+
+# ============================================================================
+# Review #5 Regression Tests: Forecast Job Skills Filter, Demo Assessment Provenance, & Uniqueness
+# ============================================================================
+
+def test_review5_forecast_engine_filters_job_skills_by_job_ids():
+    """compute_multi_horizon_forecasts must filter job_skills strictly to loaded jobs."""
+    from app.services.forecast_engine import compute_multi_horizon_forecasts
+
+    mock_jobs = [{"id": "job-alpha", "district": "Pune"}]
+    mock_job_skills = [
+        {"job_id": "job-alpha", "skill_id": "sk-001"},
+        {"job_id": "job-beta-outside-scope", "skill_id": "sk-002"},
+    ]
+    with patch("app.repositories.supabase_repository.list_jobs", return_value=mock_jobs) as mock_lj:
+        with patch("app.repositories.supabase_repository.list_job_skills", return_value=mock_job_skills):
+            with patch("app.repositories.supabase_repository.list_employer_demands", return_value=[]):
+                forecasts = compute_multi_horizon_forecasts(is_demo=False)
+                mock_lj.assert_called_once_with(limit=10000)
+                assert isinstance(forecasts, list)
+
+
+def test_review5_student_assessment_preserves_demo_provenance():
+    """evaluate_student_assessment must persist demo metadata matching is_demo_student_id."""
+    from app.services.student_service import evaluate_student_assessment
+
+    demo_sub = {
+        "user_id": "ast-demo-123",
+        "name": "Demo Student",
+        "district": "Pune",
+        "quiz_answers": {},
+        "current_skills": [],
+    }
+    rec_demo = evaluate_student_assessment(demo_sub)
+    assert rec_demo["is_demo"] is True
+    assert rec_demo["source"] == "DEMO_SYNTHETIC"
+    assert rec_demo["data_provenance"] == "DEMO_SYNTHETIC"
+    assert rec_demo["id"].startswith("ast-demo-")
+
+    real_sub = {
+        "user_id": "usr-real-999",
+        "name": "Real Student",
+        "district": "Pune",
+        "quiz_answers": {},
+        "current_skills": [],
+    }
+    rec_real = evaluate_student_assessment(real_sub)
+    assert rec_real["is_demo"] is False
+    assert rec_real["source"] == "USER_SUBMITTED"
+    assert rec_real["data_provenance"] == "SELF_REPORTED_ASSESSMENT"
+    assert rec_real["id"].startswith("ast-usr-")
+
+
+def test_review5_schema_and_migration_external_id_contract():
+    """Schema and migration must define external_id and non-partial unique constraints/indexes."""
+    with open("data/schema.sql", "r", encoding="utf-8") as f:
+        schema_sql = f.read()
+    with open("data/migrations/20260904_add_provenance_columns.sql", "r", encoding="utf-8") as f:
+        migration_sql = f.read()
+
+    assert "external_id TEXT" in schema_sql
+    assert "CONSTRAINT uq_jobs_source_external_id UNIQUE (source, external_id)" in schema_sql
+
+    assert "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS external_id TEXT;" in migration_sql
+    assert "ALTER TABLE schemes ADD COLUMN IF NOT EXISTS external_id TEXT;" in migration_sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_external_id ON jobs(source, external_id);" in migration_sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_schemes_source_external_id ON schemes(source, external_id);" in migration_sql
+    assert "WHERE external_id IS NOT NULL" not in migration_sql.split("idx_jobs_source_external_id")[1].split(";")[0]

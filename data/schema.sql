@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS skills (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    external_id TEXT,
     title TEXT NOT NULL,
     company TEXT NOT NULL,
     district TEXT NOT NULL,
@@ -41,7 +42,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     description TEXT,
     source TEXT DEFAULT 'DEMO_SYNTHETIC',
     source_label TEXT DEFAULT 'Demo Data',
-    posted_date DATE DEFAULT CURRENT_DATE
+    posted_date DATE DEFAULT CURRENT_DATE,
+    CONSTRAINT uq_jobs_source_external_id UNIQUE (source, external_id)
 );
 
 -- ============================================================

@@ -910,7 +910,7 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
     ][:3]
 
     # 8. Assemble Completed Record
-    assessment_id = f"ast-usr-{uuid.uuid4().hex[:8]}"
+    assessment_id = f"ast-demo-{uuid.uuid4().hex[:8]}" if is_demo_sub else f"ast-usr-{uuid.uuid4().hex[:8]}"
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     assessment_record = {
@@ -937,10 +937,10 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
             "related_courses": related_courses,
         },
         "submitted_at": now_iso,
-        "source": "USER_SUBMITTED",
-        "source_label": "Candidate Self-Reported Assessment",
-        "is_demo": False,
-        "data_provenance": "SELF_REPORTED_ASSESSMENT",
+        "source": "DEMO_SYNTHETIC" if is_demo_sub else "USER_SUBMITTED",
+        "source_label": "Demo Assessment Simulation" if is_demo_sub else "Candidate Self-Reported Assessment",
+        "is_demo": is_demo_sub,
+        "data_provenance": "DEMO_SYNTHETIC" if is_demo_sub else "SELF_REPORTED_ASSESSMENT",
     }
 
     return assessment_record

@@ -11,6 +11,9 @@
 -- 1. JOBS TABLE: Provenance, Source Classification & Snapshot Columns
 -- ----------------------------------------------------------------------------
 
+-- External unique identifier from source provider
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS external_id TEXT;
+
 -- Explicit source classification (LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC)
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'DEMO_SYNTHETIC';
 
@@ -59,6 +62,9 @@ UPDATE jobs
 -- 2. SCHEMES TABLE: Provenance, Source Classification & Snapshot Columns
 -- ----------------------------------------------------------------------------
 
+-- External unique identifier from source provider
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS external_id TEXT;
+
 -- Explicit source classification (LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC)
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'DEMO_SYNTHETIC';
 
@@ -105,8 +111,8 @@ UPDATE schemes
 -- ----------------------------------------------------------------------------
 
 -- Deduplication index on (source, external_id) to support ON CONFLICT upsert
-CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_external_id ON jobs(source, external_id) WHERE external_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_schemes_source_external_id ON schemes(source, external_id) WHERE external_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_external_id ON jobs(source, external_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_schemes_source_external_id ON schemes(source, external_id);
 
 -- Fast content hash lookup index for deduplication across ingestion runs
 CREATE INDEX IF NOT EXISTS idx_jobs_content_hash ON jobs(content_hash) WHERE content_hash IS NOT NULL;

@@ -553,6 +553,9 @@ async def submit_student_assessment(
         "quiz_answers": submission.quiz_answers,
     }
 
+    if current_user:
+        submission_data["user_id"] = current_user.get("id")
+
     # Evaluate against grounded SkillSetu labour-market data
     assessment_record = evaluate_student_assessment(submission_data)
 
@@ -564,8 +567,16 @@ async def submit_student_assessment(
     now_iso = datetime.now(timezone.utc).isoformat()
     assessment_record.setdefault("created_at", now_iso)
     assessment_record["updated_at"] = now_iso
-    assessment_record.setdefault("source", "USER_SUBMITTED")
-    assessment_record["is_demo"] = False
+    uid = current_user.get("id") if current_user else None
+    is_demo = is_demo_student_id(uid) if uid else assessment_record.get("is_demo", False)
+    assessment_record["is_demo"] = is_demo
+    if is_demo:
+        assessment_record["source"] = "DEMO_SYNTHETIC"
+        assessment_record["source_label"] = "Demo Assessment Simulation"
+        assessment_record["data_provenance"] = "DEMO_SYNTHETIC"
+    else:
+        assessment_record.setdefault("source", "USER_SUBMITTED")
+        assessment_record.setdefault("data_provenance", "SELF_REPORTED_ASSESSMENT")
 
     # Authoritatively persist to Supabase repository
     try:
