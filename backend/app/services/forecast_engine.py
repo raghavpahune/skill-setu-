@@ -22,8 +22,8 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
         try:
             from app.repositories.supabase_repository import list_jobs, list_job_skills
             jobs = list_jobs(limit=10000) or []
-            job_ids = {j.get("id") for j in jobs}
-            repo_js = list_job_skills()
+            job_ids = {j.get("id") for j in jobs if j.get("id")}
+            repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         except Exception as e:
             logger.warning("[ForecastEngine] Supabase unavailable for real forecast request: %s", e)
@@ -38,8 +38,8 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
             repo_jobs = list_jobs(limit=10000)
             if repo_jobs:
                 jobs = repo_jobs
-                job_ids = {j.get("id") for j in jobs}
-                repo_js = list_job_skills()
+                job_ids = {j.get("id") for j in jobs if j.get("id")}
+                repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
                 job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
             else:
                 jobs = get_demo("jobs")

@@ -54,8 +54,9 @@ def test_finding_16_is_demo_student_id_contract():
     assert is_demo_student_id("stu-001") is False
     assert is_demo_student_id("stu-production-student") is False
 
-    # Other non-demo identifiers
+    # Authenticated student account (usr-student-001) and other IDs must NOT match
     assert is_demo_student_id("usr-student-001") is False
+    assert is_demo_student_id("usr-real-candidate-001") is False
     assert is_demo_student_id("123e4567-e89b-12d3-a456-426614174000") is False
     assert is_demo_student_id("") is False
     assert is_demo_student_id(None) is False
@@ -563,11 +564,15 @@ def test_review5_forecast_engine_filters_job_skills_by_job_ids():
         {"job_id": "job-beta-outside-scope", "skill_id": "sk-002"},
     ]
     with patch("app.repositories.supabase_repository.list_jobs", return_value=mock_jobs) as mock_lj:
-        with patch("app.repositories.supabase_repository.list_job_skills", return_value=mock_job_skills):
+        with patch("app.repositories.supabase_repository.list_job_skills", return_value=mock_job_skills) as mock_ljs:
             with patch("app.repositories.supabase_repository.list_employer_demands", return_value=[]):
                 forecasts = compute_multi_horizon_forecasts(is_demo=False)
                 mock_lj.assert_called_once_with(limit=10000)
+                mock_ljs.assert_called_once_with(job_ids=["job-alpha"])
                 assert isinstance(forecasts, list)
+                f_map = {f["skill_id"]: f for f in forecasts}
+                assert f_map["sk-001"]["current_demand_score"] == 100.0
+                assert f_map["sk-002"]["current_demand_score"] == 20.0
 
 
 def test_review5_student_assessment_preserves_demo_provenance():
@@ -613,6 +618,70 @@ def test_review5_schema_and_migration_external_id_contract():
 
     assert "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS external_id TEXT;" in migration_sql
     assert "ALTER TABLE schemes ADD COLUMN IF NOT EXISTS external_id TEXT;" in migration_sql
-    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_source_external_id ON jobs(source, external_id);" in migration_sql
-    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_schemes_source_external_id ON schemes(source, external_id);" in migration_sql
+    assert "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_source_external_id ON jobs(source, external_id);" in migration_sql
+    assert "idx_schemes_source_external_id" not in migration_sql
     assert "WHERE external_id IS NOT NULL" not in migration_sql.split("idx_jobs_source_external_id")[1].split(";")[0]
+
+
+def test_review6_authenticated_assessment_provenance_isolation():
+    """Verify authenticated assessment submission provenance for real vs demo student personas."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import init_demo_users
+
+    init_demo_users()
+    client = TestClient(app)
+
+    # 1. Real authenticated student account (usr-student-001) -> USER_SUBMITTED
+    token_real = create_access_token({"sub": "usr-student-001", "email": "student@skillsetu.gov.in", "role": "STUDENT"})
+    payload = {
+        "name": "Aarav Patil",
+        "education": "Diploma in Mechanical",
+        "career_goal": "Automotive Design Engineer",
+        "district": "Pune",
+        "current_skills": [{"skill_name": "CAD", "proficiency": "intermediate"}],
+        "interests": ["Automotive"],
+        "quiz_answers": {"q1": "a"},
+    }
+    with patch("app.repositories.supabase_repository.create_student_assessment", side_effect=lambda rec: rec):
+        res = client.post(
+            "/api/student/assessment",
+            json=payload,
+            headers={"Authorization": f"Bearer {token_real}"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        ast = data.get("assessment", data)
+        assert ast["user_id"] == "usr-student-001"
+        assert ast["is_demo"] is False
+        assert ast["source"] == "USER_SUBMITTED"
+        assert ast["source_label"] == "Candidate Self-Reported Assessment"
+        assert ast["data_provenance"] == "SELF_REPORTED_ASSESSMENT"
+        assert ast["id"].startswith("ast-usr-")
+
+    # 2. Synthetic demo student account (demo-student-001) -> DEMO_SYNTHETIC
+    from app.db import save_user
+    save_user({
+        "id": "demo-student-001",
+        "email": "demo.persona@skillsetu.gov.in",
+        "role": "STUDENT",
+        "is_active": True,
+        "is_demo": True,
+    })
+    token_demo = create_access_token({"sub": "demo-student-001", "email": "demo.persona@skillsetu.gov.in", "role": "STUDENT"})
+    with patch("app.repositories.supabase_repository.create_student_assessment", side_effect=lambda rec: rec):
+        res_demo = client.post(
+            "/api/student/assessment",
+            json=payload,
+            headers={"Authorization": f"Bearer {token_demo}"},
+        )
+        assert res_demo.status_code == 200
+        data_demo = res_demo.json()
+        ast_demo = data_demo.get("assessment", data_demo)
+        assert ast_demo["user_id"] == "demo-student-001"
+        assert ast_demo["is_demo"] is True
+        assert ast_demo["source"] == "DEMO_SYNTHETIC"
+        assert ast_demo["source_label"] == "Demo Assessment Simulation"
+        assert ast_demo["data_provenance"] == "DEMO_SYNTHETIC"
+        assert ast_demo["id"].startswith("ast-demo-")

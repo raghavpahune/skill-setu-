@@ -211,11 +211,12 @@ def is_demo_student_id(student_id: str | None) -> bool:
         - ast-demo-*
         - demo-*
 
-    Crucially, generic prefixes like 'stu-*' are NEVER recognized as demo identifiers.
-    This prevents real or non-demo students whose IDs happen to begin with 'stu-'
-    from receiving demo job fixtures or being routed into demo computations.
+    Crucially, generic prefixes like 'stu-*' and authenticated student accounts
+    like 'usr-student-001' are NOT synthetic demo identifiers. This ensures authentic
+    candidate submissions retain USER_SUBMITTED provenance while dedicated demo personas
+    (e.g. 'demo-student') route to DEMO_SYNTHETIC simulation workflows.
     """
     if not student_id or not isinstance(student_id, str):
         return False
-    # ponytail: strictly match demo prefixes only, never generic stu-*
+    # ponytail: strictly match demo prefixes only, never generic stu-* or usr-*
     return student_id.startswith(("ast-demo-", "demo-"))

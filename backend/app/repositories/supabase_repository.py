@@ -1094,13 +1094,21 @@ def batch_create_job_skills(job_skills_data: list[dict[str, Any]]) -> int:
 
 
 def list_job_skills(job_ids: list[str] | None = None) -> list[dict[str, Any]]:
-    """List job-skill relationships from Supabase."""
+    """List job-skill relationships from Supabase, optionally filtering by job_ids."""
     try:
         client = get_client()
-        query = client.table("job_skills").select("*")
-        if job_ids:
-            query = query.in_("job_id", job_ids)
-        res = query.execute()
+        if job_ids is not None:
+            if not job_ids:
+                return []
+            all_skills = []
+            chunk_size = 500
+            for i in range(0, len(job_ids), chunk_size):
+                chunk = job_ids[i : i + chunk_size]
+                res = client.table("job_skills").select("*").in_("job_id", chunk).execute()
+                all_skills.extend(getattr(res, "data", []) or [])
+            return all_skills
+
+        res = client.table("job_skills").select("*").execute()
         return getattr(res, "data", []) or []
     except SupabaseRepositoryError:
         raise
