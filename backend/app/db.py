@@ -56,7 +56,10 @@ def _flush_real_table(table: str):
             )
         ]
 
-        out_file = real_dir / f"{table}.json"
+        # ponytail: runtime users persist to users_runtime.json (not users.json)
+        # so load_real_data can skip the fixture file while still loading persisted users
+        filename = "users_runtime" if table == "users" else table
+        out_file = real_dir / f"{filename}.json"
         out_file.write_text(json.dumps(real_records, indent=2, ensure_ascii=False), encoding="utf-8")
         logger.info("[DB] Flushed %d real records to %s", len(real_records), out_file)
     except Exception as e:
@@ -140,10 +143,17 @@ def load_real_data() -> int:
     for f in real_dir.glob("*.json"):
         if f.name == "README.md":
             continue
+        # SECURITY: skip users.json fixture file — test fixture accounts must not become
+        # valid production login identities. Runtime-persisted users live in
+        # users_runtime.json (written by save_user/_flush_real_table) and load normally.
+        if f.name == "users.json":
+            continue
         try:
             records = json.loads(f.read_text(encoding="utf-8"))
             if isinstance(records, list) and len(records) > 0:
                 table = f.stem
+                if table == "users_runtime":
+                    table = "users"
                 existing = _cache.setdefault(table, [])
                 existing_ids = {r.get("id") for r in existing if isinstance(r, dict) and r.get("id")}
                 # Prepend / merge real records

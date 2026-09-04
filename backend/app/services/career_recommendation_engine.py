@@ -450,11 +450,17 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why
-        matching_fc = next((f for f in fc_list if skill.lower() in f.get("skill_name", "").lower()), {})
-        trend = matching_fc.get("trend", "rising")
-        conf = matching_fc.get("confidence", 85)
-        fc_source = matching_fc.get("source", "SUPABASE_AUTHORITATIVE" if fc_from_repo else "DEMO_SYNTHETIC")
-        fc_verified = bool(fc_from_repo and not matching_fc.get("is_demo", False) and matching_fc.get("source") != "DEMO_SYNTHETIC")
+        matching_fc = next((f for f in fc_list if skill.lower() in f.get("skill_name", "").lower()), None)
+        if matching_fc:
+            trend = matching_fc.get("trend", "rising")
+            conf = matching_fc.get("confidence", 85)
+            fc_source = matching_fc.get("source", "SUPABASE_AUTHORITATIVE" if fc_from_repo else "DEMO_SYNTHETIC")
+            fc_verified = bool(fc_from_repo and not matching_fc.get("is_demo", False) and matching_fc.get("source") != "DEMO_SYNTHETIC")
+        else:
+            trend = "unknown"
+            conf = None
+            fc_source = "UNAVAILABLE"
+            fc_verified = False
 
         # Match institute training courses for this specific missing skill
         training_options = []
@@ -492,7 +498,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "demand_confidence": conf,
             "forecast_source": fc_source,
             "forecast_verified": fc_verified,
-            "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence).",
+            "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence)." if conf else f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with current market requirements.",
             "action_item": f"Complete hands-on practical modules for {skill} through recommended vocational institutes.",
             "matched_institute_training": training_options[:2],
             "matched_industry_signals": skill_signals[:2],
@@ -504,8 +510,10 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                 "step": 1,
                 "skill_name": "Production Capstone Project",
                 "priority": "HIGH",
-                "trend": "rising",
-                "demand_confidence": 95,
+                "trend": "unknown",
+                "demand_confidence": None,
+                "forecast_source": "UNAVAILABLE",
+                "forecast_verified": False,
                 "why_learn": "Candidate meets all baseline prerequisites. Building an end-to-end industrial portfolio is the final bridge to placement.",
                 "action_item": "Deploy a production-ready application and prepare technical case studies.",
             },
@@ -513,8 +521,10 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                 "step": 2,
                 "skill_name": "Direct Industry Placement / Apprenticeship",
                 "priority": "HIGH",
-                "trend": "rising",
-                "demand_confidence": 90,
+                "trend": "unknown",
+                "demand_confidence": None,
+                "forecast_source": "UNAVAILABLE",
+                "forecast_verified": False,
                 "why_learn": "Directly interview with verified employers and NAPS registered partners.",
                 "action_item": "Submit resume to validated hiring partners in Pune / Mumbai corridors.",
             }

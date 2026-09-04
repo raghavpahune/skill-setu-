@@ -38,7 +38,7 @@ init_db()
 init_demo_users()
 save_user({
     "id": "usr-student-002",
-    "name": "Priya Deshmukh",
+    "full_name": "Priya Deshmukh",
     "email": "student2@skillsetu.gov.in",
     "role": "STUDENT",
     "hashed_password": hash_password("Password@123"),

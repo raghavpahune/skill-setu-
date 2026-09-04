@@ -33,3 +33,6 @@ npm-debug.log*
 # Agent / IDE internal
 .agent/
 .antigravity/
+
+# Runtime persistence (first-party local user registrations)
+data/real/users_runtime.json

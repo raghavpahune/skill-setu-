@@ -334,7 +334,7 @@ export default function SkillExplainabilityModal({
             <Link
               to={{
                 pathname: '/student/copilot',
-                search: `?topic=${encodeURIComponent(skill?.name || skillNameFallback || 'This Competency')}${studentId ? `&student_id=${encodeURIComponent(studentId)}` : ''}`,
+                search: `?topic=${encodeURIComponent(skill?.name || skillNameFallback || 'This Competency')}`,
               }}
               state={{
                 fromRecommendation: true,
