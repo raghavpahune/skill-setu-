@@ -3,8 +3,10 @@ import os
 import sys
 import re
 import logging
+from typing import Any
 from collections import Counter
 from pathlib import Path
+from fastapi import HTTPException
 
 logger = logging.getLogger("skillsetu.ai.copilot")
 
@@ -127,7 +129,8 @@ def _build_context(
     district: str | None = None,
     student_id: str | None = None,
     context_data: dict | None = None,
-) -> dict:
+    current_user: dict | None = None,
+) -> dict[str, Any]:
     """Fetch relevant structured data to ground the response accurately without polluting query context."""
     try:
         from app.db import get_demo
@@ -263,8 +266,11 @@ def _build_context(
                 context["query_type"] = "skill_recommendation"
 
         # Phase 17 & 18: Grounded Student Recommendation Context
-        effective_student_id = student_id or (context_data.get("student_id") if context_data else None)
+        effective_student_id = student_id or (context_data.get("student_id") if context_data and isinstance(context_data, dict) else None)
         if effective_student_id:
+            # SECURITY CRITICAL: Authorize effective student ID before compute_career_recommendations()
+            from app.routers.student import _verify_student_recommendations_access
+            _verify_student_recommendations_access(effective_student_id, current_user)
             try:
                 from app.services.career_recommendation_engine import compute_career_recommendations
                 student_rec = compute_career_recommendations(effective_student_id)
@@ -357,6 +363,8 @@ def _build_context(
                     break
 
         return context
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"[Copilot] Failed to build context: {e}")
         return {}
@@ -368,10 +376,11 @@ async def handle_question(
     district: str | None = None,
     student_id: str | None = None,
     context_data: dict | None = None,
-) -> dict:
+    current_user: dict | None = None,
+) -> dict[str, Any]:
     """Handle a copilot question end-to-end with live inference and resilient offline fallback."""
     provider = _get_provider()
-    context = _build_context(role, question, district, student_id, context_data)
+    context = _build_context(role, question, district, student_id, context_data, current_user)
     is_live_ai = isinstance(provider, GeminiProvider)
 
     logger.info(f"[Copilot] Query: '{question}' (student_id={student_id}, district={district}, provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")

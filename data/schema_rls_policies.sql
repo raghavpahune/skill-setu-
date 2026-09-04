@@ -68,7 +68,7 @@ CREATE POLICY "students_insert_own_assessments"
   ON student_assessments
   FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid()::text = user_id OR auth.email() = user_email);
+  WITH CHECK (auth.uid()::text = user_id AND (user_email IS NULL OR auth.email() = user_email));
 
 -- Deny anon access to assessment diagnostic scores
 CREATE POLICY "deny_anon_assessments"

@@ -25,6 +25,7 @@ export default function CopilotPage({ roleOverride }) {
   const urlStudentId = searchParams.get('student_id') || searchParams.get('student') || '';
   const urlTopic = searchParams.get('topic') || '';
   const recommendationContext = location.state?.recommendationContext || null;
+  const initialStudentId = recommendationContext?.student_id || location.state?.student_id || urlStudentId || '';
   const autoSend = location.state?.autoSend ?? Boolean(urlTopic && !initialPrompt);
 
   return (
@@ -47,7 +48,7 @@ export default function CopilotPage({ roleOverride }) {
             defaultRole={initialRole}
             initialPrompt={initialPrompt}
             initialDistrict={urlDistrict}
-            initialStudentId={urlStudentId}
+            initialStudentId={initialStudentId}
             initialTopic={urlTopic}
             recommendationContext={recommendationContext}
             autoSend={autoSend}

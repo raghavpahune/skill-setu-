@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import uuid
 import re
+import logging
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -14,6 +15,7 @@ from app.core.security import (
 )
 from app.db import get_user_by_email, get_user_by_id, save_user
 
+logger = logging.getLogger("skillsetu.auth")
 router = APIRouter()
 
 ALLOWED_PUBLIC_ROLES = {"STUDENT", "EMPLOYER", "INSTITUTE", "GOVERNMENT"}

@@ -215,6 +215,11 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     const topic = recommendationContext?.topic || initialTopic;
     if (!topic || hasAutoSentRef.current) return;
 
+    // contextualQuery must NOT overwrite an explicit initialPrompt
+    if (initialPrompt && initialPrompt.trim()) {
+      return;
+    }
+
     const targetRole =
       recommendationContext?.target_role ||
       (students.find((s) => s.user_id === (initialStudentId || studentId))?.target_role) ||
@@ -231,7 +236,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
       }
       handleSend(contextualQuery, recommendationContext);
     }
-  }, [initialTopic, recommendationContext, autoSend, students, initialStudentId, studentId]);
+  }, [initialTopic, recommendationContext, autoSend, students, initialStudentId, studentId, initialPrompt]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

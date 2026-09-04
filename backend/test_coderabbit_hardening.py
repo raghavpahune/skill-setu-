@@ -185,12 +185,20 @@ def test_finding_6_demo_forecast_is_never_verified_true():
 # ============================================================================
 # CodeRabbit Finding #7: Copilot Tests Deterministically Use DemoProvider
 # ============================================================================
-def test_finding_7_copilot_uses_demo_provider():
+def test_finding_7_copilot_uses_demo_provider(monkeypatch):
+    # Neutralize all environment variables and settings that could configure live Gemini
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    try:
+        from app.config import settings
+        monkeypatch.setattr(settings, "gemini_api_key", "", raising=False)
+    except Exception:
+        pass
     from ai.copilot import _get_provider
     from ai.demo_provider import DemoProvider
     provider = _get_provider()
-    # When GEMINI_API_KEY is not configured or in test mode, DemoProvider is returned
-    assert isinstance(provider, DemoProvider) or provider.__class__.__name__ == "DemoProvider"
+    # The test must always exercise DemoProvider even when CI/local credentials exist
+    assert isinstance(provider, DemoProvider)
 
 
 # ============================================================================
@@ -207,3 +215,92 @@ def test_finding_8_usr_student_002_has_valid_bcrypt_hash():
     assert hashed.startswith(("$2b$", "$2a$"))
     # Verify password verification succeeds
     assert verify_password("Password@123", hashed) is True
+
+
+# ============================================================================
+# CodeRabbit PR #2 Security Finding: Copilot Student Authorization
+# Copilot routes must enforce ownership or privileged-role authorization.
+# ============================================================================
+def test_copilot_routes_enforce_student_authorization():
+    private_record = {
+        "id": "ast-private-student-42",
+        "user_id": "usr-student-001",
+        "user_email": "student@skillsetu.gov.in",
+        "name": "Target Private Student",
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+        "career_goal": "AI Engineer",
+        "skills": [{"skill_name": "Python", "proficiency": "advanced"}],
+    }
+
+    with patch("app.repositories.supabase_repository.get_student_assessment", return_value=private_record), \
+         patch("app.repositories.supabase_repository.get_student_assessment_by_user", return_value=private_record):
+
+        # 1. Unauthenticated /copilot/ask with top-level student_id -> 401
+        res1 = client.post("/api/copilot/ask", json={
+            "question": "Explain my career roadmap",
+            "student_id": "usr-student-001",
+        })
+        assert res1.status_code == 401
+
+        # 2. Unauthorized attacker /copilot/ask with nested context_data.student_id -> 403
+        res2 = client.post("/api/copilot/ask", json={
+            "question": "Explain roadmap",
+            "context_data": {"student_id": "usr-student-001"},
+        }, headers=AUTH_HEADERS_S2)
+        assert res2.status_code == 403
+
+        # 3. Unauthenticated /copilot/explain-career -> 401
+        res3 = client.post("/api/copilot/explain-career", json={
+            "student_id": "usr-student-001",
+        })
+        assert res3.status_code == 401
+
+        # 4. Unauthorized attacker /copilot/explain-career -> 403
+        res4 = client.post("/api/copilot/explain-career", json={
+            "student_id": "usr-student-001",
+        }, headers=AUTH_HEADERS_S2)
+        assert res4.status_code == 403
+
+        # 5. Legitimate owner succeeds
+        res_ok = client.post("/api/copilot/ask", json={
+            "question": "Explain my roadmap",
+            "student_id": "usr-student-001",
+        }, headers=AUTH_HEADERS_S1)
+        assert res_ok.status_code == 200
+
+
+# ============================================================================
+# CodeRabbit PR #2 Provenance Finding: Missing Forecast Provenance
+# ============================================================================
+def test_missing_forecast_marked_unavailable_and_unverified():
+    # Calling career recommendations for a role whose missing skills have no forecast
+    with patch("app.repositories.supabase_repository.list_skill_forecasts", return_value=[]):
+        rec = compute_career_recommendations("stu-001")
+        for step in rec.get("personalized_roadmap", []):
+            assert step.get("forecast_source") == "UNAVAILABLE"
+            assert step.get("forecast_verified") is False
+
+
+# ============================================================================
+# CodeRabbit PR #2 Demo Provider Finding: Absent Context Not "Missing Prerequisite"
+# ============================================================================
+@pytest.mark.anyio
+async def test_demo_provider_absent_context_not_missing_prerequisite():
+    from ai.demo_provider import DemoProvider
+    provider = DemoProvider()
+    # Query without student_recommendation_context or explicit missing prerequisites
+    context = {
+        "data_available_for_skill": True,
+        "queried_skill": {
+            "name": "Python",
+            "demand_pct": 25,
+            "demand_count": 100,
+            "total_jobs_tracked": 400,
+            "gap_pct": 10,
+            "priority": "HIGH",
+        },
+    }
+    answer = await provider.generate("Tell me about Python", context=context)
+    # Must NOT default to "Missing Prerequisite" when no assessment context exists
+    assert "⚠️ Missing Prerequisite" not in answer

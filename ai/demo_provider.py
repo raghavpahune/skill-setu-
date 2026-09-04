@@ -57,12 +57,25 @@ class DemoProvider(LLMProvider):
             missing_skills = srec.get("missing_skills") or handoff.get("missing_prerequisites") or []
             matching_skills = srec.get("matching_skills", [])
             readiness_score = srec.get("readiness_score", 0)
-            is_acquired = srec.get("is_queried_skill_acquired", False)
-            is_missing = srec.get("is_queried_skill_missing", True)
 
-            status_badge = "⚠️ Missing Prerequisite" if is_missing else "✓ Acquired Competency"
+            has_srec = bool(ctx.get("student_recommendation_context"))
+            has_explicit_missing = bool(
+                (has_srec and (srec.get("is_queried_skill_missing") or any(sname.lower() == str(m).lower() for m in missing_skills)))
+                or (not has_srec and any(sname.lower() == str(m).lower() for m in (handoff.get("missing_prerequisites") or [])))
+            )
+            has_explicit_acquired = bool(
+                has_srec and (srec.get("is_queried_skill_acquired") or any(sname.lower() == str(m).lower() for m in matching_skills))
+            )
+
+            if has_explicit_acquired:
+                status_badge = "✓ Acquired Competency"
+            elif has_explicit_missing:
+                status_badge = "⚠️ Missing Prerequisite"
+            else:
+                status_badge = "Not assessed"
+
             prereq_list = [str(m) for m in missing_skills if str(m).lower() != sname.lower()]
-            prereqs_str = ", ".join(prereq_list) if prereq_list else "Fundamental technical baseline in place"
+            prereqs_str = ", ".join(prereq_list) if prereq_list else ("Fundamental technical baseline in place" if has_srec else "Not assessed")
 
             # Relevant courses from dataset
             raw_courses = s.get("sample_courses") or handoff.get("relevant_courses") or []
