@@ -1,5 +1,6 @@
 """Employer Validation & Industry Demand API — confirm/correct/reject skill demand, submit requirements, and track talent deficits."""
 import datetime
+import logging
 import uuid
 from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,6 +22,7 @@ from app.repositories.supabase_repository import (
     SupabaseRepositoryError,
 )
 
+logger = logging.getLogger("skillsetu.employer")
 router = APIRouter()
 
 
@@ -130,10 +132,11 @@ async def submit_feedback(
     try:
         matched = get_employer_feedback(submission.feedback_id)
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database query error for feedback '%s': %s", submission.feedback_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query error: {e}",
-        )
+            detail="Database query error.",
+        ) from e
 
     if not matched:
         return {"error": "feedback not found"}
@@ -179,10 +182,11 @@ async def submit_feedback(
     except FeedbackNotFoundError:
         return {"error": "feedback not found"}
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database update failed for feedback '%s': %s", submission.feedback_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database update failed: {e}",
-        )
+            detail="Database update failed.",
+        ) from e
 
     return {"status": "updated", "feedback": updated}
 
@@ -294,10 +298,11 @@ async def submit_demand(
     try:
         saved = create_employer_demand(demand_record)
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database insertion failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database insertion failed: {e}",
-        )
+            detail="Database insertion failed.",
+        ) from e
 
     return {
         "status": "created",
@@ -342,7 +347,8 @@ async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER"
     try:
         all_demands = list_employer_demands()
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for my demands: %s", e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
 
     user_id = current_user.get("id")
     org_id = current_user.get("organization_id")
@@ -373,7 +379,8 @@ async def update_my_demand(
     try:
         matched = get_employer_demand(demand_id)
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for demand '%s': %s", demand_id, e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
 
     if not matched:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
@@ -401,10 +408,11 @@ async def update_my_demand(
     except DemandNotFoundError:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database update failed for demand '%s': %s", demand_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database update failed: {e}",
-        )
+            detail="Database update failed.",
+        ) from e
 
     return {"status": "success", "message": "Employer demand updated.", "demand": updated}
 
@@ -418,7 +426,8 @@ async def delete_my_demand(
     try:
         matched = get_employer_demand(demand_id)
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for demand '%s': %s", demand_id, e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
 
     if not matched:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
@@ -439,10 +448,11 @@ async def delete_my_demand(
     try:
         delete_employer_demand_repo(demand_id)
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database deletion failed for demand '%s': %s", demand_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database deletion failed: {e}",
-        )
+            detail="Database deletion failed.",
+        ) from e
 
     return {"status": "success", "message": f"Employer demand '{demand_id}' deleted."}
 
@@ -500,7 +510,8 @@ async def get_demand_detail(demand_id: str):
     try:
         d = get_employer_demand(demand_id)
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for demand '%s': %s", demand_id, e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
     if d:
         return {"status": "success", "demand": d}
 

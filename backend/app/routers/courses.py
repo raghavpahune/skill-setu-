@@ -14,11 +14,11 @@ async def list_courses():
     try:
         courses = list_courses_repo()
     except SupabaseRepositoryError as e:
-        logger.error("[Courses] Failed fetching courses from Supabase: %s", e)
+        logger.exception("[Courses] Failed fetching courses from Supabase: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for courses: {e}",
-        )
+            detail="Database query failed for courses.",
+        ) from e
 
     placements = {p["course_id"]: p for p in get_demo("placements")}
 

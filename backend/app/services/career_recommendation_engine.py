@@ -434,10 +434,18 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         all_courses = list_courses()
     except Exception:
         all_courses = get_demo("courses")
+    is_real_candidate = not student_id.startswith(("stu-", "ast-demo-", "demo-")) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
+
+    fc_from_repo = False
     try:
         from app.repositories.supabase_repository import list_skill_forecasts
         fc_list = list_skill_forecasts()
-    except Exception:
+        fc_from_repo = True
+    except Exception as e:
+        if is_real_candidate:
+            logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
+            raise RuntimeError("Database error fetching skill forecasts for candidate roadmap.") from e
+        logger.warning("[RecommendationEngine] Supabase forecasts unavailable, using demo fixtures for demo student '%s': %s", student_id, e)
         fc_list = get_demo("skill_forecasts")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
@@ -445,6 +453,8 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         matching_fc = next((f for f in fc_list if skill.lower() in f.get("skill_name", "").lower()), {})
         trend = matching_fc.get("trend", "rising")
         conf = matching_fc.get("confidence", 85)
+        fc_source = matching_fc.get("source", "SUPABASE_AUTHORITATIVE" if fc_from_repo else "DEMO_SYNTHETIC")
+        fc_verified = bool(fc_from_repo and not matching_fc.get("is_demo", False) and matching_fc.get("source") != "DEMO_SYNTHETIC")
 
         # Match institute training courses for this specific missing skill
         training_options = []
@@ -480,6 +490,8 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "priority": "HIGH" if idx <= 2 else "MEDIUM",
             "trend": trend,
             "demand_confidence": conf,
+            "forecast_source": fc_source,
+            "forecast_verified": fc_verified,
             "why_learn": f"Bridging {skill} unlocks {top_recommended_role['role_name']} qualification and aligns with {trend} industry demand ({conf}% confidence).",
             "action_item": f"Complete hands-on practical modules for {skill} through recommended vocational institutes.",
             "matched_institute_training": training_options[:2],

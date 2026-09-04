@@ -14,7 +14,7 @@
     "name": "Priya Deshmukh",
     "email": "student2@skillsetu.gov.in",
     "role": "STUDENT",
-    "hashed_password": "demo_password_hash",
+    "hashed_password": "$2b$12$kNTl52vyJ5spnWi.hZ73JepWAulTRuYz7sxne8DeVnvdH3o2.a5AS",
     "created_at": "2026-09-03T19:35:10.647388+00:00",
     "updated_at": "2026-09-03T19:35:10.647388+00:00",
     "source": "USER_SUBMITTED",

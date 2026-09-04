@@ -328,10 +328,17 @@ def get_skill_explainability(
     except Exception:
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
+    is_real_student = bool(student_id and not student_id.startswith(("stu-", "ast-demo-", "demo-")))
+    fc_from_repo = False
     try:
         from app.repositories.supabase_repository import list_skill_forecasts
         forecasts = list_skill_forecasts()
-    except Exception:
+        fc_from_repo = True
+    except Exception as e:
+        if is_real_student:
+            logger.exception("[SkillExplainability] Supabase forecast query failed for real student %s: %s", student_id, e)
+            raise RuntimeError("Database error fetching skill forecasts.") from e
+        logger.warning("[SkillExplainability] Supabase forecasts unavailable, using demo fixtures: %s", e)
         forecasts = get_demo("skill_forecasts")
     try:
         from app.repositories.supabase_repository import list_employer_feedback
@@ -408,8 +415,10 @@ def get_skill_explainability(
     if skill_fc_records:
         # Choose best period or 12m
         fc_12m = next((f for f in skill_fc_records if f.get("period") == "12m"), skill_fc_records[0])
+        fc_verified = bool(fc_from_repo and not fc_12m.get("is_demo", False) and fc_12m.get("source") != "DEMO_SYNTHETIC")
         dimension_forecast = {
-            "verified": True,
+            "verified": fc_verified,
+            "forecast_source": fc_12m.get("source", "SUPABASE_AUTHORITATIVE" if fc_from_repo else "DEMO_SYNTHETIC"),
             "period": fc_12m.get("period", "12m"),
             "future_demand": fc_12m.get("future_demand", "high").replace("_", " ").upper(),
             "trend": fc_12m.get("trend", "rising"),

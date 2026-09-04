@@ -38,9 +38,11 @@ class DemoProvider(LLMProvider):
             srec = ctx.get("student_recommendation_context") or {}
             handoff = ctx.get("recommendation_handoff") or {}
 
-            cand_name = srec.get("candidate_name") or handoff.get("student_name") or "Candidate"
-            target_role = srec.get("target_career_goal") or srec.get("top_recommended_role") or handoff.get("target_role") or "Target Career"
-            sname = s.get("name", "This Competency")
+            cand_name_raw = srec.get("candidate_name") or handoff.get("student_name")
+            cand_name = str(cand_name_raw) if cand_name_raw else "Candidate"
+            target_role_raw = srec.get("target_career_goal") or srec.get("top_recommended_role") or handoff.get("target_role")
+            target_role = str(target_role_raw) if target_role_raw else "Target Career"
+            sname = str(s.get("name") or "This Competency")
             category = s.get("category", "Technical Specialization")
             nsqf = s.get("nsqf_level") or 7
             demand_pct = s.get("demand_pct", 0)
@@ -59,11 +61,12 @@ class DemoProvider(LLMProvider):
             is_missing = srec.get("is_queried_skill_missing", True)
 
             status_badge = "⚠️ Missing Prerequisite" if is_missing else "✓ Acquired Competency"
-            prereq_list = [m for m in missing_skills if m.lower() != sname.lower()]
+            prereq_list = [str(m) for m in missing_skills if str(m).lower() != sname.lower()]
             prereqs_str = ", ".join(prereq_list) if prereq_list else "Fundamental technical baseline in place"
 
             # Relevant courses from dataset
-            sample_courses = s.get("sample_courses") or handoff.get("relevant_courses") or []
+            raw_courses = s.get("sample_courses") or handoff.get("relevant_courses") or []
+            sample_courses = [c for c in raw_courses if isinstance(c, dict)]
             if sample_courses:
                 courses_md = "\n".join([
                     f"* **{c.get('name', 'Course')}** — {c.get('institute', 'State Technical Institute')}" + (f" ({c.get('district')})" if c.get('district') else "")

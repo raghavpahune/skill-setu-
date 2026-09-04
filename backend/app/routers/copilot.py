@@ -1,8 +1,21 @@
 """AI Copilot API — conversational assistant grounded in SkillSetu data."""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictStr
 
 router = APIRouter()
+
+
+class CopilotContextData(BaseModel):
+    target_role: StrictStr | None = None
+    student_name: StrictStr | None = None
+    student_id: StrictStr | None = None
+    topic: StrictStr | None = None
+    recommendation_title: StrictStr | None = None
+    missing_prerequisites: list[StrictStr] | None = None
+    relevant_courses: list[dict] | None = None
+    source: StrictStr | None = None
+
+    model_config = {"extra": "allow"}
 
 
 class CopilotQuery(BaseModel):
@@ -10,7 +23,7 @@ class CopilotQuery(BaseModel):
     role: str = "student"  # government, institute, student, employer
     district: str | None = None
     student_id: str | None = None
-    context_data: dict | None = None
+    context_data: CopilotContextData | None = None
 
 
 class CareerExplainQuery(BaseModel):
@@ -24,12 +37,13 @@ async def ask_copilot(query: CopilotQuery):
     """Conversational intelligence query grounded in Maharashtra labour datasets and candidate recommendations."""
     # ponytail: import here to avoid circular deps and keep startup fast
     from ai.copilot import handle_question
+    ctx_data = query.context_data.model_dump() if query.context_data else None
     answer = await handle_question(
         question=query.question,
         role=query.role,
         district=query.district,
         student_id=query.student_id,
-        context_data=query.context_data,
+        context_data=ctx_data,
     )
     return answer
 

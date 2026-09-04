@@ -6,6 +6,13 @@ from app.main import app
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def pin_demo_provider(monkeypatch):
+    """Ensure all tests deterministically use DemoProvider and never make external Gemini calls."""
+    from ai.demo_provider import DemoProvider
+    monkeypatch.setattr("ai.copilot._get_provider", lambda: DemoProvider())
+
+
 def test_copilot_recommendation_handoff_generative_ai():
     """Verify recommendation handoff for Generative AI produces grounded, structured response."""
     payload = {

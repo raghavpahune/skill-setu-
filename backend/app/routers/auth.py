@@ -100,7 +100,14 @@ async def register(req: RegisterRequest):
         "updated_at": now_iso,
     }
 
-    saved = save_user(new_user)
+    try:
+        saved = save_user(new_user)
+    except Exception as e:
+        logger.exception("[Auth] Failed persisting user: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database persistence failed for user registration.",
+        ) from e
     token = create_access_token({
         "sub": saved["id"],
         "email": saved["email"],

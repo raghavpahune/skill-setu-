@@ -280,7 +280,19 @@ def _build_context(
                     is_acquired = any(m.lower() == queried_name.lower() for m in matching_skills)
                     if not is_acquired and not is_missing:
                         # Check if required in roadmap or target role benchmark
-                        is_missing = True
+                        roadmap_skills = [
+                            st.get("skill_name", "").lower()
+                            for st in student_rec.get("personalized_roadmap", [])
+                            if st.get("skill_name")
+                        ]
+                        role_missing = []
+                        target_goal = student_rec.get("target_career_goal") or top_role
+                        for r_def in student_rec.get("recommended_careers", []):
+                            if r_def.get("role_name", "").lower() in (top_role.lower(), target_goal.lower()):
+                                role_missing.extend([s.lower() for s in r_def.get("missing_skills", [])])
+                        is_missing = any(queried_name.lower() == r for r in roadmap_skills) or any(
+                            queried_name.lower() == rm for rm in role_missing
+                        )
 
                 context["student_recommendation_context"] = {
                     "student_id": effective_student_id,

@@ -83,9 +83,11 @@ def test_assessment_submission_and_me_resolution():
 
 
 def test_unassessed_student_schemes_and_opps():
+    import uuid
+    email = f"brand_new_student_{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
     # Register a new student who has no assessment
     res = client.post("/api/auth/register", json={
-        "email": "brand_new_student@skillsetu.gov.in",
+        "email": email,
         "password": "Password@123",
         "full_name": "New Student",
         "role": "STUDENT",

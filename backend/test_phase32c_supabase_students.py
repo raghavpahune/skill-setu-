@@ -19,7 +19,7 @@ from starlette.testclient import TestClient
 
 from app.main import app
 from app.db import _cache, init_db, init_demo_users, save_user
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.repositories.supabase_repository import (
     get_student_profile,
     list_student_profiles,
@@ -41,7 +41,7 @@ save_user({
     "name": "Priya Deshmukh",
     "email": "student2@skillsetu.gov.in",
     "role": "STUDENT",
-    "hashed_password": "demo_password_hash",
+    "hashed_password": hash_password("Password@123"),
 })
 
 client = TestClient(app)

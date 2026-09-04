@@ -115,10 +115,10 @@ async def recommended_schemes(
         from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
         profile = get_student_profile(resolved_id) or get_student_assessment(resolved_id) or get_student_assessment_by_user(resolved_id)
     except Exception as e:
-        logger.error("[RecommendedSchemes] Supabase error for %s: %s", resolved_id, e)
+        logger.exception("[RecommendedSchemes] Supabase error for %s: %s", resolved_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed fetching student profile for recommendations: {e}",
+            detail="Database query failed fetching student profile for recommendations.",
         ) from e
 
     if not profile and resolved_id.startswith(("stu-", "ast-demo-", "demo-")):
