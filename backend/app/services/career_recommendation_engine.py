@@ -12,6 +12,7 @@ import logging
 from collections import Counter
 from typing import Any
 
+from app.core.security import is_demo_student_id
 from app.db import get_demo
 
 logger = logging.getLogger("skillsetu.recommendation_engine")
@@ -119,12 +120,12 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
             return p
     except SupabaseRepositoryError as e:
         logger.warning("[RecommendationEngine] Supabase repository unavailable resolving student '%s': %s", student_id, e)
-        if not student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        if not is_demo_student_id(student_id):
             raise RuntimeError(f"Database error resolving student profile: {e}") from e
 
     # 2. Only allow explicit demo fixture IDs for legitimate demo candidate selector
     # NEVER fall back to demo records for production student IDs (e.g. usr-student-*, UUIDs, etc.)
-    if student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if is_demo_student_id(student_id):
         assessments = get_demo("student_assessments")
         for a in assessments:
             if a.get("id") == student_id or a.get("user_id") == student_id:
@@ -434,7 +435,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
         all_courses = list_courses()
     except Exception:
         all_courses = get_demo("courses")
-    is_real_candidate = not student_id.startswith(("stu-", "ast-demo-", "demo-")) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
+    is_real_candidate = not is_demo_student_id(student_id) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
 
     fc_from_repo = False
     try:

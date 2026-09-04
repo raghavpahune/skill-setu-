@@ -1,7 +1,7 @@
 """Schemes API — student welfare and government schemes."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.core.security import get_optional_current_user
+from app.core.security import get_optional_current_user, is_demo_student_id
 from app.db import get_demo
 
 logger = logging.getLogger(__name__)
@@ -21,14 +21,26 @@ async def list_schemes(
     q: str | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List available student welfare, scholarship, and government schemes with optional filters."""
-    try:
-        from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-        db_schemes = list_schemes_repo()
-        schemes = db_schemes if db_schemes else get_demo("schemes")
-    except Exception:
+    if is_demo is True:
         schemes = get_demo("schemes")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            db_schemes = list_schemes_repo(limit=limit + offset)
+            if db_schemes:
+                schemes = db_schemes
+            elif is_demo is False:
+                return []
+            else:
+                schemes = get_demo("schemes")
+        except Exception as e:
+            logger.warning("[Schemes] Supabase unavailable: %s", e)
+            if is_demo is False:
+                return []
+            schemes = get_demo("schemes")
 
     filtered = []
     for s in schemes:
@@ -80,14 +92,28 @@ async def list_schemes(
 
 
 @router.get("/schemes/categories")
-async def get_scheme_metadata():
+async def get_scheme_metadata(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Return distinct categories, scheme types, and course types for UI filtering."""
-    try:
-        from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-        db_schemes = list_schemes_repo()
-        schemes = db_schemes if db_schemes else get_demo("schemes")
-    except Exception:
+    if is_demo is True:
         schemes = get_demo("schemes")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            db_schemes = list_schemes_repo()
+            if db_schemes:
+                schemes = db_schemes
+            elif is_demo is False:
+                schemes = []
+            else:
+                schemes = get_demo("schemes")
+        except Exception as e:
+            logger.warning("[Schemes] Supabase unavailable for metadata: %s", e)
+            if is_demo is False:
+                schemes = []
+            else:
+                schemes = get_demo("schemes")
     categories = set()
     scheme_types = set()
     course_types = set()
@@ -131,7 +157,7 @@ async def recommended_schemes(
             detail="Database query failed fetching student profile for recommendations.",
         ) from e
 
-    if not profile and resolved_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not profile and is_demo_student_id(resolved_id):
         profiles = get_demo("student_profiles")
         for p in profiles:
             if p.get("user_id") == resolved_id or p.get("id") == resolved_id:

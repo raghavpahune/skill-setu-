@@ -12,7 +12,7 @@
 -- ----------------------------------------------------------------------------
 
 -- Explicit source classification (LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC)
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'LIVE_API';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'DEMO_SYNTHETIC';
 
 -- Human-readable provenance label (e.g., "Adzuna India Live API Feed", "Historical Maharashtra Job Snapshot")
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_label TEXT;
@@ -40,11 +40,19 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS content_hash TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'VERIFIED';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'UNVERIFIED';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_method TEXT DEFAULT 'STRUCTURAL_API_VALIDATION';
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 90;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 0;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
+
+-- Backfill pre-existing rows according to their authoritative source classification
+UPDATE jobs
+   SET source_type = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END,
+       verification_status = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END,
+       confidence = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 90 END,
+       is_demo = CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END
+ WHERE source IS NOT NULL;
 
 
 -- ----------------------------------------------------------------------------
@@ -52,7 +60,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
 -- ----------------------------------------------------------------------------
 
 -- Explicit source classification (LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC)
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'LIVE_API';
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'DEMO_SYNTHETIC';
 
 -- Human-readable provenance label (e.g., "data.gov.in Official Open Data Feed")
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_label TEXT;
@@ -77,11 +85,19 @@ ALTER TABLE schemes ADD COLUMN IF NOT EXISTS content_hash TEXT;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'VERIFIED';
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'UNVERIFIED';
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_method TEXT DEFAULT 'GOVERNMENT_PORTAL_API_FEED';
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 95;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 0;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
+
+-- Backfill pre-existing rows according to their authoritative source classification
+UPDATE schemes
+   SET source_type = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END,
+       verification_status = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END,
+       confidence = CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 95 END,
+       is_demo = CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END
+ WHERE source IS NOT NULL;
 
 
 -- ----------------------------------------------------------------------------

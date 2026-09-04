@@ -33,12 +33,12 @@ class MockSupabaseQuery:
         self._mutation_data = updates
         return self
 
-    def insert(self, data: Any):
+    def insert(self, data: Any, *args: Any, **kwargs: Any):
         self._action = "insert"
         self._mutation_data = data
         return self
 
-    def upsert(self, data: Any):
+    def upsert(self, data: Any, *args: Any, **kwargs: Any):
         self._action = "upsert"
         self._mutation_data = data
         return self
@@ -133,11 +133,11 @@ class MockSupabaseTable:
     def update(self, updates: dict):
         return MockSupabaseQuery(self).update(updates)
 
-    def insert(self, data: Any):
-        return MockSupabaseQuery(self).insert(data)
+    def insert(self, data: Any, *args: Any, **kwargs: Any):
+        return MockSupabaseQuery(self).insert(data, *args, **kwargs)
 
-    def upsert(self, data: Any):
-        return MockSupabaseQuery(self).upsert(data)
+    def upsert(self, data: Any, *args: Any, **kwargs: Any):
+        return MockSupabaseQuery(self).upsert(data, *args, **kwargs)
 
     def delete(self):
         return MockSupabaseQuery(self).delete()

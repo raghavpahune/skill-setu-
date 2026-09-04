@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Query, HTTPException, Depends, status
 from pydantic import BaseModel, Field
-from app.core.security import get_current_user, get_optional_current_user
+from app.core.security import get_current_user, get_optional_current_user, is_demo_student_id
 from app.db import get_demo, save_student_assessment, _cache
 
 logger = logging.getLogger("skillsetu.student")
@@ -222,7 +222,7 @@ async def skill_passport(
             detail=f"Database query failed for student assessment '{student_id}'.",
         ) from e
 
-    if not a and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not a and is_demo_student_id(student_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == student_id or item.get("user_id") == student_id:
@@ -308,7 +308,7 @@ async def skill_passport(
             detail=f"Database query failed for student profile '{student_id}'.",
         ) from e
 
-    if not p and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not p and is_demo_student_id(student_id):
         for item in profiles:
             if item.get("user_id") == student_id or item.get("id") == student_id:
                 p = item
@@ -397,7 +397,7 @@ async def learning_roadmap(
             detail="Database query failed for student roadmap.",
         ) from e
 
-    if not a and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not a and is_demo_student_id(student_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == student_id or item.get("user_id") == student_id:
@@ -446,7 +446,7 @@ async def learning_roadmap(
             detail="Database query failed for student profile.",
         ) from e
 
-    if not p and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not p and is_demo_student_id(student_id):
         for item in profiles:
             if item.get("user_id") == student_id or item.get("id") == student_id:
                 p = item
@@ -642,7 +642,7 @@ async def get_student_assessment(
             detail=f"Database query failed for student assessment '{assessment_id}'.",
         ) from e
 
-    if not a and assessment_id.startswith(("ast-demo-", "demo-")):
+    if not a and is_demo_student_id(assessment_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == assessment_id:
@@ -699,7 +699,7 @@ def _verify_student_recommendations_access(target_id: str, current_user: dict | 
         a = get_student_assessment(target_id) or get_student_assessment_by_user(target_id) or get_student_profile(target_id)
     except Exception as e:
         logger.exception("[VerifyAccess] Supabase query failed for %s: %s", target_id, e)
-        if not target_id.startswith(("stu-", "ast-demo-", "demo-")):
+        if not is_demo_student_id(target_id):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database query failed verifying candidate permissions.",
@@ -717,7 +717,7 @@ def _verify_student_recommendations_access(target_id: str, current_user: dict | 
                     a = item
                     break
 
-    if not a and target_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not a and is_demo_student_id(target_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == target_id or item.get("user_id") == target_id:

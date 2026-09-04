@@ -1041,12 +1041,8 @@ def list_jobs(
         if opportunity_type:
             query = query.eq("opportunity_type", opportunity_type.lower())
 
-        res = query.execute()
+        res = query.range(offset, offset + limit - 1).execute()
         jobs = getattr(res, "data", []) or []
-        if offset > 0:
-            jobs = jobs[offset:]
-        if limit is not None:
-            jobs = jobs[:limit]
         return jobs
     except SupabaseRepositoryError:
         raise
@@ -1065,7 +1061,7 @@ def upsert_jobs(jobs_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for j in jobs_data:
             clean = {k: v for k, v in j.items() if k in VALID_JOB_COLUMNS}
             if "id" not in clean or not clean["id"]:
-                clean["id"] = f"job-{uuid.uuid4().hex[:12]}"
+                clean["id"] = str(uuid.uuid4())
             clean_jobs.append(clean)
 
         res = client.table("jobs").upsert(clean_jobs, on_conflict="source,external_id").execute()
@@ -1158,12 +1154,8 @@ def list_schemes(
         if status:
             query = query.eq("status", status.lower())
 
-        res = query.execute()
+        res = query.range(offset, offset + limit - 1).execute()
         schemes = getattr(res, "data", []) or []
-        if offset > 0:
-            schemes = schemes[offset:]
-        if limit is not None:
-            schemes = schemes[:limit]
         return schemes
     except SupabaseRepositoryError:
         raise
@@ -1182,7 +1174,7 @@ def upsert_schemes(schemes_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for s in schemes_data:
             clean = {k: v for k, v in s.items() if k in VALID_SCHEME_COLUMNS}
             if "id" not in clean or not clean["id"]:
-                clean["id"] = f"sch-{uuid.uuid4().hex[:12]}"
+                clean["id"] = str(uuid.uuid4())
             clean_schemes.append(clean)
 
         res = client.table("schemes").upsert(clean_schemes, on_conflict="source,external_id").execute()

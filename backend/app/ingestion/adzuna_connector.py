@@ -219,16 +219,17 @@ class AdzunaConnector(BaseSourceAdapter):
                 logger.warning("[Adzuna] Skipping malformed job record: %s", e)
                 continue
 
-            company_name = (
+            # ponytail: guard None from .get() when key exists with null value
+            company_name = str(
                 validated_raw.company.get("display_name")
                 or validated_raw.company.get("name")
                 or "Confidential Employer"
             ).strip()
 
             # Location extraction & district normalization
-            area_parts = validated_raw.location.get("area", [])
-            display_loc = validated_raw.location.get("display_name", "")
-            raw_loc = " ".join([display_loc] + [str(a) for a in area_parts])
+            area_parts = validated_raw.location.get("area") or []
+            display_loc = str(validated_raw.location.get("display_name") or "")
+            raw_loc = " ".join([display_loc] + [str(a) for a in area_parts if a])
             district = normalize_maharashtra_district(raw_loc, default="Pune")
 
             # Industry mapping

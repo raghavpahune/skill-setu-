@@ -26,6 +26,7 @@ Validates all 22 required audit scenarios:
 """
 import datetime
 from unittest.mock import MagicMock, patch
+import pydantic
 import pytest
 import httpx
 
@@ -185,10 +186,10 @@ def test_malformed_json_handling():
 # ============================================================================
 def test_invalid_required_fields_rejected():
     """Pydantic must reject models missing required fields."""
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError):
         RawAdzunaJob(id="test-1")  # Missing title
 
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError):
         ValidatedIngestedJob(
             id="job-1",
             title="Engineer",
@@ -281,11 +282,10 @@ def test_stale_posting_freshness():
 # ============================================================================
 def test_snapshot_freshness_preservation():
     """A snapshot captured in the past must NEVER be classified as NEW merely because it was ingested today."""
-    # Historical snapshot date from August 2026
-    historical_date = "2026-08-31T12:00:00Z"
-    freshness = compute_freshness(snapshot_captured_at=historical_date)
-    # August 31, 2026 is either NEW (within 7d of Sept 4) or RECENT/OLDER, but missing date must be UNKNOWN
-    assert freshness in ("NEW", "RECENT", "OLDER")
+    # Historical snapshot date relative to now (e.g. 10 days ago -> RECENT)
+    ten_days_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=10)).isoformat()
+    freshness = compute_freshness(snapshot_captured_at=ten_days_ago)
+    assert freshness == "RECENT"
     # When no timestamp is present, must be UNKNOWN, NEVER NEW
     assert compute_freshness(None) == "UNKNOWN"
     assert compute_freshness("") == "UNKNOWN"
@@ -354,12 +354,12 @@ def test_supabase_schema_columns_present():
 # ============================================================================
 def test_explicit_demo_mode_allowed():
     """Explicit demo student persona is served demo fixtures."""
-    # 'stu-001' is an explicit demo ID
-    alerts = get_personalized_industry_alerts(student_id="stu-001")
+    # 'ast-demo-001' and 'demo-001' are explicit demo IDs
+    alerts = get_personalized_industry_alerts(student_id="ast-demo-001")
     assert isinstance(alerts, dict)
     assert "alerts" in alerts or "signals" in alerts or "technology_alerts" in alerts
 
-    expl = get_skill_explainability("Python", student_id="stu-001")
+    expl = get_skill_explainability("Python", student_id="ast-demo-001")
     assert isinstance(expl, dict)
     demand_surge = expl["explainability"]["dimension_1_demand_surge"]
     assert demand_surge["active_vacancies_count"] > 0

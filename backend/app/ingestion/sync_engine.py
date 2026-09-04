@@ -189,10 +189,11 @@ class SyncEngine:
             s_key = (s.get("source"), s.get("external_id"))
 
             target_idx = None
-            if c_hash and c_hash in hash_index:
-                target_idx = hash_index[c_hash]
-            elif s_key in source_id_index:
+            # Stable key match first, then hash fallback
+            if s_key[0] and s_key[1] and s_key in source_id_index:
                 target_idx = source_id_index[s_key]
+            elif c_hash and c_hash in hash_index:
+                target_idx = hash_index[c_hash]
 
             if target_idx is not None:
                 # Existing record: update last_seen_at and last_synced_at without inserting duplicate
@@ -217,8 +218,12 @@ class SyncEngine:
         try:
             from app.repositories.supabase_repository import upsert_schemes
             upsert_schemes(incoming_schemes)
-        except Exception:
-            persist_schemes_to_supabase(incoming_schemes)
+        except Exception as e:
+            try:
+                persist_schemes_to_supabase(incoming_schemes)
+            except Exception:
+                logger.error("[SyncEngine] Supabase scheme persistence failed: %s", e)
+                raise
 
         return added, updated
 
@@ -247,10 +252,11 @@ class SyncEngine:
             j_key = (job.get("source"), job.get("external_id"))
 
             target_idx = None
-            if c_hash and c_hash in hash_index:
-                target_idx = hash_index[c_hash]
-            elif j_key in source_id_index:
+            # Stable key match first, then hash fallback
+            if j_key[0] and j_key[1] and j_key in source_id_index:
                 target_idx = source_id_index[j_key]
+            elif c_hash and c_hash in hash_index:
+                target_idx = hash_index[c_hash]
 
             if target_idx is not None:
                 # Update existing job timestamps
@@ -275,8 +281,12 @@ class SyncEngine:
         try:
             from app.repositories.supabase_repository import upsert_jobs
             upsert_jobs(incoming_jobs)
-        except Exception:
-            persist_jobs_to_supabase(incoming_jobs)
+        except Exception as e:
+            try:
+                persist_jobs_to_supabase(incoming_jobs)
+            except Exception:
+                logger.error("[SyncEngine] Supabase job persistence failed: %s", e)
+                raise
 
         return added, updated
 
@@ -310,6 +320,7 @@ class SyncEngine:
                 from app.repositories.supabase_repository import batch_create_job_skills
                 batch_create_job_skills(new_links)
             except Exception as e:
-                logger.debug("[SyncEngine] Skipping Supabase batch_create_job_skills: %s", e)
+                logger.error("[SyncEngine] Supabase batch_create_job_skills failed: %s", e)
+                raise
 
         return len(new_links)

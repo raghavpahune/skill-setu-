@@ -7,6 +7,7 @@ import logging
 from collections import Counter
 from typing import Any
 
+from app.core.security import is_demo_student_id
 from app.db import get_demo
 from app.services.gap_engine import compute_gaps
 
@@ -112,14 +113,15 @@ def get_personalized_industry_alerts(
     except Exception:
         signals_all = {}  # ponytail: non-critical supplement, degrade gracefully
     skills_map = {s["id"]: s for s in get_demo("skills")}
-    is_demo_req = not student_id or student_id.startswith(("stu-", "ast-demo-", "demo-"))
+    is_demo_req = bool(not student_id or is_demo_student_id(student_id))
     try:
         from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
-        repo_jobs = list_jobs_repo()
+        repo_jobs = list_jobs_repo(limit=10000)
         if repo_jobs:
             jobs = repo_jobs
+            job_ids = {j.get("id") for j in jobs}
             repo_js = list_job_skills_repo()
-            job_skills = repo_js if repo_js else []
+            job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         elif is_demo_req:
             jobs = get_demo("jobs")
             job_skills = get_demo("job_skills")
@@ -153,7 +155,7 @@ def get_personalized_industry_alerts(
             logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
             student_profile = None
 
-        if not student_profile and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        if not student_profile and is_demo_student_id(student_id):
             profiles = get_demo("student_profiles")
             for p in profiles:
                 if p["user_id"] == student_id:
@@ -339,14 +341,15 @@ def get_skill_explainability(
     """Provide a transparent, 5-point evidence-based explainability breakdown for a skill."""
     skills_list = get_demo("skills")
     skills_map = {s["id"]: s for s in skills_list}
-    is_demo_req = not student_id or student_id.startswith(("stu-", "ast-demo-", "demo-"))
+    is_demo_req = bool(not student_id or is_demo_student_id(student_id))
     try:
         from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
-        repo_jobs = list_jobs_repo()
+        repo_jobs = list_jobs_repo(limit=10000)
         if repo_jobs:
             jobs = repo_jobs
+            job_ids = {j.get("id") for j in jobs}
             repo_js = list_job_skills_repo()
-            job_skills = repo_js if repo_js else []
+            job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         elif is_demo_req:
             jobs = get_demo("jobs")
             job_skills = get_demo("job_skills")
@@ -394,7 +397,7 @@ def get_skill_explainability(
                 _authoritative_lookup_failed = True
 
         # Only search demo fixtures if authoritative lookup did NOT fail (it either succeeded with no result, or Supabase wasn't configured)
-        if not resolved_student and not _authoritative_lookup_failed and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        if not resolved_student and not _authoritative_lookup_failed and is_demo_student_id(student_id):
             profiles = get_demo("student_profiles")
             for item in profiles:
                 if item.get("user_id") == student_id or item.get("id") == student_id:
@@ -749,7 +752,7 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
     uid = str(submission_data.get("user_id") or submission_data.get("id") or "")
-    is_demo_sub = bool(submission_data.get("is_demo", False) or uid.startswith(("stu-", "ast-demo-", "demo-")))
+    is_demo_sub = bool(submission_data.get("is_demo", False) or is_demo_student_id(uid))
     gaps_list = compute_gaps(is_demo=is_demo_sub)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 

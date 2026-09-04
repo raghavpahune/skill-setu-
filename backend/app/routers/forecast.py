@@ -62,10 +62,13 @@ async def future_skills_radar(is_demo: Optional[bool] = Query(None)):
 
 
 @router.get("/forecast/skill/{skill_id}")
-async def forecast_for_skill(skill_id: str):
+async def forecast_for_skill(
+    skill_id: str,
+    is_demo: Optional[bool] = Query(None, description="Filter by demo/authoritative data source"),
+):
     """Retrieve multi-horizon forecast trajectory for a specific skill."""
     try:
-        trajectory = get_skill_forecast_trajectory(skill_id)
+        trajectory = get_skill_forecast_trajectory(skill_id, is_demo=is_demo)
     except (SupabaseRepositoryError, Exception) as e:
         logger.exception("[ForecastAPI] Database query failed for skill '%s': %s", skill_id, e)
         raise HTTPException(

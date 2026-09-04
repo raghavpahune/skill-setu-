@@ -45,11 +45,15 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
         except Exception:
             jobs = get_demo("jobs")
             job_skills = get_demo("job_skills")
-    try:
-        from app.repositories.supabase_repository import list_employer_demands
-        employer_demands = list_employer_demands()
-    except Exception:
-        employer_demands = [] if is_demo is False else get_demo("employer_demands")
+    if is_demo is True:
+        employer_demands = get_demo("employer_demands")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            employer_demands = list_employer_demands()
+        except Exception as e:
+            logger.warning("[ForecastEngine] Employer demands unavailable: %s", e)
+            employer_demands = [] if is_demo is False else get_demo("employer_demands")
     try:
         from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
         industry_signals = list_industry_signals_repo()

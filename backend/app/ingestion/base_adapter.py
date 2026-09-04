@@ -123,8 +123,8 @@ def normalize_maharashtra_district(raw_text: str | None, default: str = "Maharas
     if cleaned in DISTRICT_ALIASES:
         return DISTRICT_ALIASES[cleaned]
 
-    # Substring search (e.g. "Pune, India" or "MIDC Bhosari, Pune")
-    for alias, canonical in DISTRICT_ALIASES.items():
+    # Substring search — longest alias first so "navi mumbai" beats "mumbai"
+    for alias, canonical in sorted(DISTRICT_ALIASES.items(), key=lambda x: len(x[0]), reverse=True):
         pattern = r"\b" + re.escape(alias) + r"\b"
         if re.search(pattern, cleaned):
             return canonical
@@ -319,9 +319,11 @@ def extract_skills_and_unmapped(
             for syn in skill.get("synonyms", []):
                 if not syn:
                     continue
-                syn_pat = r"\b" + re.escape(syn.lower()) + r"\b"
+                syn_lower = syn.lower()
+                syn_pat = r"\b" + re.escape(syn_lower) + r"\b"
                 if re.search(syn_pat, text, re.IGNORECASE):
                     is_matched = True
+                    matched_skill_names_lower.add(syn_lower)  # prevent synonym appearing in unmapped
                     break
 
         if is_matched:

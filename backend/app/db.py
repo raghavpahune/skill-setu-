@@ -981,5 +981,6 @@ def save_user(user_data: dict) -> dict:
     return user_data
 
 
-
+# Re-export centralized demo student helper for convenience
+from app.core.security import is_demo_student_id  # noqa: E402
 

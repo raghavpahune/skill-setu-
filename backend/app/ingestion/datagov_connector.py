@@ -11,6 +11,7 @@ import datetime
 import logging
 import os
 import time
+import uuid
 from typing import Any
 import httpx
 from pydantic import BaseModel, Field
@@ -299,13 +300,13 @@ class DataGovConnector(BaseSourceAdapter):
                 source_type = SOURCE_TYPE_LIVE_API
                 source_label = "data.gov.in Official Open Data Live Feed"
                 fetched_at = now_utc
-                freshness = compute_freshness(published_at="2026-08-01T00:00:00Z")
+                freshness = compute_freshness(published_at=now_utc)
                 is_demo = False
                 is_snap = False
 
             scheme_dict = {
-                "id": f"ogd-sch-{idx}",
-                "scheme_code": f"OGD-SCHOLARSHIP-{year.replace('/', '-')}-{idx}",
+                "id": str(uuid.uuid4()),
+                "scheme_code": f"OGD-SCHOLARSHIP-{year.replace('/', '-')}-{doc_id}",
                 "title": title,
                 "department": dept,
                 "scheme_type": "scholarship",
@@ -325,7 +326,7 @@ class DataGovConnector(BaseSourceAdapter):
                 "external_id": ext_id,
                 "last_synced_at": now_utc,
                 "fetched_at": fetched_at,
-                "published_at": "2026-08-01T00:00:00Z" if not is_sandbox else None,
+                "published_at": now_utc if not is_sandbox else None,
                 "snapshot_captured_at": fetched_at if is_sandbox else None,
                 "last_seen_at": now_utc,
                 "verified_at": fetched_at if is_verified else None,
@@ -386,13 +387,13 @@ class DataGovConnector(BaseSourceAdapter):
                 source_type = SOURCE_TYPE_LIVE_API
                 source_label = "data.gov.in Official Open Data Live Feed"
                 fetched_at = now_utc
-                freshness = compute_freshness(published_at="2026-08-01T00:00:00Z")
+                freshness = compute_freshness(published_at=now_utc)
                 is_demo = False
                 is_snap = False
 
             scheme_dict = {
-                "id": f"ogd-cts-{idx}",
-                "scheme_code": f"OGD-CTS-ITI-{idx}",
+                "id": str(uuid.uuid4()),
+                "scheme_code": f"OGD-CTS-ITI-{doc_id}",
                 "title": title,
                 "department": dept,
                 "scheme_type": "training_scheme",
@@ -412,7 +413,7 @@ class DataGovConnector(BaseSourceAdapter):
                 "external_id": ext_id,
                 "last_synced_at": now_utc,
                 "fetched_at": fetched_at,
-                "published_at": "2026-08-01T00:00:00Z" if not is_sandbox else None,
+                "published_at": now_utc if not is_sandbox else None,
                 "snapshot_captured_at": fetched_at if is_sandbox else None,
                 "last_seen_at": now_utc,
                 "verified_at": fetched_at if is_verified else None,
@@ -475,12 +476,12 @@ class DataGovConnector(BaseSourceAdapter):
                 source_type = SOURCE_TYPE_LIVE_API
                 source_label = "data.gov.in Official Open Data Live Feed"
                 fetched_at = now_utc
-                freshness = compute_freshness(published_at="2026-08-01T00:00:00Z")
+                freshness = compute_freshness(published_at=now_utc)
                 is_demo = False
                 is_snap = False
 
             opp_dict = {
-                "id": f"ogd-opp-naps-{idx}",
+                "id": str(uuid.uuid4()),
                 "title": title,
                 "company": company,
                 "district": district_clean,
@@ -502,7 +503,7 @@ class DataGovConnector(BaseSourceAdapter):
                 "source_url": url,
                 "resource_id": resource_id,
                 "fetched_at": fetched_at,
-                "published_at": "2026-08-01T00:00:00Z" if not is_sandbox else None,
+                "published_at": now_utc if not is_sandbox else None,
                 "snapshot_captured_at": fetched_at if is_sandbox else None,
                 "last_seen_at": now_utc,
                 "verified_at": fetched_at if is_verified else None,
@@ -564,12 +565,12 @@ class DataGovConnector(BaseSourceAdapter):
                 source_type = SOURCE_TYPE_LIVE_API
                 source_label = "data.gov.in Official Open Data Live Feed"
                 fetched_at = now_utc
-                freshness = compute_freshness(published_at="2026-08-15T00:00:00Z")
+                freshness = compute_freshness(published_at=now_utc)
                 is_demo = False
                 is_snap = False
 
             opp_dict = {
-                "id": f"ogd-opp-pmkvy-{idx}",
+                "id": str(uuid.uuid4()),
                 "title": title,
                 "company": company,
                 "district": district,
@@ -591,7 +592,7 @@ class DataGovConnector(BaseSourceAdapter):
                 "source_url": url,
                 "resource_id": resource_id,
                 "fetched_at": fetched_at,
-                "published_at": "2026-08-15T00:00:00Z" if not is_sandbox else None,
+                "published_at": now_utc if not is_sandbox else None,
                 "snapshot_captured_at": fetched_at if is_sandbox else None,
                 "last_seen_at": now_utc,
                 "verified_at": fetched_at if is_verified else None,

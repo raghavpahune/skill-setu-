@@ -26,7 +26,7 @@ from app.db import (
 )
 from app.ingestion.industry_intelligence import industry_ingestor, calculate_freshness
 
-from app.core.security import verify_admin_access
+from app.core.security import verify_admin_access, is_demo_student_id
 
 router = APIRouter()
 
@@ -215,7 +215,7 @@ async def get_admin_assessment_detail(assessment_id: str):
             detail=f"Database query failed for assessment '{assessment_id}'.",
         ) from e
 
-    if not a and assessment_id.startswith(("ast-demo-", "demo-")):
+    if not a and is_demo_student_id(assessment_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == assessment_id:

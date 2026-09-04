@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from app.db import get_demo, save_gov_opportunity
-from app.core.security import require_roles, get_optional_current_user
+from app.core.security import require_roles, get_optional_current_user, is_demo_student_id
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ async def recommended_gov_opportunities(
             detail="Database query failed fetching student profile for recommendations.",
         ) from e
 
-    if not profile and resolved_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not profile and is_demo_student_id(resolved_id):
         profiles = get_demo("student_profiles")
         for p in profiles:
             if p.get("user_id") == resolved_id or p.get("id") == resolved_id:
