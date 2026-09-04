@@ -1124,13 +1124,23 @@ VALID_SCHEME_COLUMNS: set[str] = {
 }
 
 
+def _is_valid_uuid(val: str) -> bool:
+    """Check whether a string is a valid UUID format."""
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 def get_scheme(scheme_id: str) -> dict[str, Any] | None:
     """Fetch single scheme by id or scheme_code directly from Supabase."""
     try:
         client = get_client()
-        res = client.table("schemes").select("*").eq("id", scheme_id).execute()
-        if res.data and len(res.data) > 0:
-            return res.data[0]
+        if _is_valid_uuid(scheme_id):
+            res = client.table("schemes").select("*").eq("id", scheme_id).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]
         res_code = client.table("schemes").select("*").eq("scheme_code", scheme_id).execute()
         if res_code.data and len(res_code.data) > 0:
             return res_code.data[0]

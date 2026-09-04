@@ -454,3 +454,96 @@ def test_review3_schemes_get_scheme_authoritative_and_fail_closed():
         res_demo = client.get("/api/schemes/sch-001?is_demo=true")
         assert res_demo.status_code == 200
         assert "title" in res_demo.json() or "name" in res_demo.json()
+
+
+def test_review4_get_scheme_validates_uuid_before_querying_id():
+    """Verify get_scheme does not query UUID id column for non-UUID strings."""
+    from app.repositories.supabase_repository import get_scheme, _is_valid_uuid
+    import uuid
+
+    assert _is_valid_uuid("OGD-CTS-ITI-99") is False
+    valid_id = str(uuid.uuid4())
+    assert _is_valid_uuid(valid_id) is True
+
+    # Test non-UUID query only executes scheme_code eq, not crashing on id query
+    non_uuid_code = "OGD-TEST-CODE-100"
+    scheme_data = {
+        "id": valid_id,
+        "scheme_code": non_uuid_code,
+        "name": "Non-UUID Scheme",
+        "status": "active",
+    }
+    from app.repositories.supabase_repository import get_client
+    client = get_client()
+    client.table("schemes").insert(scheme_data).execute()
+
+    res = get_scheme(non_uuid_code)
+    assert res is not None
+    assert res["scheme_code"] == non_uuid_code
+
+
+def test_review4_recommended_schemes_resolved_id_demo_check():
+    """Verify /api/schemes/recommended/me resolves demo student ID via resolved_id."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.security import get_optional_current_user
+
+    client = TestClient(app)
+    demo_user = {
+        "id": "demo-student-001",
+        "role": "STUDENT",
+        "email": "demo.student@skillsetu.gov.in",
+        "is_demo": True,
+    }
+    app.dependency_overrides[get_optional_current_user] = lambda: demo_user
+    try:
+        with patch("app.repositories.supabase_repository.get_student_profile", return_value={"skills": ["Electrical"], "district": "Pune"}):
+            res = client.get("/api/schemes/recommended/me")
+            assert res.status_code == 200
+            data = res.json()
+            assert "demo dataset" in data["provenance_note"]
+    finally:
+        app.dependency_overrides.pop(get_optional_current_user, None)
+
+
+def test_review4_real_opps_sandbox_simulation_excluded():
+    """Verify sandbox simulation opportunities are excluded from real student recommendations."""
+    from app.services.career_recommendation_engine import compute_career_recommendations
+
+    real_profile = {
+        "id": "usr-real-candidate-99",
+        "user_id": "usr-real-candidate-99",
+        "skills": [{"skill_name": "Solar PV", "proficiency": "advanced"}],
+        "district": "Nagpur",
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+    }
+
+    sandbox_opps = [
+        {
+            "id": "opp-sandbox-1",
+            "name": "Simulated Solar Training",
+            "source_type": "SANDBOX_SIMULATION",
+            "source": "DATAGOV_IN",
+            "is_demo": False,
+            "data_provenance": "GOVERNMENT_OFFICIAL",
+            "target_skills": ["Solar PV"],
+            "district_coverage": ["Nagpur"],
+            "status": "active",
+        },
+        {
+            "id": "opp-demo-2",
+            "name": "Demo Synthetic Scheme",
+            "source": "DEMO_SYNTHETIC",
+            "is_demo": True,
+            "target_skills": ["Solar PV"],
+            "district_coverage": ["Nagpur"],
+            "status": "active",
+        }
+    ]
+
+    with patch("app.services.career_recommendation_engine._resolve_student_profile", return_value=real_profile):
+        with patch("app.repositories.supabase_repository.list_schemes", return_value=[]):
+            with patch("app.services.career_recommendation_engine.get_demo", return_value=sandbox_opps):
+                rec = compute_career_recommendations("usr-real-candidate-99")
+                assert rec["data_provenance"]["government_opportunities_source"] == "NO_OFFICIAL_MATCHES"

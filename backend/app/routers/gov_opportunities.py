@@ -290,7 +290,10 @@ async def recommended_gov_opportunities(
 
         cache_real_opps = [
             o for o in get_demo("gov_opportunities")
-            if o.get("is_demo") is False or o.get("data_provenance") == "GOVERNMENT_OFFICIAL"
+            if o.get("is_demo") is False
+            and o.get("source_type") != "SANDBOX_SIMULATION"
+            and o.get("source") != "DEMO_SYNTHETIC"
+            and (o.get("data_provenance") == "GOVERNMENT_OFFICIAL" or o.get("source") in ("DATAGOV_IN", "OGD_DATAGOV_IN", "USER_SUBMITTED", "ADMIN_CREATED"))
         ]
         seen_ids = {d.get("id") for d in db_opps if isinstance(d, dict)}
         real_opps = db_opps + [o for o in cache_real_opps if o.get("id") not in seen_ids]

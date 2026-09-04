@@ -191,7 +191,7 @@ async def recommended_schemes(
     student_district = (profile.get("district") or "").lower()
     student_education = (profile.get("education") or "").lower()
 
-    if is_demo_student_id(student_id) or profile.get("is_demo") or profile.get("source") == "DEMO_SYNTHETIC":
+    if is_demo_student_id(resolved_id) or profile.get("is_demo") or profile.get("source") == "DEMO_SYNTHETIC":
         schemes = get_demo("schemes")
         note = "Recommendations based on skill/education/district overlap with demo dataset. Verify eligibility on official portals before applying."
     else:

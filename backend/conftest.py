@@ -356,9 +356,10 @@ def preserve_real_disk_files():
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
     """Autouse fixture providing an isolated Supabase test double for unit test suites."""
-    from app.db import _cache, init_db
+    from app.db import _cache, load_demo_data, load_real_data
     if not _cache:
-        init_db()
+        load_demo_data()
+        load_real_data()
 
     mock_client = MockSupabaseClient(
         feedback_rows=deepcopy(_PRISTINE_FEEDBACK),

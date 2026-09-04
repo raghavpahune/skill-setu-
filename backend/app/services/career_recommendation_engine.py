@@ -274,7 +274,13 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             schemes = []
 
         all_opps = get_demo("gov_opportunities")
-        real_opps = [o for o in all_opps if o.get("is_demo") is False or (o.get("source") and o.get("source") != "DEMO_SYNTHETIC")]
+        real_opps = [
+            o for o in all_opps
+            if o.get("is_demo") is False
+            and o.get("source_type") != "SANDBOX_SIMULATION"
+            and o.get("source") != "DEMO_SYNTHETIC"
+            and (o.get("data_provenance") == "GOVERNMENT_OFFICIAL" or o.get("source") in ("DATAGOV_IN", "OGD_DATAGOV_IN", "USER_SUBMITTED", "ADMIN_CREATED"))
+        ]
         gov_opportunities = real_opps
         gov_opps_source = "GOVERNMENT_OFFICIAL" if (gov_opportunities or schemes) else "NO_OFFICIAL_MATCHES"
 
