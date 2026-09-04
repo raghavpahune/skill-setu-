@@ -330,6 +330,7 @@ def get_skill_explainability(
     course_skills = get_demo("course_skills")
     # 0. Resolve student record BEFORE deciding whether demo forecast fallback is allowed
     resolved_student = None
+    _authoritative_lookup_failed = False
     if student_id:
         try:
             from app.repositories.supabase_repository import (
@@ -342,16 +343,29 @@ def get_skill_explainability(
                 or get_student_assessment(student_id)
                 or get_student_assessment_by_user(student_id)
             )
+        except ImportError:
+            pass  # ponytail: supabase module unavailable — test/local env
         except Exception as e:
-            logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
-            resolved_student = None
+            from app.repositories.supabase_repository import SupabaseConnectionError
+            if isinstance(e, SupabaseConnectionError):
+                # Supabase not configured — expected in test/demo environments
+                logger.info("[StudentService] Supabase not configured for student %s, will check demo fixtures", student_id)
+            else:
+                # Real authoritative lookup failure — do NOT fall through to demo
+                logger.error("[StudentService] Authoritative Supabase lookup failed for student %s: %s", student_id, e)
+                _authoritative_lookup_failed = True
 
-        if not resolved_student and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        # Only search demo fixtures if authoritative lookup did NOT fail (it either succeeded with no result, or Supabase wasn't configured)
+        if not resolved_student and not _authoritative_lookup_failed and student_id.startswith(("stu-", "ast-demo-", "demo-")):
             profiles = get_demo("student_profiles")
             for item in profiles:
                 if item.get("user_id") == student_id or item.get("id") == student_id:
                     resolved_student = item
                     break
+
+        if _authoritative_lookup_failed and not resolved_student:
+            raise RuntimeError("Failed to resolve student record") from None
+
 
     # Only allow get_demo("skill_forecasts") when the resolved student record explicitly has is_demo=True or source=DEMO_SYNTHETIC.
     # For unresolved students, real users, USER_SUBMITTED students, and stu-* IDs that belong to real users:

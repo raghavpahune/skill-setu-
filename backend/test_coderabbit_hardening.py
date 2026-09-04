@@ -4,12 +4,16 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch
 
 from app.main import app
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, verify_password, hash_password
 from app.db import get_demo, get_user_by_email, save_user
 from app.services.career_recommendation_engine import compute_career_recommendations
 from app.services.student_service import get_skill_explainability
 
 client = TestClient(app)
+
+# Provision test users explicitly (load_real_data no longer loads users.json)
+save_user({"id": "usr-student-001", "email": "student@skillsetu.gov.in", "role": "STUDENT", "full_name": "Aarav Sharma", "hashed_password": hash_password("Password@123")})
+save_user({"id": "usr-student-002", "email": "student2@skillsetu.gov.in", "role": "STUDENT", "full_name": "Priya Deshmukh", "hashed_password": hash_password("Password@123")})
 
 STUDENT1_TOKEN = create_access_token({"sub": "usr-student-001", "email": "student@skillsetu.gov.in", "role": "STUDENT"})
 STUDENT2_TOKEN = create_access_token({"sub": "usr-student-002", "email": "student2@skillsetu.gov.in", "role": "STUDENT"})
@@ -304,3 +308,86 @@ async def test_demo_provider_absent_context_not_missing_prerequisite():
     answer = await provider.generate("Tell me about Python", context=context)
     # Must NOT default to "Missing Prerequisite" when no assessment context exists
     assert "⚠️ Missing Prerequisite" not in answer
+
+
+# ============================================================================
+# CodeRabbit PR #3 Finding 1: Unavailable forecast must NOT have fabricated trend/confidence
+# ============================================================================
+def test_unavailable_forecast_no_fabricated_trend_or_confidence():
+    """When roadmap_steps is empty and fallback is used, trend must be 'unknown' and demand_confidence must be None."""
+    # Force empty forecast so all roadmap skills get UNAVAILABLE
+    with patch("app.repositories.supabase_repository.list_skill_forecasts", return_value=[]):
+        rec = compute_career_recommendations("stu-001")
+        for step in rec.get("personalized_roadmap", []):
+            if step.get("forecast_source") == "UNAVAILABLE":
+                assert step.get("trend") == "unknown", f"UNAVAILABLE forecast step has trend={step.get('trend')}, expected 'unknown'"
+                assert step.get("demand_confidence") is None, f"UNAVAILABLE forecast step has demand_confidence={step.get('demand_confidence')}, expected None"
+                assert step.get("forecast_verified") is False
+
+
+# ============================================================================
+# CodeRabbit PR #3 Finding 2: Authoritative lookup failure must NOT fall through to demo
+# ============================================================================
+def test_authoritative_lookup_failure_blocks_demo_fallback():
+    """If Supabase lookup raises a non-connection error, it must NOT fall through to demo fixtures."""
+    def exploding_profile(sid):
+        raise RuntimeError("Simulated Supabase query failure")
+    def exploding_assessment(sid):
+        raise RuntimeError("Simulated Supabase query failure")
+
+    with patch("app.repositories.supabase_repository.get_student_profile", side_effect=exploding_profile), \
+         patch("app.repositories.supabase_repository.get_student_assessment", side_effect=exploding_assessment), \
+         patch("app.repositories.supabase_repository.get_student_assessment_by_user", side_effect=exploding_assessment):
+        with pytest.raises(RuntimeError, match="Failed to resolve student record"):
+            get_skill_explainability("Python", student_id="stu-001")
+
+
+# ============================================================================
+# CodeRabbit PR #3 Finding 4: load_real_data must skip users.json
+# ============================================================================
+def test_load_real_data_skips_users_json():
+    """load_real_data() must not load users.json — fixture accounts must not enter the auth cache."""
+    from app.db import load_real_data, _cache
+    # Remember current user count
+    users_before = list(_cache.get("users", []))
+    # Re-run load_real_data (idempotent for non-users tables)
+    load_real_data()
+    users_after = list(_cache.get("users", []))
+    # No new users should have been added from data/real/users.json
+    new_emails = {u.get("email") for u in users_after} - {u.get("email") for u in users_before}
+    # Specifically, the known fixture email must NOT appear from file loading
+    assert "student_p32d@skillsetu.gov.in" not in new_emails, \
+        "load_real_data() must skip users.json to prevent fixture accounts from becoming login identities"
+
+
+def test_runtime_registered_user_can_still_login():
+    """Users registered via save_user() at runtime (not from fixture file) should still be able to login."""
+    from app.core.security import hash_password
+    test_email = "runtime_test_cr3@skillsetu.test.in"
+
+    # Cleanup first in case previous test left this user
+    from app.db import _cache, _flush_real_table
+    if "users" in _cache:
+        _cache["users"] = [u for u in _cache["users"] if u.get("email") != test_email]
+        _flush_real_table("users")
+
+    # Register user via save_user (simulating runtime registration)
+    save_user({
+        "id": "usr-test-cr3-runtime",
+        "email": test_email,
+        "role": "STUDENT",
+        "full_name": "CR3 Runtime Tester",
+        "hashed_password": hash_password("TestPass@456"),
+    })
+
+    try:
+        res = client.post("/api/auth/login", json={
+            "email": test_email,
+            "password": "TestPass@456",
+        })
+        assert res.status_code == 200, f"Runtime-registered user should be able to login, got {res.status_code}"
+    finally:
+        # Cleanup
+        if "users" in _cache:
+            _cache["users"] = [u for u in _cache["users"] if u.get("email") != test_email]
+            _flush_real_table("users")

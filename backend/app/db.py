@@ -140,6 +140,11 @@ def load_real_data() -> int:
     for f in real_dir.glob("*.json"):
         if f.name == "README.md":
             continue
+        # SECURITY: skip users.json — test fixture accounts must not become
+        # valid production login identities. Tests that need users call
+        # save_user() or the /auth/register API directly.
+        if f.stem == "users":
+            continue
         try:
             records = json.loads(f.read_text(encoding="utf-8"))
             if isinstance(records, list) and len(records) > 0:

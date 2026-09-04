@@ -119,9 +119,9 @@ def test_unassessed_student_schemes_and_opps():
             ]
             _flush_real_table("users")
         try:
-            from app.repositories.supabase_repository import get_client
+            from app.repositories.supabase_repository import get_client, SupabaseConnectionError
             sb = get_client()
             if hasattr(sb, "table"):
                 sb.table("users").delete().eq("email", email).execute()
-        except Exception:
-            pass
+        except (SupabaseConnectionError, ImportError):
+            pass  # ponytail: Supabase not configured — expected in test environments
