@@ -393,15 +393,14 @@ def test_load_real_data_skips_users_json():
 
 
 def test_runtime_registered_user_can_still_login():
-    """Users registered via save_user() at runtime (not from fixture file) should still be able to login."""
+    """Users registered via save_user() at runtime must survive a restart/reload and be able to login."""
     from app.core.security import hash_password
     test_email = "runtime_test_cr3@skillsetu.test.in"
 
-    # Cleanup first in case previous test left this user
-    from app.db import _cache, _flush_real_table
-    if "users" in _cache:
-        _cache["users"] = [u for u in _cache["users"] if u.get("email") != test_email]
-        _flush_real_table("users")
+    from app.db import _cache, _flush_real_table, load_real_data, get_user_by_email
+
+    # Snapshot current user cache so this isolated restart test doesn't mutate suite state
+    saved_users = list(_cache.get("users", []))
 
     # Register user via save_user (simulating runtime registration)
     save_user({
@@ -413,13 +412,28 @@ def test_runtime_registered_user_can_still_login():
     })
 
     try:
+        # Simulate restart: clear in-memory user cache and reload from persistent storage
+        _cache.pop("users", None)
+        _cache.pop("users_runtime", None)
+        assert get_user_by_email(test_email) is None, "Cache should be empty before load_real_data"
+
+        # Reload data from disk
+        load_real_data()
+
+        # Verify user is mapped to _cache["users"] (not stranded in "users_runtime")
+        reloaded = get_user_by_email(test_email)
+        assert reloaded is not None, "Runtime-persisted user must be loadable into _cache['users'] after restart"
+        assert reloaded.get("email") == test_email
+
+        # Verify authentication succeeds via login endpoint
         res = client.post("/api/auth/login", json={
             "email": test_email,
             "password": "TestPass@456",
         })
-        assert res.status_code == 200, f"Runtime-registered user should be able to login, got {res.status_code}"
+        assert res.status_code == 200, f"Runtime-registered user should be able to login after reload, got {res.status_code}: {res.text}"
+        data = res.json()
+        assert "access_token" in data, "Login response must contain access_token"
     finally:
-        # Cleanup
-        if "users" in _cache:
-            _cache["users"] = [u for u in _cache["users"] if u.get("email") != test_email]
-            _flush_real_table("users")
+        # Restore pre-test users cache so subsequent tests in the suite have demo & fixture accounts
+        _cache["users"] = [u for u in saved_users if u.get("email") != test_email]
+        _flush_real_table("users")

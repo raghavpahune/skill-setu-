@@ -152,6 +152,8 @@ def load_real_data() -> int:
             records = json.loads(f.read_text(encoding="utf-8"))
             if isinstance(records, list) and len(records) > 0:
                 table = f.stem
+                if table == "users_runtime":
+                    table = "users"
                 existing = _cache.setdefault(table, [])
                 existing_ids = {r.get("id") for r in existing if isinstance(r, dict) and r.get("id")}
                 # Prepend / merge real records
