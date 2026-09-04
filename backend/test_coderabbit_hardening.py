@@ -402,6 +402,15 @@ def test_runtime_registered_user_can_still_login():
     # Snapshot current user cache so this isolated restart test doesn't mutate suite state
     saved_users = list(_cache.get("users", []))
 
+    # Clean up remote row if left over from a previous aborted run
+    try:
+        from app.repositories.supabase_repository import get_client, SupabaseConnectionError
+        sb = get_client()
+        if hasattr(sb, "table"):
+            sb.table("users").delete().eq("email", test_email).execute()
+    except (SupabaseConnectionError, ImportError):
+        pass
+
     # Register user via save_user (simulating runtime registration)
     save_user({
         "id": "usr-test-cr3-runtime",
@@ -437,3 +446,10 @@ def test_runtime_registered_user_can_still_login():
         # Restore pre-test users cache so subsequent tests in the suite have demo & fixture accounts
         _cache["users"] = [u for u in saved_users if u.get("email") != test_email]
         _flush_real_table("users")
+        try:
+            from app.repositories.supabase_repository import get_client, SupabaseConnectionError
+            sb = get_client()
+            if hasattr(sb, "table"):
+                sb.table("users").delete().eq("email", test_email).execute()
+        except (SupabaseConnectionError, ImportError):
+            pass
