@@ -752,7 +752,7 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
         courses = get_demo("courses")
     course_skills = get_demo("course_skills")
     uid = str(submission_data.get("user_id") or submission_data.get("id") or "")
-    is_demo_sub = bool(submission_data.get("is_demo", False) or is_demo_student_id(uid))
+    is_demo_sub = is_demo_student_id(uid)
     gaps_list = compute_gaps(is_demo=is_demo_sub)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 

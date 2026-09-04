@@ -305,7 +305,7 @@ class DataGovConnector(BaseSourceAdapter):
                 is_snap = False
 
             scheme_dict = {
-                "id": str(uuid.uuid4()),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"OGD_DATAGOV_IN:{ext_id}")),
                 "scheme_code": f"OGD-SCHOLARSHIP-{year.replace('/', '-')}-{doc_id}",
                 "title": title,
                 "department": dept,
@@ -392,7 +392,7 @@ class DataGovConnector(BaseSourceAdapter):
                 is_snap = False
 
             scheme_dict = {
-                "id": str(uuid.uuid4()),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"OGD_DATAGOV_IN:{ext_id}")),
                 "scheme_code": f"OGD-CTS-ITI-{doc_id}",
                 "title": title,
                 "department": dept,
@@ -481,7 +481,7 @@ class DataGovConnector(BaseSourceAdapter):
                 is_snap = False
 
             opp_dict = {
-                "id": str(uuid.uuid4()),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"OGD_DATAGOV_IN:{ext_id}")),
                 "title": title,
                 "company": company,
                 "district": district_clean,
@@ -570,7 +570,7 @@ class DataGovConnector(BaseSourceAdapter):
                 is_snap = False
 
             opp_dict = {
-                "id": str(uuid.uuid4()),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"OGD_DATAGOV_IN:{ext_id}")),
                 "title": title,
                 "company": company,
                 "district": district,

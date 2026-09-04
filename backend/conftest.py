@@ -41,6 +41,7 @@ class MockSupabaseQuery:
     def upsert(self, data: Any, *args: Any, **kwargs: Any):
         self._action = "upsert"
         self._mutation_data = data
+        self._on_conflict = kwargs.get("on_conflict")
         return self
 
     def delete(self):
@@ -49,6 +50,14 @@ class MockSupabaseQuery:
 
     def eq(self, column: str, value: Any):
         self.filters.append((column, value))
+        return self
+
+    def range(self, start: int, end: int):
+        self._range = (start, end)
+        return self
+
+    def limit(self, count: int):
+        self._limit = count
         return self
 
     def execute(self):
@@ -64,9 +73,17 @@ class MockSupabaseQuery:
         if self._action in ("insert", "upsert"):
             items = [self._mutation_data] if isinstance(self._mutation_data, dict) else list(self._mutation_data)
             result_rows = []
+            on_conflict_cols = [c.strip() for c in (getattr(self, "_on_conflict", None) or "").split(",") if c.strip()]
             for item in items:
-                item_id = item.get("id")
-                idx = next((i for i, r in enumerate(self.table.rows) if item_id and r.get("id") == item_id), None)
+                idx = None
+                if on_conflict_cols:
+                    idx = next(
+                        (i for i, r in enumerate(self.table.rows) if all(r.get(c) == item.get(c) for c in on_conflict_cols)),
+                        None,
+                    )
+                if idx is None:
+                    item_id = item.get("id")
+                    idx = next((i for i, r in enumerate(self.table.rows) if item_id and r.get("id") == item_id), None)
                 if idx is not None:
                     self.table.rows[idx].update(deepcopy(item))
                     result_rows.append(deepcopy(self.table.rows[idx]))
@@ -106,7 +123,13 @@ class MockSupabaseQuery:
                 matching_indices.append(idx)
 
         if self._action == "select":
-            return type("APIResponse", (), {"data": deepcopy(matching_rows), "count": len(matching_rows)})()
+            selected_rows = deepcopy(matching_rows)
+            if hasattr(self, "_range") and self._range is not None:
+                start, end = self._range
+                selected_rows = selected_rows[start : end + 1]
+            elif hasattr(self, "_limit") and self._limit is not None:
+                selected_rows = selected_rows[: self._limit]
+            return type("APIResponse", (), {"data": selected_rows, "count": len(selected_rows)})()
         elif self._action == "update":
             updated_rows = []
             for idx in matching_indices:

@@ -29,7 +29,7 @@ async def list_schemes(
     else:
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-            db_schemes = list_schemes_repo(limit=limit + offset)
+            db_schemes = list_schemes_repo(scheme_type=scheme_type, status=status, limit=1000)
             if db_schemes:
                 schemes = db_schemes
             elif is_demo is False:
@@ -191,7 +191,15 @@ async def recommended_schemes(
     student_district = (profile.get("district") or "").lower()
     student_education = (profile.get("education") or "").lower()
 
-    schemes = get_demo("schemes")
+    if is_demo_student_id(student_id) or profile.get("is_demo") or profile.get("source") == "DEMO_SYNTHETIC":
+        schemes = get_demo("schemes")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            db_schemes = list_schemes_repo(status="active", limit=100)
+            schemes = db_schemes if db_schemes else get_demo("schemes")
+        except Exception:
+            schemes = get_demo("schemes")
     scored = []
     for s in schemes:
         if s.get("status", "active").lower() != "active":

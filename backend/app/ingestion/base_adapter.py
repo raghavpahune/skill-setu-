@@ -319,12 +319,34 @@ def extract_skills_and_unmapped(
             for syn in skill.get("synonyms", []):
                 if not syn:
                     continue
-                syn_lower = syn.lower()
-                syn_pat = r"\b" + re.escape(syn_lower) + r"\b"
-                if re.search(syn_pat, text, re.IGNORECASE):
-                    is_matched = True
-                    matched_skill_names_lower.add(syn_lower)  # prevent synonym appearing in unmapped
-                    break
+                syn_clean = syn.strip()
+                if not syn_clean:
+                    continue
+                syn_lower = syn_clean.lower()
+                # Apply short token context checks to synonyms
+                if len(syn_clean) <= 2:
+                    if syn_lower == "c":
+                        syn_pat = r"\b(c\s*\+\+|c/c\+\+|embedded\s+c|c\s+programming|ansi\s+c)\b"
+                        matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
+                    elif syn_lower == "r":
+                        syn_pat = r"\b(r\s+programming|r\s+language|r\s+studio|r/python)\b"
+                        matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
+                    elif syn_lower == "go":
+                        syn_pat = r"\b(golang|go\s+programming|go\s+developer|go\s+backend)\b"
+                        matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
+                    else:
+                        syn_pat = r"\b" + re.escape(syn_clean) + r"\b"
+                        matched_by_context = bool(re.search(syn_pat, text))
+                    if matched_by_context:
+                        is_matched = True
+                        matched_skill_names_lower.add(syn_lower)
+                        break
+                else:
+                    syn_pat = r"\b" + re.escape(syn_lower) + r"\b"
+                    if re.search(syn_pat, text, re.IGNORECASE):
+                        is_matched = True
+                        matched_skill_names_lower.add(syn_lower)  # prevent synonym appearing in unmapped
+                        break
 
         if is_matched:
             matched.append(skill)

@@ -14,17 +14,18 @@ async def list_jobs(
     limit: int = 50,
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
-    try:
-        from app.repositories.supabase_repository import list_jobs as list_jobs_repo
-        repo_jobs = list_jobs_repo(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit)
-        if repo_jobs:
-            return repo_jobs
-    except Exception:
-        if is_demo is False:
-            return []  # fail closed: no silent demo fallback for real requests
+    if is_demo is not True:
+        try:
+            from app.repositories.supabase_repository import list_jobs as list_jobs_repo
+            repo_jobs = list_jobs_repo(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit)
+            if repo_jobs:
+                return repo_jobs
+        except Exception:
+            if is_demo is False:
+                return []  # fail closed: no silent demo fallback for real requests
 
-    if is_demo is False:
-        return []  # no repo data available and caller explicitly wants real data
+        if is_demo is False:
+            return []  # no repo data available and caller explicitly wants real data
 
     jobs = get_demo("jobs")
     if district:

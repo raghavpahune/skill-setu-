@@ -359,10 +359,11 @@ def test_explicit_demo_mode_allowed():
     assert isinstance(alerts, dict)
     assert "alerts" in alerts or "signals" in alerts or "technology_alerts" in alerts
 
-    expl = get_skill_explainability("Python", student_id="ast-demo-001")
-    assert isinstance(expl, dict)
-    demand_surge = expl["explainability"]["dimension_1_demand_surge"]
-    assert demand_surge["active_vacancies_count"] > 0
+    with patch("app.repositories.supabase_repository.list_jobs", return_value=[]):
+        expl = get_skill_explainability("Python", student_id="ast-demo-001")
+        assert isinstance(expl, dict)
+        demand_surge = expl["explainability"]["dimension_1_demand_surge"]
+        assert demand_surge["active_vacancies_count"] > 0
 
 
 # ============================================================================

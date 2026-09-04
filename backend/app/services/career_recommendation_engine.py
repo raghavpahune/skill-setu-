@@ -260,8 +260,20 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     validated_demands = _get_validated_employer_demands()
 
     # 3. Extract Government Opportunities & Welfare Schemes
-    gov_opportunities = get_demo("gov_opportunities")
-    schemes = get_demo("schemes")
+    if is_demo_student_id(student_id) or source_provenance == "DEMO_SYNTHETIC":
+        gov_opportunities = get_demo("gov_opportunities")
+        schemes = get_demo("schemes")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            db_schemes = list_schemes_repo(status="active", limit=100)
+            schemes = db_schemes if db_schemes else get_demo("schemes")
+        except Exception:
+            schemes = get_demo("schemes")
+
+        all_opps = get_demo("gov_opportunities")
+        real_opps = [o for o in all_opps if o.get("is_demo") is False or o.get("source") != "DEMO_SYNTHETIC"]
+        gov_opportunities = real_opps if real_opps else all_opps
 
     # 4. Evaluate each Career Role in Benchmark Taxonomy
     career_evaluations = []
@@ -589,7 +601,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "student_profile_source": source_provenance,
             "employer_demand_source": "EMPLOYER_SUBMITTED_VALIDATED",
             "employer_validation_rule": "Strictly VALIDATED employer submissions only",
-            "government_opportunities_source": "DEMO_SYNTHETIC",
+            "government_opportunities_source": "DEMO_SYNTHETIC" if (is_demo_student_id(student_id) or source_provenance == "DEMO_SYNTHETIC") else "GOVERNMENT_OFFICIAL",
             "disclaimer": "All recommendations are computed deterministically from verified SkillSetu datasets. No ungrounded claims are made.",
         },
     }

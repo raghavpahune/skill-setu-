@@ -276,14 +276,22 @@ async def recommended_gov_opportunities(
             return {"opportunities": [], "student_id": resolved_id, "status": "unassessed"}
         raise HTTPException(status_code=404, detail=f"Student profile '{student_id}' not found.")
 
-    opportunities = get_demo("gov_opportunities")
+    if is_demo_student_id(resolved_id) or profile.get("is_demo") or profile.get("source") == "DEMO_SYNTHETIC":
+        opportunities = get_demo("gov_opportunities")
+        note = "Recommendations are based on skill/district/interest overlap with demo dataset. Verify eligibility on official portals before applying."
+    else:
+        all_opps = get_demo("gov_opportunities")
+        real_opps = [o for o in all_opps if o.get("is_demo") is False or o.get("source") != "DEMO_SYNTHETIC"]
+        opportunities = real_opps if real_opps else all_opps
+        note = "Recommendations are based on official government opportunities and schemes. Verify eligibility on official portals before applying."
+
     ranked = _match_student_to_opportunities(opportunities, profile)
 
     return {
         "student_id": student_id,
         "total_matches": len(ranked),
         "opportunities": ranked[:limit],
-        "provenance_note": "Recommendations are based on skill/district/interest overlap with demo dataset. Verify eligibility on official portals before applying.",
+        "provenance_note": note,
     }
 
 

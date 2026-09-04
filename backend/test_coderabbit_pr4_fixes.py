@@ -188,10 +188,14 @@ def test_finding_5_stable_scheme_identities_and_uuids():
     assert scheme_a_1["scheme_code"] == scheme_a_2["scheme_code"]
     assert "doc-alpha" in scheme_a_1["scheme_code"]
 
-    # All generated IDs must be valid UUIDs
+    # All generated IDs must be valid UUIDs and stable across repeat runs
     for s in batch_1:
         val = uuid.UUID(s["id"])
-        assert val.version == 4
+        assert val.version in (4, 5)
+
+    # Repeat transform of doc_a must yield the exact same deterministic UUID
+    batch_3 = connector.transform_cts_schemes([doc_a])
+    assert scheme_a_1["id"] == batch_3[0]["id"]
 
 
 # ============================================================================
@@ -210,8 +214,8 @@ def test_finding_6_7_8_sync_failure_propagation():
             "industry": "IT",
             "opportunity_type": "job",
             "source": "ADZUNA_API",
-            "external_id": "test-ext-1",
-            "content_hash": "hash123",
+            "external_id": "adz-12345",
+            "content_hash": "hash-12345",
             "is_demo": False,
         }
     ]
@@ -231,7 +235,7 @@ def test_finding_6_7_8_sync_failure_propagation():
 
 
 # ============================================================================
-# Finding #9 & #10: SupabaseRepository .range() Pagination & Proper UUIDs
+# Finding #9, #10: Supabase Repository Range Pagination & UUIDs
 # ============================================================================
 
 def test_finding_10_upsert_generates_valid_uuids():
@@ -247,7 +251,6 @@ def test_finding_10_upsert_generates_valid_uuids():
     ]
     upserted = upsert_jobs(jobs_without_id)
     assert len(upserted) == 1
-    # Check that id is a valid UUID
     val = uuid.UUID(upserted[0]["id"])
     assert val.version == 4
     assert not upserted[0]["id"].startswith("job-")
@@ -278,10 +281,15 @@ def test_finding_11_jobs_fail_closed_for_real_requests():
         assert res.status_code == 200
         assert res.json() == []
 
-    # With is_demo=true, it does return demo fixtures
-    res_demo = client.get("/api/jobs?is_demo=true")
-    assert res_demo.status_code == 200
-    assert len(res_demo.json()) > 0
+    # With is_demo=true, it bypasses repository even if repository contains sentinel rows
+    sentinel_repo_jobs = [{"id": "sentinel-repo-job-1", "title": "Authoritative Live Job", "district": "Pune", "industry": "IT"}]
+    with patch("app.repositories.supabase_repository.list_jobs", return_value=sentinel_repo_jobs):
+        res_demo = client.get("/api/jobs?is_demo=true")
+        assert res_demo.status_code == 200
+        jobs_data = res_demo.json()
+        assert len(jobs_data) > 0
+        # Ensure sentinel repo job is NOT returned; filtered demo fixtures are returned
+        assert not any(j.get("id") == "sentinel-repo-job-1" for j in jobs_data)
 
 
 # ============================================================================
@@ -345,3 +353,73 @@ def test_finding_15_gap_engine_population_consistency():
             demand_skill_ids = {g["skill_id"] for g in gaps if g["demand_count"] > 0}
             assert "sk-001" in demand_skill_ids
             assert "sk-002" not in demand_skill_ids
+
+
+# ============================================================================
+# Review #2 Regression Tests: Short Token Synonyms, Submission is_demo, & Routing
+# ============================================================================
+
+def test_short_token_synonym_context_guard():
+    """Short synonym tokens like 'go' or 'c' must require technical context to match."""
+    from app.ingestion.base_adapter import extract_skills_from_text
+
+    master_skills = [
+        {"id": "sk-golang", "name": "Golang", "synonyms": ["go", "go-lang"]},
+        {"id": "sk-c-prog", "name": "C", "synonyms": ["c", "c-lang"]},
+    ]
+
+    # Ordinary prose containing 'go' should NOT match Golang
+    prose_text = "Please go to our careers portal and submit your application."
+    matched = extract_skills_from_text(prose_text, master_skills)
+    assert not any(s["id"] == "sk-golang" for s in matched)
+
+    # Technical text containing 'go developer' SHOULD match Golang
+    tech_text = "We are seeking an experienced Go developer to join our backend team."
+    matched_tech = extract_skills_from_text(tech_text, master_skills)
+    assert any(s["id"] == "sk-golang" for s in matched_tech)
+
+    # Contextual C match
+    c_tech_text = "Requires deep experience in embedded C programming."
+    matched_c = extract_skills_from_text(c_tech_text, master_skills)
+    assert any(s["id"] == "sk-c-prog" for s in matched_c)
+
+
+def test_assessment_submission_ignores_caller_is_demo():
+    """evaluate_student_assessment must derive demo mode only from is_demo_student_id, not payload is_demo."""
+    from app.services.student_service import evaluate_student_assessment
+
+    submission_payload = {
+        "user_id": "usr-real-test-student-123",
+        "name": "Real Student",
+        "district": "Pune",
+        "is_demo": True,  # Attacker/caller tries to force demo mode
+        "quiz_answers": {"q1": "a", "q2": "b"},
+        "skills": [{"skill_id": "sk-001", "proficiency": "advanced"}],
+    }
+
+    with patch("app.services.student_service.compute_gaps") as mock_compute_gaps:
+        mock_compute_gaps.return_value = []
+        evaluate_student_assessment(submission_payload)
+        # compute_gaps must have been called with is_demo=False because user_id is real
+        mock_compute_gaps.assert_called_once()
+        assert mock_compute_gaps.call_args[1].get("is_demo") is False
+
+
+def test_recommendation_and_gov_opportunities_provenance_routing():
+    """Non-demo student profile queries authoritative schemes and opportunities."""
+    from app.services.career_recommendation_engine import compute_career_recommendations
+
+    real_profile = {
+        "id": "usr-real-student-456",
+        "user_id": "usr-real-student-456",
+        "name": "Real Candidate",
+        "district": "Pune",
+        "skills": [{"skill_id": "sk-001", "name": "Python", "proficiency": "advanced"}],
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+    }
+
+    with patch("app.services.career_recommendation_engine._resolve_student_profile", return_value=real_profile):
+        with patch("app.repositories.supabase_repository.list_schemes", return_value=[]):
+            rec = compute_career_recommendations("usr-real-student-456")
+            assert "recommended_careers" in rec
