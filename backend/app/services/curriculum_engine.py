@@ -6,9 +6,12 @@ Evaluates institutional vocational & technical courses across Maharashtra:
 3. Generates transparent syllabus revision blueprints with modules to add/prune.
 4. Estimates required equipment upgrades, budgets, and trainer certifications.
 """
+import logging
 from typing import Any
 from app.db import get_demo
 from app.services.forecast_engine import compute_multi_horizon_forecasts
+
+logger = logging.getLogger(__name__)
 
 
 # Equipment & Trainer catalog grounded in Maharashtra ITI / Polytechnic standards
@@ -60,17 +63,37 @@ TRAINER_UPGRADE_CATALOG = {
 }
 
 
-def audit_all_courses() -> list[dict[str, Any]]:
+def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Execute deep health, obsolescence, and oversupply audit across all institutional courses."""
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
         courses = get_demo("courses")
-    course_skills_raw = get_demo("course_skills")
-    placements = {p["course_id"]: p for p in get_demo("placements")}
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts()}
+        course_skills_raw = get_demo("course_skills")
+        placements = {p["course_id"]: p for p in get_demo("placements")}
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=True)}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses, list_course_skills, list_skills, list_placements
+            courses = list_courses() or []
+            if not courses:
+                return []
+            c_ids = [c["id"] for c in courses if c.get("id")]
+            course_skills_raw = list_course_skills(course_ids=c_ids) if c_ids else []
+            p_rows = list_placements(course_ids=c_ids) if c_ids else []
+            placements = {
+                p["course_id"]: p
+                for p in sorted(p_rows, key=lambda r: r.get("year") or 0)
+                if p.get("course_id")
+            }
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception as e:
+            logger.warning("[CurriculumEngine] Authoritative audit inputs unavailable: %s", e)
+            return []
+        forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=False)}
 
     # Group skills taught by course
     course_skills_map: dict[str, list[dict]] = {}
@@ -84,7 +107,7 @@ def audit_all_courses() -> list[dict[str, Any]]:
 
     for c in courses:
         cid = c["id"]
-        c_name = c["name"]
+        c_name = c.get("name") or c.get("title", "Technical Course")
         institute = c.get("institute", "Government Technical Institute")
         district = c.get("district", "Maharashtra")
         enrolment = c.get("enrolment_count", 60)
@@ -204,9 +227,9 @@ def audit_all_courses() -> list[dict[str, Any]]:
     return audited_courses
 
 
-def get_course_modernization_blueprint(course_id: str) -> dict[str, Any] | None:
+def get_course_modernization_blueprint(course_id: str, is_demo: bool | None = None) -> dict[str, Any] | None:
     """Generate a detailed 5-point modernization blueprint for a specific institutional course."""
-    audited = audit_all_courses()
+    audited = audit_all_courses(is_demo=is_demo)
     course = next((c for c in audited if c["course_id"] == course_id), None)
     if not course:
         return None

@@ -6,13 +6,23 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(backend_dir))
 
+import pytest
 from starlette.testclient import TestClient
 from app.main import app
-from app.db import load_demo_data, get_demo
+from app.db import _cache, load_demo_data, get_demo
 from app.ingestion.datagov_connector import DataGovConnector
 from app.ingestion.sync_engine import SyncEngine
 
-# Load demo baseline
+
+@pytest.fixture(scope="module", autouse=True)
+def isolate_sync_step4b_cache():
+    from copy import deepcopy
+    snapshot = deepcopy(_cache)
+    yield
+    _cache.clear()
+    _cache.update(snapshot)
+
+
 load_demo_data()
 client = TestClient(app)
 
@@ -51,6 +61,7 @@ def test_connector_and_transformers():
 
 def test_sync_engine_and_deduplication():
     print("Testing SyncEngine & Deduplication...")
+    load_demo_data()
     engine = SyncEngine()
 
     # Initial Run: Should add new records

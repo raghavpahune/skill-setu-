@@ -12,6 +12,7 @@ import logging
 from collections import Counter
 from typing import Any
 
+from app.core.security import is_demo_student_id
 from app.db import get_demo
 
 logger = logging.getLogger("skillsetu.recommendation_engine")
@@ -119,12 +120,12 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
             return p
     except SupabaseRepositoryError as e:
         logger.warning("[RecommendationEngine] Supabase repository unavailable resolving student '%s': %s", student_id, e)
-        if not student_id.startswith(("stu-", "ast-demo-", "demo-")):
+        if not is_demo_student_id(student_id):
             raise RuntimeError(f"Database error resolving student profile: {e}") from e
 
     # 2. Only allow explicit demo fixture IDs for legitimate demo candidate selector
     # NEVER fall back to demo records for production student IDs (e.g. usr-student-*, UUIDs, etc.)
-    if student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if is_demo_student_id(student_id):
         assessments = get_demo("student_assessments")
         for a in assessments:
             if a.get("id") == student_id or a.get("user_id") == student_id:
@@ -157,16 +158,19 @@ def _is_live_employer_demand(demand: dict[str, Any]) -> bool:
     return False
 
 
-def _get_validated_employer_demands() -> list[dict[str, Any]]:
+def _get_validated_employer_demands(is_demo: bool = False) -> list[dict[str, Any]]:
     """Retrieve only real employer demands that are strictly VALIDATED (Phase 14 rule)."""
-    try:
-        from app.repositories.supabase_repository import list_employer_demands
-        demands = list_employer_demands()
-    except Exception:
+    if is_demo:
         demands = get_demo("employer_demands")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            demands = list_employer_demands() or []
+        except Exception:
+            demands = []
     validated = []
     for d in demands:
-        if not _is_live_employer_demand(d):
+        if not is_demo and not _is_live_employer_demand(d):
             continue
         status = (d.get("validation_status") or d.get("status") or "").upper()
         if status in ("VALIDATED", "APPROVED"):
@@ -213,15 +217,27 @@ def _match_skills(student_skills: list[dict[str, Any]], required_skill_names: li
     return matched, missing, match_pct
 
 
-def compute_career_recommendations(student_id: str) -> dict[str, Any]:
+def compute_career_recommendations(student_id: str, is_demo: bool | None = None) -> dict[str, Any]:
     """Deterministic recommendation engine combining assessment, employer demand, and gov opportunities."""
+    from app.core.data_mode import is_explicit_demo_mode
     profile = _resolve_student_profile(student_id)
     if not profile:
         raise ValueError(f"Student profile or assessment with ID '{student_id}' not found.")
 
+    source_provenance = profile.get("source", "DEMO_SYNTHETIC")
+    is_demo_mode = is_explicit_demo_mode(is_demo) or (is_demo_student_id(student_id) and (profile.get("is_demo") is True or source_provenance == "DEMO_SYNTHETIC"))
+
     # 1. Normalize Student Current Skills
     current_skills_raw = profile.get("skills", []) or profile.get("current_skills", [])
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    if is_demo_mode:
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception:
+            skills_map = {}
     
     current_skills_normalized = []
     for s in current_skills_raw:
@@ -253,16 +269,55 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     candidate_district = profile.get("district") or "Maharashtra"
     candidate_education = profile.get("education") or "Diploma / Degree"
     quiz_score_pct = profile.get("quiz_score_pct", 75)
-    source_provenance = profile.get("source", "DEMO_SYNTHETIC")
 
     # 2. Extract strictly VALIDATED Employer Demands
-    validated_demands = _get_validated_employer_demands()
+    validated_demands = _get_validated_employer_demands(is_demo=is_demo_mode)
 
-    # 3. Extract Government Opportunities & Welfare Schemes
-    gov_opportunities = get_demo("gov_opportunities")
-    schemes = get_demo("schemes")
+    if is_demo_mode:
+        gov_opportunities = get_demo("gov_opportunities")
+        gov_opps_source = "DEMO_SYNTHETIC"
+    else:
 
-    # 4. Evaluate each Career Role in Benchmark Taxonomy
+        try:
+            from app.db import get_supabase_client
+            client = get_supabase_client()
+            if client:
+                res = client.table("gov_opportunities").select("*").execute()
+                all_opps = getattr(res, "data", []) or []
+            else:
+                all_opps = []
+        except Exception as e:
+            logger.warning("Failed querying authoritative gov_opportunities for student '%s': %s", student_id, e)
+            all_opps = []
+
+        real_opps = [
+            o for o in all_opps
+            if o.get("is_demo") is False
+            and o.get("source_type") != "SANDBOX_SIMULATION"
+            and o.get("source") != "DEMO_SYNTHETIC"
+            and (o.get("data_provenance") == "GOVERNMENT_OFFICIAL" or o.get("source") in ("DATAGOV_IN", "OGD_DATAGOV_IN", "USER_SUBMITTED", "ADMIN_CREATED"))
+        ]
+        gov_opportunities = real_opps
+        gov_opps_source = "GOVERNMENT_OFFICIAL" if gov_opportunities else "NO_OFFICIAL_MATCHES"
+
+    if is_demo_mode:
+        all_courses = get_demo("courses")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            all_courses = list_courses() or []
+        except Exception:
+            all_courses = []
+
+    if is_demo_mode:
+        all_signals = get_demo("industry_signals")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            all_signals = list_industry_signals_repo()
+        except Exception:
+            all_signals = []
+
     career_evaluations = []
     for role_def in CAREER_ROLES_BENCHMARK:
         role_name = role_def["role_name"]
@@ -315,12 +370,6 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                     "source": g.get("source", "DEMO_SYNTHETIC"),
                 })
 
-        # Connect with matching institute training programs (Phase 25)
-        try:
-            from app.repositories.supabase_repository import list_courses
-            all_courses = list_courses()
-        except Exception:
-            all_courses = get_demo("courses")
         role_courses = []
         for c in all_courses:
             if c.get("status", "active").lower() not in ("active", "needs_attention"):
@@ -341,11 +390,6 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                     "is_demo": c.get("is_demo", True),
                 })
 
-        try:
-            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-            all_signals = list_industry_signals_repo()
-        except Exception:
-            all_signals = []  # ponytail: non-critical supplement, degrade gracefully
         role_signals = []
         for s in all_signals:
             if not s.get("is_active", True) or s.get("validation_status", "APPROVED") != "APPROVED":
@@ -428,25 +472,22 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
 
     top_recommended_role = career_evaluations[0]
 
-    # 5. Build Targeted Next Learning Steps (Roadmap with Institute Training Availability)
-    try:
-        from app.repositories.supabase_repository import list_courses
-        all_courses = list_courses()
-    except Exception:
-        all_courses = get_demo("courses")
-    is_real_candidate = not student_id.startswith(("stu-", "ast-demo-", "demo-")) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
+    is_real_candidate = not is_demo_student_id(student_id) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
 
     fc_from_repo = False
-    try:
-        from app.repositories.supabase_repository import list_skill_forecasts
-        fc_list = list_skill_forecasts()
-        fc_from_repo = True
-    except Exception as e:
-        if is_real_candidate:
-            logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
-            raise RuntimeError("Database error fetching skill forecasts for candidate roadmap.") from e
-        logger.warning("[RecommendationEngine] Supabase forecasts unavailable, using demo fixtures for demo student '%s': %s", student_id, e)
+    if is_demo_mode:
         fc_list = get_demo("skill_forecasts")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skill_forecasts
+            fc_list = list_skill_forecasts() or []
+            fc_from_repo = True
+        except Exception as e:
+            if is_real_candidate:
+                logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
+                raise RuntimeError(f"Database error fetching skill forecasts: {e}") from e
+            else:
+                fc_list = get_demo("skill_forecasts")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why
@@ -588,7 +629,7 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
             "student_profile_source": source_provenance,
             "employer_demand_source": "EMPLOYER_SUBMITTED_VALIDATED",
             "employer_validation_rule": "Strictly VALIDATED employer submissions only",
-            "government_opportunities_source": "DEMO_SYNTHETIC",
+            "government_opportunities_source": gov_opps_source,
             "disclaimer": "All recommendations are computed deterministically from verified SkillSetu datasets. No ungrounded claims are made.",
         },
     }

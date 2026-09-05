@@ -21,6 +21,8 @@ class MockSupabaseQuery:
     def __init__(self, table: MockSupabaseTable):
         self.table = table
         self.filters: list[tuple[str, Any]] = []
+        self._in_filters: list[tuple[str, list[Any]]] = []
+        self._ilike_filters: list[tuple[str, str]] = []
         self._action = "select"
         self._mutation_data: Any | None = None
 
@@ -33,14 +35,15 @@ class MockSupabaseQuery:
         self._mutation_data = updates
         return self
 
-    def insert(self, data: Any):
+    def insert(self, data: Any, *args: Any, **kwargs: Any):
         self._action = "insert"
         self._mutation_data = data
         return self
 
-    def upsert(self, data: Any):
+    def upsert(self, data: Any, *args: Any, **kwargs: Any):
         self._action = "upsert"
         self._mutation_data = data
+        self._on_conflict = kwargs.get("on_conflict")
         return self
 
     def delete(self):
@@ -51,7 +54,29 @@ class MockSupabaseQuery:
         self.filters.append((column, value))
         return self
 
+    def in_(self, column: str, values: list[Any]):
+        self._in_filters.append((column, list(values)))
+        return self
+
+    def ilike(self, column: str, pattern: str):
+        self._ilike_filters.append((column, pattern))
+        return self
+
+    def range(self, start: int, end: int):
+        self._range = (start, end)
+        return self
+
+    def limit(self, count: int):
+        self._limit = count
+        return self
+
+    def order(self, column: str, desc: bool = False):
+        self._order_by = (column, desc)
+        return self
+
     def execute(self):
+        import re
+
         if (
             self.table.should_fail
             or (self._action == "update" and self.table.should_fail_update)
@@ -61,12 +86,45 @@ class MockSupabaseQuery:
         ):
             raise RuntimeError("Simulated Supabase PostgreSQL database connection error")
 
+        def matches_filters(row: dict) -> bool:
+            for col, val in self.filters:
+                if str(row.get(col, "")).lower() != str(val).lower():
+                    return False
+            for col, vals in getattr(self, "_in_filters", []):
+                if row.get(col) not in vals:
+                    return False
+            for col, pattern in getattr(self, "_ilike_filters", []):
+                val = str(row.get(col, "")).lower()
+                raw_pat = pattern.lower().replace(r"\%", "\x00").replace(r"\_", "\x01")
+                escaped = re.escape(raw_pat)
+                pat = "^" + escaped.replace("%", ".*").replace("_", ".").replace("\x00", "%").replace("\x01", "_") + "$"
+                if not re.search(pat, val):
+                    return False
+            return True
+
         if self._action in ("insert", "upsert"):
             items = [self._mutation_data] if isinstance(self._mutation_data, dict) else list(self._mutation_data)
             result_rows = []
+            on_conflict_cols = [c.strip() for c in (getattr(self, "_on_conflict", None) or "").split(",") if c.strip()]
             for item in items:
-                item_id = item.get("id")
-                idx = next((i for i, r in enumerate(self.table.rows) if item_id and r.get("id") == item_id), None)
+                idx = None
+                if on_conflict_cols:
+                    idx = next(
+                        (
+                            i
+                            for i, r in enumerate(self.table.rows)
+                            if all(
+                                item.get(c) is not None
+                                and r.get(c) is not None
+                                and r.get(c) == item.get(c)
+                                for c in on_conflict_cols
+                            )
+                        ),
+                        None,
+                    )
+                if idx is None:
+                    item_id = item.get("id")
+                    idx = next((i for i, r in enumerate(self.table.rows) if item_id and r.get("id") == item_id), None)
                 if idx is not None:
                     self.table.rows[idx].update(deepcopy(item))
                     result_rows.append(deepcopy(self.table.rows[idx]))
@@ -80,12 +138,7 @@ class MockSupabaseQuery:
             deleted_rows = []
             surviving_rows = []
             for row in self.table.rows:
-                match = True
-                for col, val in self.filters:
-                    if str(row.get(col, "")).lower() != str(val).lower():
-                        match = False
-                        break
-                if match:
+                if matches_filters(row):
                     deleted_rows.append(row)
                 else:
                     surviving_rows.append(row)
@@ -96,17 +149,21 @@ class MockSupabaseQuery:
         matching_rows = []
         matching_indices = []
         for idx, row in enumerate(self.table.rows):
-            match = True
-            for col, val in self.filters:
-                if str(row.get(col, "")).lower() != str(val).lower():
-                    match = False
-                    break
-            if match:
+            if matches_filters(row):
                 matching_rows.append(row)
                 matching_indices.append(idx)
 
         if self._action == "select":
-            return type("APIResponse", (), {"data": deepcopy(matching_rows), "count": len(matching_rows)})()
+            selected_rows = deepcopy(matching_rows)
+            if hasattr(self, "_order_by") and self._order_by:
+                col, desc = self._order_by
+                selected_rows.sort(key=lambda r: str(r.get(col, "")), reverse=desc)
+            if hasattr(self, "_range") and self._range is not None:
+                start, end = self._range
+                selected_rows = selected_rows[start : end + 1]
+            elif hasattr(self, "_limit") and self._limit is not None:
+                selected_rows = selected_rows[: self._limit]
+            return type("APIResponse", (), {"data": selected_rows, "count": len(selected_rows)})()
         elif self._action == "update":
             updated_rows = []
             for idx in matching_indices:
@@ -133,18 +190,38 @@ class MockSupabaseTable:
     def update(self, updates: dict):
         return MockSupabaseQuery(self).update(updates)
 
-    def insert(self, data: Any):
-        return MockSupabaseQuery(self).insert(data)
+    def insert(self, data: Any, *args: Any, **kwargs: Any):
+        return MockSupabaseQuery(self).insert(data, *args, **kwargs)
 
-    def upsert(self, data: Any):
-        return MockSupabaseQuery(self).upsert(data)
+    def upsert(self, data: Any, *args: Any, **kwargs: Any):
+        return MockSupabaseQuery(self).upsert(data, *args, **kwargs)
 
     def delete(self):
         return MockSupabaseQuery(self).delete()
 
 
 class MockSupabaseClient:
-    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None, skill_forecasts_rows=None):
+    def __init__(
+        self,
+        feedback_rows=None,
+        demands_rows=None,
+        profiles_rows=None,
+        assessments_rows=None,
+        courses_rows=None,
+        industry_signals_rows=None,
+        skill_forecasts_rows=None,
+        schemes_rows=None,
+        gov_opportunities_rows=None,
+        skills_rows=None,
+        job_skills_rows=None,
+        course_skills_rows=None,
+        placements_rows=None,
+        jobs_rows=None,
+        sync_logs_rows=None,
+        employers_rows=None,
+        users_rows=None,
+        difficult_skills_rows=None,
+    ):
         self.tables = {
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
@@ -153,6 +230,17 @@ class MockSupabaseClient:
             "courses": MockSupabaseTable(courses_rows),
             "industry_signals": MockSupabaseTable(industry_signals_rows),
             "skill_forecasts": MockSupabaseTable(skill_forecasts_rows),
+            "schemes": MockSupabaseTable(schemes_rows),
+            "gov_opportunities": MockSupabaseTable(gov_opportunities_rows),
+            "skills": MockSupabaseTable(skills_rows),
+            "job_skills": MockSupabaseTable(job_skills_rows),
+            "course_skills": MockSupabaseTable(course_skills_rows),
+            "placements": MockSupabaseTable(placements_rows),
+            "jobs": MockSupabaseTable(jobs_rows),
+            "sync_logs": MockSupabaseTable(sync_logs_rows),
+            "employers": MockSupabaseTable(employers_rows),
+            "users": MockSupabaseTable(users_rows),
+            "difficult_skills": MockSupabaseTable(difficult_skills_rows),
         }
 
     def table(self, table_name: str) -> MockSupabaseTable:
@@ -300,6 +388,27 @@ def _load_initial_skill_forecasts_rows() -> list[dict]:
     return rows
 
 
+def _load_initial_gov_opportunities_rows() -> list[dict]:
+    rows: list[dict] = []
+    base_dir = Path(__file__).resolve().parent.parent / "data"
+    demo_file = base_dir / "demo" / "gov_opportunities.json"
+    real_file = base_dir / "real" / "gov_opportunities.json"
+
+    seen_ids = set()
+    for file_path in (real_file, demo_file):
+        if file_path.is_file():
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                for o in data:
+                    oid = o.get("id")
+                    if oid and oid not in seen_ids:
+                        rows.append(o)
+                        seen_ids.add(oid)
+            except Exception:
+                pass
+    return rows
+
+
 _PRISTINE_FEEDBACK = deepcopy(_load_demo_feedback_rows())
 _PRISTINE_DEMANDS = deepcopy(_load_initial_demands_rows())
 _PRISTINE_PROFILES = deepcopy(_load_initial_student_profiles_rows())
@@ -307,30 +416,86 @@ _PRISTINE_ASSESSMENTS = deepcopy(_load_initial_student_assessments_rows())
 _PRISTINE_COURSES = deepcopy(_load_initial_courses_rows())
 _PRISTINE_SIGNALS = deepcopy(_load_initial_industry_signals_rows())
 _PRISTINE_FORECASTS = deepcopy(_load_initial_skill_forecasts_rows())
+_PRISTINE_GOV_OPPORTUNITIES = deepcopy(_load_initial_gov_opportunities_rows())
 
 
-@pytest.fixture(scope="session", autouse=True)
-def preserve_real_disk_files():
-    """Snapshot and restore data/real/*.json before and after the test session."""
-    real_dir = Path(__file__).resolve().parent.parent / "data" / "real"
-    snapshots = {}
-    if real_dir.is_dir():
-        for f in real_dir.glob("*.json"):
-            try:
-                snapshots[f] = f.read_bytes()
-            except Exception:
-                pass
-    yield
-    for f, content in snapshots.items():
+_REAL_DISK_DIR = Path(__file__).resolve().parent.parent / "data" / "real"
+_REAL_DISK_SNAPSHOT: dict[Path, bytes] = {}
+if _REAL_DISK_DIR.is_dir():
+    for _f in _REAL_DISK_DIR.glob("*.json"):
         try:
-            f.write_bytes(content)
+            _REAL_DISK_SNAPSHOT[_f] = _f.read_bytes()
         except Exception:
             pass
 
 
+def _restore_real_disk_files():
+    for _f, _content in _REAL_DISK_SNAPSHOT.items():
+        try:
+            _f.write_bytes(_content)
+        except Exception:
+            pass
+
+
+def _build_pristine_cache() -> dict[str, list[dict]]:
+    from app.db import _cache, load_demo_data, load_real_data, init_demo_users
+    _restore_real_disk_files()
+    _cache.clear()
+    load_demo_data()
+    load_real_data()
+    init_demo_users()
+    _cache["employer_feedback"] = deepcopy(_PRISTINE_FEEDBACK)
+    _cache["employer_demands"] = deepcopy(_PRISTINE_DEMANDS)
+    _cache["student_profiles"] = deepcopy(_PRISTINE_PROFILES)
+    _cache["student_assessments"] = deepcopy(_PRISTINE_ASSESSMENTS)
+    _cache["courses"] = deepcopy(_PRISTINE_COURSES)
+    _cache["industry_signals"] = deepcopy(_PRISTINE_SIGNALS)
+    _cache["skill_forecasts"] = deepcopy(_PRISTINE_FORECASTS)
+    _cache["gov_opportunities"] = deepcopy(_PRISTINE_GOV_OPPORTUNITIES)
+    return deepcopy(_cache)
+
+
+_PRISTINE_CACHE = _build_pristine_cache()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def preserve_real_disk_files():
+    _restore_real_disk_files()
+    yield
+    _restore_real_disk_files()
+
+
+def ensure_cache_baseline():
+    from app.db import _cache, load_demo_data, load_real_data, init_demo_users
+    for tbl in ("skills", "jobs", "schemes", "gov_opportunities"):
+        if tbl not in _cache or not _cache[tbl]:
+            load_demo_data()
+            break
+    load_real_data()
+    init_demo_users()
+
+
+@pytest.fixture
+def enable_demo_mode(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+
+
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
-    """Autouse fixture providing an isolated Supabase test double for unit test suites."""
+    ensure_cache_baseline()
+    from app.db import _cache
+
+    _cache["employer_feedback"] = deepcopy(_PRISTINE_FEEDBACK)
+    _cache["employer_demands"] = deepcopy(_PRISTINE_DEMANDS)
+    _cache["student_profiles"] = deepcopy(_PRISTINE_PROFILES)
+    _cache["student_assessments"] = deepcopy(_PRISTINE_ASSESSMENTS)
+    _cache["courses"] = deepcopy(_PRISTINE_COURSES)
+    _cache["industry_signals"] = deepcopy(_PRISTINE_SIGNALS)
+    _cache["skill_forecasts"] = deepcopy(_PRISTINE_FORECASTS)
+    _cache["gov_opportunities"] = deepcopy(_PRISTINE_GOV_OPPORTUNITIES)
+    _cache["job_skills"] = deepcopy(_PRISTINE_CACHE.get("job_skills", []))
+    _cache["course_skills"] = deepcopy(_PRISTINE_CACHE.get("course_skills", []))
+
     mock_client = MockSupabaseClient(
         feedback_rows=deepcopy(_PRISTINE_FEEDBACK),
         demands_rows=deepcopy(_PRISTINE_DEMANDS),
@@ -339,6 +504,17 @@ def mock_supabase_for_tests():
         courses_rows=deepcopy(_PRISTINE_COURSES),
         industry_signals_rows=deepcopy(_PRISTINE_SIGNALS),
         skill_forecasts_rows=deepcopy(_PRISTINE_FORECASTS),
+        schemes_rows=deepcopy(_cache.get("schemes", [])),
+        gov_opportunities_rows=deepcopy(_PRISTINE_GOV_OPPORTUNITIES),
+        skills_rows=deepcopy(_cache.get("skills", [])),
+        job_skills_rows=deepcopy(_cache.get("job_skills", [])),
+        course_skills_rows=deepcopy(_cache.get("course_skills", [])),
+        placements_rows=deepcopy(_cache.get("placements", [])),
+        jobs_rows=deepcopy(_cache.get("jobs", [])),
+        sync_logs_rows=deepcopy(_cache.get("sync_logs", [])),
+        employers_rows=deepcopy(_cache.get("employers", [])),
+        users_rows=deepcopy(_cache.get("users", [])),
+        difficult_skills_rows=deepcopy(_cache.get("difficult_skills", [])),
     )
     set_supabase_client(mock_client)
     yield mock_client

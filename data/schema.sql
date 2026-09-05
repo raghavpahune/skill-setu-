@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS skills (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    external_id TEXT,
     title TEXT NOT NULL,
     company TEXT NOT NULL,
     district TEXT NOT NULL,
@@ -41,7 +42,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     description TEXT,
     source TEXT DEFAULT 'DEMO_SYNTHETIC',
     source_label TEXT DEFAULT 'Demo Data',
-    posted_date DATE DEFAULT CURRENT_DATE
+    posted_date DATE DEFAULT CURRENT_DATE,
+    CONSTRAINT uq_jobs_source_external_id UNIQUE (source, external_id)
 );
 
 -- ============================================================
@@ -234,6 +236,26 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_education TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vacancies_count INT DEFAULT 1;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_url TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS content_hash TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_status TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_method TEXT DEFAULT 'STRUCTURAL_API_VALIDATION';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS confidence INT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
+
+-- SCHEMES provenance and verification extensions
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS content_hash TEXT;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_status TEXT;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_method TEXT DEFAULT 'GOVERNMENT_PORTAL_API_FEED';
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS confidence INT;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
 
 -- ============================================================
 -- SYNC_LOGS (ingestion audit trail)

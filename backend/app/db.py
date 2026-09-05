@@ -179,6 +179,18 @@ def load_real_data() -> int:
     return loaded_count
 
 
+def _row_identity(row: dict) -> Any:
+    if not isinstance(row, dict):
+        return None
+    if row.get("id"):
+        return row["id"]
+    if row.get("job_id") and row.get("skill_id"):
+        return (row["job_id"], row["skill_id"])
+    if row.get("course_id") and row.get("skill_id"):
+        return (row["course_id"], row["skill_id"])
+    return None
+
+
 def init_db():
     """Initialize hybrid data layer: load synthetic baseline, overlay real submissions, then Supabase if configured."""
     # 1. Always load baseline synthetic dataset first so system is never empty
@@ -203,18 +215,20 @@ def init_db():
                 res = client.table(tbl).select("*").execute()
                 if res.data and len(res.data) > 0:
                     existing = _cache.setdefault(tbl, [])
-                    existing_ids = {r.get("id") for r in existing if isinstance(r, dict) and r.get("id")}
+                    existing_ids = {_row_identity(r) for r in existing if _row_identity(r) is not None}
                     for r in res.data:
                         if not isinstance(r, dict):
                             continue
-                        rid = r.get("id")
-                        if rid and rid in existing_ids:
+                        rid = _row_identity(r)
+                        if rid is not None and rid in existing_ids:
                             for idx, item in enumerate(existing):
-                                if isinstance(item, dict) and item.get("id") == rid:
+                                if _row_identity(item) == rid:
                                     existing[idx] = r
                                     break
                         else:
                             existing.insert(0, r)
+                            if rid is not None:
+                                existing_ids.add(rid)
                     logger.info("[DB] Merged %d records from Supabase table '%s'", len(res.data), tbl)
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
@@ -981,5 +995,6 @@ def save_user(user_data: dict) -> dict:
     return user_data
 
 
-
+# Re-export centralized demo student helper for convenience
+from app.core.security import is_demo_student_id  # noqa: E402
 

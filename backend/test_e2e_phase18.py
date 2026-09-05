@@ -22,6 +22,9 @@ EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "emplo
 EMPLOYER_AUTH_HEADERS = {"Authorization": f"Bearer {EMPLOYER_TOKEN}"}
 
 
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
+
+
 # ===========================================================================
 # 1. Complete Student Lifecycle Flow
 # ===========================================================================

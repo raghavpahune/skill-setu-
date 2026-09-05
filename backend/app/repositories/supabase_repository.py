@@ -55,6 +55,16 @@ class SkillForecastNotFoundError(SupabaseRepositoryError):
     pass
 
 
+class JobNotFoundError(SupabaseRepositoryError):
+    """Raised when a job/opportunity record cannot be located in Supabase."""
+    pass
+
+
+class SchemeNotFoundError(SupabaseRepositoryError):
+    """Raised when a scheme record cannot be located in Supabase."""
+    pass
+
+
 class SupabaseConnectionError(SupabaseRepositoryError):
     """Raised when Supabase client is not configured or fails to connect."""
     pass
@@ -980,3 +990,295 @@ def delete_skill_forecast_repo(forecast_id: str) -> bool:
 
 update_skill_forecast = update_skill_forecast_repo
 delete_skill_forecast = delete_skill_forecast_repo
+
+
+# ============================================================================
+# JOBS & OPPORTUNITIES REPOSITORY DOMAIN (Phase 1 Real Data Ingestion)
+# ============================================================================
+
+VALID_JOB_COLUMNS: set[str] = {
+    "id", "title", "company", "district", "industry", "description",
+    "source", "source_label", "source_type", "posted_date", "opportunity_type",
+    "external_id", "portal_source", "stipend_amount", "duration_months",
+    "min_education", "vacancies_count", "apply_url", "last_synced_at",
+    "content_hash", "source_url", "resource_id", "fetched_at", "published_at",
+    "snapshot_captured_at", "last_seen_at", "verified_at",
+    "verification_status", "verification_method", "confidence",
+    "freshness_status", "is_demo", "is_snapshot", "unmapped_skills", "created_at",
+}
+
+
+def get_job(job_id: str) -> dict[str, Any] | None:
+    """Fetch single job/opportunity by id directly from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("jobs").select("*").eq("id", job_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        return None
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching job id='%s': %s", job_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for job: {e}") from e
+
+
+def list_jobs(
+    district: str | None = None,
+    industry: str | None = None,
+    opportunity_type: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Authoritatively list jobs/opportunities directly from Supabase."""
+    try:
+        client = get_client()
+        query = client.table("jobs").select("*")
+        if district:
+            query = query.ilike("district", f"%{district}%")
+        if industry:
+            query = query.ilike("industry", f"%{industry}%")
+        if opportunity_type:
+            query = query.eq("opportunity_type", opportunity_type.lower())
+
+        res = query.range(offset, offset + limit - 1).execute()
+        jobs = getattr(res, "data", []) or []
+        return jobs
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing jobs: %s", e)
+        raise SupabaseRepositoryError(f"Database listing failed for jobs: {e}") from e
+
+
+def upsert_jobs(jobs_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Authoritatively upsert batch of jobs to Supabase."""
+    if not jobs_data:
+        return []
+    try:
+        client = get_client()
+        clean_jobs = []
+        for j in jobs_data:
+            clean = {k: v for k, v in j.items() if k in VALID_JOB_COLUMNS}
+            if "id" not in clean or not clean["id"]:
+                clean["id"] = str(uuid.uuid4())
+            clean_jobs.append(clean)
+
+        res = client.table("jobs").upsert(clean_jobs, on_conflict="source,external_id").execute()
+        saved = getattr(res, "data", []) or clean_jobs
+        logger.info("[SupabaseRepo] Upserted %d jobs into Supabase.", len(saved))
+        return saved
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting jobs: %s", e)
+        raise SupabaseRepositoryError(f"Database upsert failed for jobs: {e}") from e
+
+
+def batch_create_job_skills(job_skills_data: list[dict[str, Any]]) -> int:
+    """Persist many-to-many job-skill linkages to Supabase."""
+    if not job_skills_data:
+        return 0
+    try:
+        client = get_client()
+        valid_cols = {"job_id", "skill_id", "proficiency_required"}
+        clean_rows = [{k: v for k, v in r.items() if k in valid_cols} for r in job_skills_data]
+        res = client.table("job_skills").upsert(clean_rows).execute()
+        rows = getattr(res, "data", []) or clean_rows
+        return len(rows)
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed batch creating job skills: %s", e)
+        raise SupabaseRepositoryError(f"Database batch create failed for job_skills: {e}") from e
+
+
+def list_job_skills(job_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """List job-skill relationships from Supabase, optionally filtering by job_ids."""
+    try:
+        client = get_client()
+        if job_ids is not None:
+            if not job_ids:
+                return []
+            all_skills = []
+            chunk_size = 500
+            for i in range(0, len(job_ids), chunk_size):
+                chunk = job_ids[i : i + chunk_size]
+                res = client.table("job_skills").select("*").in_("job_id", chunk).execute()
+                all_skills.extend(getattr(res, "data", []) or [])
+            return all_skills
+
+        res = client.table("job_skills").select("*").execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing job skills: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for job_skills: {e}") from e
+
+
+def list_course_skills(course_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """List course-skill relationships from Supabase, optionally filtering by course_ids."""
+    try:
+        client = get_client()
+        if course_ids is not None:
+            if not course_ids:
+                return []
+            all_skills = []
+            chunk_size = 500
+            for i in range(0, len(course_ids), chunk_size):
+                chunk = course_ids[i : i + chunk_size]
+                res = client.table("course_skills").select("*").in_("course_id", chunk).execute()
+                all_skills.extend(getattr(res, "data", []) or [])
+            return all_skills
+
+        res = client.table("course_skills").select("*").execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing course skills: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for course_skills: {e}") from e
+
+
+def list_placements(course_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """List placement records from Supabase, optionally filtering by course_ids."""
+    try:
+        client = get_client()
+        if course_ids is not None:
+            if not course_ids:
+                return []
+            all_placements = []
+            chunk_size = 500
+            for i in range(0, len(course_ids), chunk_size):
+                chunk = course_ids[i : i + chunk_size]
+                res = client.table("placements").select("*").in_("course_id", chunk).execute()
+                all_placements.extend(getattr(res, "data", []) or [])
+            return all_placements
+
+        res = client.table("placements").select("*").execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing placements: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for placements: {e}") from e
+
+
+def list_sync_logs(limit: int = 100) -> list[dict[str, Any]]:
+    """List automated synchronization audit logs from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("sync_logs").select("*").order("started_at", desc=True).limit(limit).execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing sync_logs: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for sync_logs: {e}") from e
+
+
+# ============================================================================
+# SCHEMES REPOSITORY DOMAIN (Phase 1 Real Data Ingestion)
+# ============================================================================
+
+VALID_SCHEME_COLUMNS: set[str] = {
+    "id", "scheme_code", "title", "department", "scheme_type",
+    "beneficiary_category", "income_ceiling_annual", "benefit_description",
+    "max_amount", "eligible_course_types", "application_portal_url",
+    "deadline_date", "status", "source", "source_label", "source_type", "source_url", "resource_id", "external_id",
+    "last_synced_at", "fetched_at", "published_at", "snapshot_captured_at", "last_seen_at", "verified_at", "verification_status",
+    "verification_method", "confidence", "content_hash", "freshness_status",
+    "is_demo", "is_snapshot", "created_at",
+}
+
+
+def _is_valid_uuid(val: str) -> bool:
+    """Check whether a string is a valid UUID format."""
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def get_scheme(scheme_id: str) -> dict[str, Any] | None:
+    """Fetch single scheme by id or scheme_code directly from Supabase."""
+    try:
+        client = get_client()
+        if _is_valid_uuid(scheme_id):
+            res = client.table("schemes").select("*").eq("id", scheme_id).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]
+        res_code = client.table("schemes").select("*").eq("scheme_code", scheme_id).execute()
+        if res_code.data and len(res_code.data) > 0:
+            return res_code.data[0]
+        return None
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching scheme id='%s': %s", scheme_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for scheme: {e}") from e
+
+
+def list_schemes(
+    scheme_type: str | None = None,
+    status: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Authoritatively list student welfare and government schemes from Supabase."""
+    try:
+        client = get_client()
+        query = client.table("schemes").select("*")
+        if scheme_type:
+            query = query.eq("scheme_type", scheme_type.lower())
+        if status:
+            query = query.eq("status", status.lower())
+
+        res = query.range(offset, offset + limit - 1).execute()
+        schemes = getattr(res, "data", []) or []
+        return schemes
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing schemes: %s", e)
+        raise SupabaseRepositoryError(f"Database listing failed for schemes: {e}") from e
+
+
+def upsert_schemes(schemes_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Authoritatively upsert batch of schemes to Supabase."""
+    if not schemes_data:
+        return []
+    try:
+        client = get_client()
+        clean_schemes = []
+        for s in schemes_data:
+            clean = {k: v for k, v in s.items() if k in VALID_SCHEME_COLUMNS}
+            if "id" not in clean or not clean["id"]:
+                clean["id"] = str(uuid.uuid4())
+            clean_schemes.append(clean)
+
+        res = client.table("schemes").upsert(clean_schemes, on_conflict="source,external_id").execute()
+        saved = getattr(res, "data", []) or clean_schemes
+        logger.info("[SupabaseRepo] Upserted %d schemes into Supabase.", len(saved))
+        return saved
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting schemes: %s", e)
+        raise SupabaseRepositoryError(f"Database upsert failed for schemes: {e}") from e
+
+
+def list_skills(limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
+    """Authoritatively list skills from Supabase."""
+    try:
+        client = get_client()
+        query = client.table("skills").select("*")
+        res = query.range(offset, offset + limit - 1).execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing skills: %s", e)
+        raise SupabaseRepositoryError(f"Database listing failed for skills: {e}") from e

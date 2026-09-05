@@ -18,39 +18,17 @@ const DISTRICT_NAMES = [
   'Ratnagiri',
 ];
 
-const DEFAULT_DISTRICT_PLANS = {
-  Pune: {
-    district: 'Pune',
-    total_jobs: 144,
-    total_courses: 8,
-    total_enrolment: 480,
-    top_roles: [
-      { role: 'Generative AI Engineer', count: 42 },
-      { role: 'EV Powertrain Specialist', count: 35 },
-      { role: 'Full Stack Cloud Developer', count: 28 },
-      { role: 'Robotics Automation Technician', count: 21 },
-      { role: 'Data Architecture Engineer', count: 18 },
-    ],
-    industry_demand: [
-      { industry: 'Information Technology & ITES', count: 68 },
-      { industry: 'Automotive & EV Manufacturing', count: 45 },
-      { industry: 'Precision Engineering', count: 18 },
-      { industry: 'Renewable Energy & IoT', count: 13 },
-    ],
-    local_courses: [
-      { name: 'Advanced AI & Machine Learning', institute: 'Government Polytechnic, Pune', enrolment: 60, placement_rate: 90 },
-      { name: 'Electric Vehicle Systems', institute: 'Government ITI, Aundh', enrolment: 50, placement_rate: 88 },
-      { name: 'Cloud Infrastructure & DevOps', institute: 'C-DAC Partner Center', enrolment: 45, placement_rate: 84 },
-      { name: 'CNC Precision Tooling', institute: 'ITI Pimpri-Chinchwad', enrolment: 70, placement_rate: 68 },
-    ],
-    skill_gaps: [
-      { skill_id: 'sk-002', skill_name: 'Generative AI & LLMs', category: 'AI & Data', demand_pct: 78, coverage_pct: 35, gap_pct: 43, priority: 'CRITICAL', demand_count: 42 },
-      { skill_id: 'sk-005', skill_name: 'EV Battery Management Systems', category: 'EV & Automotive', demand_pct: 70, coverage_pct: 38, gap_pct: 32, priority: 'HIGH', demand_count: 35 },
-      { skill_id: 'sk-008', skill_name: 'Vector DBs & RAG Architecture', category: 'Software & Cloud', demand_pct: 62, coverage_pct: 28, gap_pct: 34, priority: 'HIGH', demand_count: 26 },
-      { skill_id: 'sk-011', skill_name: 'Automated Robotics Maintenance', category: 'Precision Engineering', demand_pct: 58, coverage_pct: 32, gap_pct: 26, priority: 'MEDIUM', demand_count: 21 },
-    ],
-  },
-};
+const EMPTY_DISTRICT_PLAN = (district) => ({
+  district,
+  total_jobs: 0,
+  total_courses: 0,
+  total_enrolment: 0,
+  top_roles: [],
+  industry_demand: [],
+  local_courses: [],
+  skill_gaps: [],
+  top_skills: [],
+});
 
 function EmptyState({
   title = 'No records available',
@@ -111,7 +89,7 @@ export default function DistrictPlan() {
   const navigate = useNavigate();
   const districtName = name || 'Pune';
 
-  const [plan, setPlan] = useState(DEFAULT_DISTRICT_PLANS[districtName] || DEFAULT_DISTRICT_PLANS.Pune);
+  const [plan, setPlan] = useState(() => EMPTY_DISTRICT_PLAN(districtName));
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
@@ -121,61 +99,17 @@ export default function DistrictPlan() {
 
     api.getDistrictPlan(districtName)
       .then((res) => {
-        if (res && res.total_jobs !== undefined) {
+        if (res && res.district) {
           setPlan(res);
         } else {
-          // Dynamic fallback for districts without full telemetry
-          setPlan({
-            district: districtName,
-            total_jobs: 38,
-            total_courses: 4,
-            total_enrolment: 240,
-            top_roles: [
-              { role: 'Industrial Automation Specialist', count: 16 },
-              { role: 'Solar Power Systems Technician', count: 12 },
-              { role: 'Precision CNC Machinist', count: 10 },
-            ],
-            industry_demand: [
-              { industry: 'Manufacturing & Engineering', count: 22 },
-              { industry: 'AgriTech & Food Processing', count: 16 },
-            ],
-            local_courses: [
-              { name: 'Industrial Electrical & Solar Systems', institute: `Government ITI, ${districtName}`, enrolment: 60, placement_rate: 76 },
-              { name: 'CNC Machine Operations', institute: `District Technical Institute, ${districtName}`, enrolment: 50, placement_rate: 72 },
-            ],
-            skill_gaps: [
-              { skill_id: 'sk-020', skill_name: 'Solar Inverter Maintenance', category: 'CleanTech', demand_pct: 68, coverage_pct: 32, gap_pct: 36, priority: 'HIGH', demand_count: 14 },
-              { skill_id: 'sk-024', skill_name: 'Programmable Logic Controllers (PLC)', category: 'Industrial Tech', demand_pct: 62, coverage_pct: 35, gap_pct: 27, priority: 'MEDIUM', demand_count: 12 },
-            ],
-          });
+          setPlan(EMPTY_DISTRICT_PLAN(districtName));
         }
         setLoading(false);
       })
       .catch((err) => {
         console.warn(`[DistrictPlan] Could not fetch live plan for ${districtName}:`, err);
         setHasError(true);
-        // Fallback to local default so page remains navigable
-        setPlan(
-          DEFAULT_DISTRICT_PLANS[districtName] || {
-            district: districtName,
-            total_jobs: 32,
-            total_courses: 3,
-            total_enrolment: 180,
-            top_roles: [
-              { role: 'Industrial Automation Specialist', count: 14 },
-              { role: 'Solar Power Technician', count: 11 },
-            ],
-            industry_demand: [
-              { industry: 'Manufacturing & Engineering', count: 18 },
-            ],
-            local_courses: [
-              { name: `Advanced Vocational Trade, ${districtName}`, institute: `Government ITI, ${districtName}`, enrolment: 50, placement_rate: 76 },
-            ],
-            skill_gaps: [
-              { skill_id: 'sk-020', skill_name: 'Automated Process Control', category: 'Industrial Tech', demand_pct: 60, coverage_pct: 32, gap_pct: 28, priority: 'HIGH', demand_count: 12 },
-            ],
-          }
-        );
+        setPlan(EMPTY_DISTRICT_PLAN(districtName));
         setLoading(false);
       });
   };

@@ -202,3 +202,21 @@ async def verify_admin_access(
         detail="Unauthorized: Admin authorization required (provide Bearer token with ADMIN role or valid X-Admin-Key)",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+def is_demo_student_id(student_id: str | None) -> bool:
+    """Check whether a student ID explicitly belongs to an approved demo persona.
+
+    Recognizes ONLY explicitly demo-prefixed IDs:
+        - ast-demo-*
+        - demo-*
+
+    Crucially, generic prefixes like 'stu-*' and authenticated student accounts
+    like 'usr-student-001' are NOT synthetic demo identifiers. This ensures authentic
+    candidate submissions retain USER_SUBMITTED provenance while dedicated demo personas
+    (e.g. 'demo-student') route to DEMO_SYNTHETIC simulation workflows.
+    """
+    if not student_id or not isinstance(student_id, str):
+        return False
+    # ponytail: strictly match demo prefixes only, never generic stu-* or usr-*
+    return student_id.startswith(("ast-demo-", "demo-"))

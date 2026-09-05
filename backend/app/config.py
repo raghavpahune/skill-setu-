@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     gemini_api_key: str = ""
     data_gov_api_key: str = ""
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
     admin_api_key: str = ""
     cors_origins: str = ""
     use_demo_data: bool = True

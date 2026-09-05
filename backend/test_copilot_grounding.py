@@ -15,6 +15,13 @@ from app.main import app
 from app.db import get_demo, set_demo, load_demo_data
 from ai.copilot import handle_question, _build_context, extract_queried_skill
 from ai.demo_provider import DemoProvider
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def enable_demo_mode_for_copilot_grounding(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+    monkeypatch.setattr("ai.copilot._get_provider", lambda *args, **kwargs: DemoProvider())
 
 
 def test_copilot_grounding():
