@@ -192,16 +192,18 @@ export default function StudentDashboard() {
         .catch(() => {});
     }
 
-    // 2. Load candidates directory
     api.getStudents()
       .then((res) => {
         const studentList = Array.isArray(res) ? res : [];
-        if (studentList.length > 0) {
-          setStudents((prev) => {
-            const hasMe = prev.some((s) => s.user_id === 'me');
-            const meItem = prev.find((s) => s.user_id === 'me');
+        setStudents((prev) => {
+          const hasMe = prev.some((s) => s.user_id === 'me');
+          const meItem = prev.find((s) => s.user_id === 'me');
+          if (studentList.length > 0) {
             return hasMe ? [meItem, ...studentList.filter((r) => r.user_id !== 'me')] : studentList;
-          });
+          }
+          return hasMe ? [meItem] : [];
+        });
+        if (studentList.length > 0) {
           setSelectedStudentId((prev) => prev || studentList[0].user_id);
         }
       })

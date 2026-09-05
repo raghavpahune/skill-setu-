@@ -790,9 +790,8 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
     gaps_list = compute_gaps(is_demo=is_demo_sub)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 
-    # Add synonym lookups
     for s in skills_list:
-        for syn in s.get("synonyms", []):
+        for syn in (s.get("synonyms") or []):
             skills_name_map[syn.lower()] = s
 
     # 1. Calculate Diagnostic Quiz Score

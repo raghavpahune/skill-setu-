@@ -107,8 +107,7 @@ def extract_skills_from_syllabus(
         if not s_id or not s_name:
             continue
 
-        # Look for exact word boundary matches for skill name and synonyms
-        candidates = [s_name] + sk.get("synonyms", [])
+        candidates = [s_name] + (sk.get("synonyms") or [])
         matched = False
 
         for cand in candidates:

@@ -1,7 +1,10 @@
 """Skills API — master skill taxonomy."""
+import logging
 from fastapi import APIRouter, Query
 from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -71,10 +74,11 @@ async def get_skill(
     else:
         try:
             from app.repositories import supabase_repository
-            skills = supabase_repository.list_skills(limit=1000) or []
-            for s in skills:
-                if s.get("id") == skill_id:
-                    return s
-        except Exception:
-            pass
+            client = supabase_repository.get_client()
+            res = client.table("skills").select("*").eq("id", skill_id).execute()
+            rows = getattr(res, "data", []) or []
+            if rows:
+                return rows[0]
+        except Exception as e:
+            logger.warning("[Skills] Authoritative lookup failed for '%s': %s", skill_id, e)
     return {"error": "not found"}
