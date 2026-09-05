@@ -376,14 +376,20 @@ def _build_context(
                     for p in get_demo("student_profiles")
                 ]
             else:
-                from app.repositories import supabase_repository
-                try:
-                    profiles = supabase_repository.list_student_profiles() or []
-                    context["student_profiles"] = [
-                        {"name": p.get("name", ""), "target_role": p.get("target_role", ""), "match": p.get("skill_match_pct", 0)}
-                        for p in profiles
-                    ]
-                except Exception:
+                caller_id = (current_user and current_user.get("id")) or student_id
+                if caller_id:
+                    from app.repositories import supabase_repository
+                    try:
+                        p = supabase_repository.get_student_profile(caller_id)
+                        if p:
+                            context["student_profiles"] = [
+                                {"name": p.get("name", ""), "target_role": p.get("target_role", ""), "match": p.get("skill_match_pct", 0)}
+                            ]
+                        else:
+                            context["student_profiles"] = []
+                    except Exception:
+                        context["student_profiles"] = []
+                else:
                     context["student_profiles"] = []
         elif role == "government":
             from app.services.district_service import get_all_districts

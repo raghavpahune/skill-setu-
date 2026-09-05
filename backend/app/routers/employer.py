@@ -95,11 +95,18 @@ async def list_validations(
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
         except Exception:
             skills_map = {}
-        employers_map = {}
+        try:
+            from app.repositories.supabase_repository import get_client
+            client = get_client()
+            res = client.table("employers").select("*").execute()
+            employers_map = {e["id"]: e for e in (res.data or []) if "id" in e}
+        except Exception:
+            employers_map = {}
 
     results = []
     for f in feedback:
         skill_info = skills_map.get(f.get("skill_id"), {})
+        has_employer = f.get("employer_id") in employers_map
         employer_info = employers_map.get(f.get("employer_id"), {})
 
         item = {
@@ -112,12 +119,11 @@ async def list_validations(
             "district": employer_info.get("district", "Maharashtra"),
         }
 
-        # Apply filters
         if status and status != "all" and item.get("status", "").lower() != status.lower():
             continue
-        if district and district != "all" and item.get("district", "").lower() != district.lower():
+        if district and district != "all" and has_employer and item.get("district", "").lower() != district.lower():
             continue
-        if industry and industry != "all" and item.get("industry", "").lower() != industry.lower():
+        if industry and industry != "all" and has_employer and item.get("industry", "").lower() != industry.lower():
             continue
         if demand_level and demand_level != "all" and item.get("demand_level", "").lower() != demand_level.lower():
             continue

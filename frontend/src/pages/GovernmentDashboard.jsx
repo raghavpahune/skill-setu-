@@ -452,14 +452,13 @@ export default function GovernmentDashboard() {
     fetchData();
   }, []);
 
-  // Safe calculated metrics
   const avgDeficit = Array.isArray(gaps) && gaps.length > 0
-    ? Math.round(gaps.reduce((acc, g) => acc + (Number(g.gap_pct) || 0), 0) / gaps.length)
-    : 34;
+    ? `${Math.round(gaps.reduce((acc, g) => acc + (Number(g.gap_pct) || 0), 0) / gaps.length)}%`
+    : '0%';
 
   const actionsCount = Array.isArray(recommendations) && recommendations.length > 0
     ? `${recommendations.length} Actions`
-    : '12 Actions';
+    : '0 Actions';
 
   const userRole = (role || user?.role || '').toUpperCase();
   const canPublish = userRole === 'GOVERNMENT' || userRole === 'ADMIN';
@@ -533,18 +532,23 @@ export default function GovernmentDashboard() {
             </>
           ) : (
             <>
-              {/* Dominant Primary Metric */}
-              <StatCard
-                title="Average Skill Deficit"
-                value={`${avgDeficit}%`}
-                subtitle="Demand vs. ITI curriculum coverage"
-                icon="⚡"
-                color="amber"
-                dominant={true}
-                badge="Primary Policy Alert"
-                trend="up"
-                trendLabel="+4% YoY"
-              />
+              {errors.gaps ? (
+                <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
+                  <ErrorState title="Deficit Unavailable" message="Failed to load skill deficit telemetry" onRetry={fetchData} />
+                </div>
+              ) : (
+                <StatCard
+                  title="Average Skill Deficit"
+                  value={avgDeficit}
+                  subtitle="Demand vs. ITI curriculum coverage"
+                  icon="⚡"
+                  color="amber"
+                  dominant={true}
+                  badge="Primary Policy Alert"
+                  trend={!Array.isArray(gaps) || gaps.length === 0 ? undefined : 'up'}
+                  trendLabel={!Array.isArray(gaps) || gaps.length === 0 ? undefined : '+4% YoY'}
+                />
+              )}
               {errors.jobs ? (
                 <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
                   <ErrorState title="Demand Unavailable" message="Failed to load job demand telemetry" onRetry={fetchData} />
@@ -558,14 +562,19 @@ export default function GovernmentDashboard() {
                   color="white"
                 />
               )}
-              {/* Supporting Metric 3 */}
-              <StatCard
-                title="Curriculum Upgrades"
-                value={actionsCount}
-                subtitle="High priority syllabus revisions"
-                icon="📘"
-                color="rose"
-              />
+              {errors.recommendations ? (
+                <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
+                  <ErrorState title="Upgrades Unavailable" message="Failed to load recommendations" onRetry={fetchData} />
+                </div>
+              ) : (
+                <StatCard
+                  title="Curriculum Upgrades"
+                  value={actionsCount}
+                  subtitle="High priority syllabus revisions"
+                  icon="📘"
+                  color="rose"
+                />
+              )}
               {/* Supporting Metric 4 */}
               <StatCard
                 title="Top Emerging Field"

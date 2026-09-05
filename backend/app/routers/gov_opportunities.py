@@ -194,7 +194,12 @@ async def list_gov_opportunities(
         try:
             from app.repositories.supabase_repository import get_client
             client = get_client()
-            res = client.table("gov_opportunities").select("*").execute()
+            query = client.table("gov_opportunities").select("*")
+            if status:
+                query = query.eq("status", status.lower())
+            if opportunity_type:
+                query = query.eq("opportunity_type", opportunity_type.upper())
+            res = query.limit(offset + limit).execute()
             records = [r for r in (res.data or []) if _is_authoritative_gov_opp(r)]
         except Exception as e:
             logger.warning("[GovOpps] Supabase unavailable: %s", e)

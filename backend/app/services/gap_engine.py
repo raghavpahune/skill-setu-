@@ -102,7 +102,21 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
         if cid in course_enrolment:
             existing_cs_course_ids.add(cid)
             sid = cs["skill_id"]
-            lvl = cs.get("coverage_level") or cs.get("proficiency_level") or 0
+            raw_lvl = cs.get("coverage_level") or cs.get("proficiency_level") or 0
+            if isinstance(raw_lvl, (int, float)):
+                lvl = float(raw_lvl)
+            elif isinstance(raw_lvl, str):
+                s_lvl = raw_lvl.strip().lower()
+                text_map = {"beginner": 2.0, "intermediate": 3.5, "advanced": 5.0, "expert": 5.0}
+                if s_lvl in text_map:
+                    lvl = text_map[s_lvl]
+                else:
+                    try:
+                        lvl = float(s_lvl)
+                    except ValueError:
+                        lvl = 0.0
+            else:
+                lvl = 0.0
             enrol = course_enrolment.get(cid, 0)
             weighted = (lvl / 5) * enrol
             skill_coverage_weighted[sid] = skill_coverage_weighted.get(sid, 0) + weighted

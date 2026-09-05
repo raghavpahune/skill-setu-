@@ -318,11 +318,14 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
         except Exception:
             all_courses = []
 
-    try:
-        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-        all_signals = list_industry_signals_repo()
-    except Exception:
-        all_signals = []
+    if is_demo_mode:
+        all_signals = get_demo("industry_signals")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            all_signals = list_industry_signals_repo()
+        except Exception:
+            all_signals = []
 
     career_evaluations = []
     for role_def in CAREER_ROLES_BENCHMARK:
@@ -478,15 +481,6 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
 
     top_recommended_role = career_evaluations[0]
 
-    # 5. Build Targeted Next Learning Steps (Roadmap with Institute Training Availability)
-    if is_demo_mode:
-        all_courses = get_demo("courses")
-    else:
-        try:
-            from app.repositories.supabase_repository import list_courses
-            all_courses = list_courses() or []
-        except Exception:
-            all_courses = []
     is_real_candidate = not is_demo_student_id(student_id) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
 
     fc_from_repo = False
