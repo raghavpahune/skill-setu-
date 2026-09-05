@@ -27,7 +27,6 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
         employer_demands = get_demo("employer_demands")
         industry_signals = get_demo("industry_signals")
         stored_forecasts = {f.get("skill_id"): f for f in get_demo("skill_forecasts") if f.get("skill_id")}
-        placements = get_demo("placements")
     else:
         try:
             from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills
@@ -70,14 +69,6 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
                 continue
             if sid not in stored_forecasts or f.get("confidence", 0) > stored_forecasts[sid].get("confidence", 0):
                 stored_forecasts[sid] = f
-
-        try:
-            from app.db import get_supabase_client
-            client = get_supabase_client()
-            res = client.table("placements").select("*").execute() if client else None
-            placements = getattr(res, "data", []) or []
-        except Exception:
-            placements = []
 
     if not skills:
         return []

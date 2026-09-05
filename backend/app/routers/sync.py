@@ -1,5 +1,8 @@
+import logging
 from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, status, Depends
+
+logger = logging.getLogger(__name__)
 from app.config import settings
 from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
@@ -71,7 +74,8 @@ async def get_sync_status(
         try:
             from app.repositories.supabase_repository import list_sync_logs
             logs = list_sync_logs(limit=10)
-        except Exception:
+        except Exception as e:
+            logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             logs = []
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_run = logs[0] if logs else None

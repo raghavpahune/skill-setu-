@@ -484,17 +484,19 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
     is_real_candidate = not is_demo_student_id(student_id) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
 
     fc_from_repo = False
-    try:
-        from app.repositories.supabase_repository import list_skill_forecasts
-        fc_list = list_skill_forecasts() or []
-        fc_from_repo = True
-    except Exception as e:
-        if is_real_candidate or not is_demo_mode:
-            logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
-            raise RuntimeError(f"Database error fetching skill forecasts: {e}") from e
-        else:
-            logger.warning("[RecommendationEngine] Supabase forecasts unavailable, using demo fixtures for demo student '%s': %s", student_id, e)
-            fc_list = get_demo("skill_forecasts")
+    if is_demo_mode:
+        fc_list = get_demo("skill_forecasts")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skill_forecasts
+            fc_list = list_skill_forecasts() or []
+            fc_from_repo = True
+        except Exception as e:
+            if is_real_candidate:
+                logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
+                raise RuntimeError(f"Database error fetching skill forecasts: {e}") from e
+            else:
+                fc_list = get_demo("skill_forecasts")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why

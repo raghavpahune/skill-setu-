@@ -62,9 +62,19 @@ def _baseline_metrics(district: str | None = None, is_demo: bool = False) -> dic
         courses_filtered = courses
         placements_filtered = placements
 
+    latest_placements = {}
+    for p in placements_filtered:
+        cid = p.get("course_id")
+        if not cid:
+            continue
+        curr = latest_placements.get(cid)
+        if not curr or (p.get("year") or 0) > (curr.get("year") or 0):
+            latest_placements[cid] = p
+    target_placements = list(latest_placements.values()) if latest_placements else placements_filtered
+
     total_seats = sum(c.get("enrolment_count", 0) for c in courses_filtered)
-    total_students = sum(p.get("student_count", 0) for p in placements_filtered)
-    total_placed = sum(p.get("placed_count", 0) for p in placements_filtered)
+    total_students = sum(p.get("student_count", 0) for p in target_placements)
+    total_placed = sum(p.get("placed_count", 0) for p in target_placements)
     placement_rate = round(total_placed / total_students * 100, 1) if total_students else 0
     avg_gap = round(sum(g["gap_pct"] for g in gaps) / len(gaps), 1) if gaps else 0
     top_gap_skills = [{"skill": g["skill_name"], "gap_pct": g["gap_pct"], "category": g.get("category", "")} for g in gaps[:8]]

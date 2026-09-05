@@ -84,11 +84,12 @@ async def list_validations(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List skill demand summaries for employer validation with enriched metadata and filtering."""
-    feedback = list_employer_feedback(status=status, demand_level=demand_level)
     if is_explicit_demo_mode(is_demo):
+        feedback = get_demo("employer_feedback")
         skills_map = {s["id"]: s for s in get_demo("skills")}
         employers_map = {e["id"]: e for e in get_demo("employers")}
     else:
+        feedback = list_employer_feedback(status=status, demand_level=demand_level)
         try:
             from app.repositories.supabase_repository import list_skills
             repo_skills = list_skills(limit=10000) or []

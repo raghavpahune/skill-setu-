@@ -1,7 +1,10 @@
 """Opportunities API — internships, apprenticeships, vocational training, and jobs."""
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -230,7 +233,7 @@ async def get_opportunity(
                     "source": job.get("source", "LIVE_API"),
                     "skills": skills_by_job.get(job["id"], []),
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("[Opportunities] Repository lookup failed for %s: %s", opportunity_id, e)
 
     raise HTTPException(status_code=404, detail="Opportunity not found")

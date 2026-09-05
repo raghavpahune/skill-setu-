@@ -15,7 +15,7 @@
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS external_id TEXT;
 
 -- Explicit source classification (LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC)
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'DEMO_SYNTHETIC';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_type TEXT;
 
 -- Human-readable provenance label (e.g., "Adzuna India Live API Feed", "Historical Maharashtra Job Snapshot")
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_label TEXT;
@@ -43,11 +43,11 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS content_hash TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'UNVERIFIED';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_status TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS verification_method TEXT DEFAULT 'STRUCTURAL_API_VALIDATION';
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS confidence INT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
 
 -- Backfill pre-existing rows only when provenance fields are missing
 UPDATE jobs
@@ -74,7 +74,7 @@ UPDATE jobs
            WHEN source IN ('VERIFIED_SNAPSHOT', 'ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN FALSE
            ELSE NULL
        END)
- WHERE source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL;
+ WHERE source IS NOT NULL AND (source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL);
 
 
 -- ----------------------------------------------------------------------------
@@ -85,7 +85,7 @@ UPDATE jobs
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS external_id TEXT;
 
 -- Explicit source classification (LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC)
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'DEMO_SYNTHETIC';
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_type TEXT;
 
 -- Human-readable provenance label (e.g., "data.gov.in Official Open Data Feed")
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_label TEXT;
@@ -110,11 +110,11 @@ ALTER TABLE schemes ADD COLUMN IF NOT EXISTS content_hash TEXT;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'UNVERIFIED';
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_status TEXT;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS verification_method TEXT DEFAULT 'GOVERNMENT_PORTAL_API_FEED';
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS confidence INT DEFAULT 0;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS confidence INT;
 ALTER TABLE schemes ADD COLUMN IF NOT EXISTS freshness_status TEXT DEFAULT 'UNKNOWN';
-ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
+ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
 
 -- Backfill pre-existing rows only when provenance fields are missing
 UPDATE schemes
@@ -141,7 +141,7 @@ UPDATE schemes
            WHEN source IN ('VERIFIED_SNAPSHOT', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN FALSE
            ELSE NULL
        END)
- WHERE source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL;
+ WHERE source IS NOT NULL AND (source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL);
 
 
 -- ----------------------------------------------------------------------------
