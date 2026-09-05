@@ -91,7 +91,9 @@ class MockSupabaseQuery:
                     return False
             for col, pattern in getattr(self, "_ilike_filters", []):
                 val = str(row.get(col, "")).lower()
-                pat = "^" + re.escape(pattern.lower()).replace(r"\%", ".*") + "$"
+                raw_pat = pattern.lower().replace(r"\%", "\x00").replace(r"\_", "\x01")
+                escaped = re.escape(raw_pat)
+                pat = "^" + escaped.replace("%", ".*").replace("_", ".").replace("\x00", "%").replace("\x01", "_") + "$"
                 if not re.search(pat, val):
                     return False
             return True

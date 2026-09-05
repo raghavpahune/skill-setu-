@@ -114,27 +114,25 @@ def get_personalized_industry_alerts(
     except Exception:
         signals_all = {}  # ponytail: non-critical supplement, degrade gracefully
 
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-
-    try:
-        from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
-        repo_jobs = list_jobs_repo(limit=10000)
-        if repo_jobs:
-            jobs = repo_jobs
+    if is_demo_req:
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000)
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s} if repo_skills else {s["id"]: s for s in get_demo("skills")}
+        except Exception:
+            skills_map = {s["id"]: s for s in get_demo("skills")}
+        try:
+            from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
+            repo_jobs = list_jobs_repo(limit=10000)
+            jobs = [j for j in (repo_jobs or []) if not j.get("is_demo")]
             job_ids = {j.get("id") for j in jobs if j.get("id")}
             repo_js = list_job_skills_repo(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
-        elif is_demo_req:
-            jobs = get_demo("jobs")
-            job_skills = get_demo("job_skills")
-        else:
-            jobs = []
-            job_skills = []
-    except Exception:
-        if is_demo_req:
-            jobs = get_demo("jobs")
-            job_skills = get_demo("job_skills")
-        else:
+        except Exception:
             jobs = []
             job_skills = []
     try:
@@ -329,6 +327,7 @@ def get_personalized_industry_alerts(
         "student_id": student_id,
         "available_domains": list_alert_domains(),
         "alerts": alerts_result,
+        "data_provenance": "GROUNDED_DEMO_DATASET" if is_demo_req else "SUPABASE_AUTHORITATIVE",
     }
 
 
@@ -342,27 +341,28 @@ def get_skill_explainability(
 ) -> dict[str, Any]:
     """Provide a transparent, 5-point evidence-based explainability breakdown for a skill."""
     is_demo_req = bool(not student_id or is_demo_student_id(student_id))
-    skills_list = get_demo("skills")
-    skills_map = {s["id"]: s for s in skills_list}
-    try:
-        from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
-        repo_jobs = list_jobs_repo(limit=10000)
-        if repo_jobs:
-            jobs = repo_jobs
+    if is_demo_req:
+        skills_list = get_demo("skills")
+        skills_map = {s["id"]: s for s in skills_list}
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000)
+            skills_list = repo_skills if repo_skills else get_demo("skills")
+            skills_map = {s["id"]: s for s in skills_list if "id" in s}
+        except Exception:
+            skills_list = get_demo("skills")
+            skills_map = {s["id"]: s for s in skills_list}
+        try:
+            from app.repositories.supabase_repository import list_jobs as list_jobs_repo, list_job_skills as list_job_skills_repo
+            repo_jobs = list_jobs_repo(limit=10000)
+            jobs = [j for j in (repo_jobs or []) if not j.get("is_demo")]
             job_ids = {j.get("id") for j in jobs if j.get("id")}
             repo_js = list_job_skills_repo(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
-        elif is_demo_req:
-            jobs = get_demo("jobs")
-            job_skills = get_demo("job_skills")
-        else:
-            jobs = []
-            job_skills = []
-    except Exception:
-        if is_demo_req:
-            jobs = get_demo("jobs")
-            job_skills = get_demo("job_skills")
-        else:
+        except Exception:
             jobs = []
             job_skills = []
     try:

@@ -44,13 +44,34 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
             job_skills = get_demo("job_skills")
 
     course_skills_data = [] if is_demo is False else get_demo("course_skills")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
-        courses = [] if is_demo is False else get_demo("courses")
+    if is_demo is True:
+        courses = get_demo("courses")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    elif is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            courses = list_courses() or []
+        except Exception:
+            courses = []
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception:
+            skills_map = {}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            repo_courses = list_courses()
+            courses = repo_courses if repo_courses else get_demo("courses")
+        except Exception:
+            courses = get_demo("courses")
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000)
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s} if repo_skills else {s["id"]: s for s in get_demo("skills")}
+        except Exception:
+            skills_map = {s["id"]: s for s in get_demo("skills")}
 
     # Filter jobs by district if specified
     if district:

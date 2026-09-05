@@ -63,14 +63,22 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
             jobs = repo_jobs if repo_jobs else get_demo("jobs")
         except Exception:
             jobs = get_demo("jobs")
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
-        courses = [] if is_demo is False else get_demo("courses")
-
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    if is_demo is False:
+    if is_demo is True:
+        courses = get_demo("courses")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        placements = get_demo("placements")
+    elif is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            courses = list_courses() or []
+        except Exception:
+            courses = []
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception:
+            skills_map = {}
         try:
             from app.db import get_supabase_client
             client = get_supabase_client()
@@ -79,9 +87,28 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
         except Exception:
             placements = []
     else:
-        placements = get_demo("placements")
+        try:
+            from app.repositories.supabase_repository import list_courses
+            repo_courses = list_courses()
+            courses = repo_courses if repo_courses else get_demo("courses")
+        except Exception:
+            courses = get_demo("courses")
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000)
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s} if repo_skills else {s["id"]: s for s in get_demo("skills")}
+        except Exception:
+            skills_map = {s["id"]: s for s in get_demo("skills")}
+        try:
+            from app.db import get_supabase_client
+            client = get_supabase_client()
+            res = client.table("placements").select("*").execute() if client else None
+            repo_placements = getattr(res, "data", []) or []
+            placements = repo_placements if repo_placements else get_demo("placements")
+        except Exception:
+            placements = get_demo("placements")
 
-    audited_courses_all = audit_all_courses()
+    audited_courses_all = audit_all_courses(is_demo=is_demo)
 
     # Normalize district string
     d_clean = district.strip().lower()

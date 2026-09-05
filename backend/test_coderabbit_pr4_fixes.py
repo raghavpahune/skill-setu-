@@ -484,10 +484,7 @@ def test_review4_get_scheme_validates_uuid_before_querying_id():
         assert res is not None
         assert res["scheme_code"] == non_uuid_code
     finally:
-        try:
-            client.table("schemes").delete().eq("id", valid_id).execute()
-        except Exception:
-            pass
+        client.table("schemes").delete().eq("id", valid_id).execute()
 
 
 def test_review4_recommended_schemes_resolved_id_demo_check():
@@ -706,16 +703,20 @@ def test_review7_email_lookup_does_not_recreate_revoked_account():
     init_demo_users()
     assert get_user_by_email("student@skillsetu.gov.in") is not None
 
-    # Simulate operator removing / revoking the account
-    _cache["users"] = [u for u in _cache.get("users", []) if u.get("id") != "usr-student-001" and u.get("email") != "student@skillsetu.gov.in"]
+    orig_users = list(_cache.get("users", []))
+    try:
+        # Simulate operator removing / revoking the account
+        _cache["users"] = [u for u in _cache.get("users", []) if u.get("id") != "usr-student-001" and u.get("email") != "student@skillsetu.gov.in"]
 
-    # Authentication lookup must return None and MUST NOT resurrect the account
-    assert get_user_by_email("student@skillsetu.gov.in") is None
-    assert get_user_by_id("usr-student-001") is None
-    assert not any(u.get("id") == "usr-student-001" for u in list_users())
+        # Authentication lookup must return None and MUST NOT resurrect the account
+        assert get_user_by_email("student@skillsetu.gov.in") is None
+        assert get_user_by_id("usr-student-001") is None
+        assert not any(u.get("id") == "usr-student-001" for u in list_users())
+    finally:
+        _cache["users"] = orig_users
+        # Re-initialize demo baseline for subsequent tests
+        init_demo_users()
 
-    # Re-initialize demo baseline for subsequent tests
-    init_demo_users()
     assert get_user_by_email("student@skillsetu.gov.in") is not None
 
 
@@ -739,3 +740,94 @@ def test_review7_conftest_fixture_table_independence():
 
     assert "schemes" in _cache and len(_cache["schemes"]) > 0
     assert any(u.get("email") == "student@skillsetu.gov.in" for u in _cache.get("users", []))
+
+
+def test_review7_conftest_mock_ilike_wildcards():
+    """Verify mock Supabase ilike filter handles SQL wildcards % and _ correctly."""
+    from app.repositories.supabase_repository import get_client
+    client = get_client()
+
+    # Insert test rows in jobs table
+    job1 = {"id": "test-job-wildcard-1", "title": "Senior Python Developer in Pune City", "district": "Pune", "source": "TEST"}
+    job2 = {"id": "test-job-wildcard-2", "title": "Java Architect in Mumbai City", "district": "Mumbai City", "source": "TEST"}
+    try:
+        client.table("jobs").insert([job1, job2]).execute()
+
+        # Query with % wildcard
+        res_percent = client.table("jobs").select("*").ilike("title", "%python%").execute()
+        titles = [r["title"] for r in (res_percent.data or [])]
+        assert any("Python" in t for t in titles)
+        assert not any("Java" in t for t in titles)
+
+        # Query with _ single-character wildcard
+        res_underscore = client.table("jobs").select("*").ilike("district", "Pun_").execute()
+        districts = [r["district"] for r in (res_underscore.data or [])]
+        assert "Pune" in districts
+    finally:
+        client.table("jobs").delete().eq("id", "test-job-wildcard-1").execute()
+        client.table("jobs").delete().eq("id", "test-job-wildcard-2").execute()
+
+
+def test_review7_district_service_mode_isolation(monkeypatch):
+    """Verify get_district_plan isolates demo vs authoritative courses, skills, and placements."""
+    import app.repositories.supabase_repository as repo
+    from app.services.district_service import get_district_plan
+
+    # Mock list_skills and list_courses
+    auth_skill = {"id": "auth-uuid-skill-001", "name": "Authoritative AI Engineering", "category": "AI"}
+    auth_course = {"id": "auth-uuid-course-001", "name": "AI Course", "title": "AI Course", "district": "pune", "enrolment_count": 50}
+    auth_job = {"id": "auth-uuid-job-001", "title": "AI Researcher", "district": "pune", "is_demo": False}
+    auth_js = {"job_id": "auth-uuid-job-001", "skill_id": "auth-uuid-skill-001"}
+
+    monkeypatch.setattr(repo, "list_skills", lambda *args, **kwargs: [auth_skill])
+    monkeypatch.setattr(repo, "list_courses", lambda *args, **kwargs: [auth_course])
+    monkeypatch.setattr(repo, "list_jobs", lambda *args, **kwargs: [auth_job])
+    monkeypatch.setattr(repo, "list_job_skills", lambda *args, **kwargs: [auth_js])
+
+    # Real mode (is_demo=False) must load authoritative skill and not demo skills
+    plan_real = get_district_plan("pune", is_demo=False)
+    assert plan_real["district"].lower() == "pune"
+    skill_names = [s.get("skill_name") for s in plan_real.get("top_skills", [])]
+    assert "Authoritative AI Engineering" in skill_names
+
+    # Demo mode (is_demo=True) must load demo datasets directly
+    plan_demo = get_district_plan("pune", is_demo=True)
+    assert plan_demo["district"].lower() == "pune"
+    assert any(c.get("institute") for c in plan_demo.get("local_courses", []))
+
+
+def test_review7_student_service_job_filtering_and_sandbox_isolation(monkeypatch):
+    """Verify student service filters sandbox jobs and selects demo jobs mode-first."""
+    import app.repositories.supabase_repository as repo
+    from app.services.student_service import get_personalized_industry_alerts, get_skill_explainability
+
+    # Mix of authoritative real job and sandbox simulation job
+    real_job = {"id": "job-real-001", "title": "Real Cloud Engineer", "is_demo": False, "source": "ADZUNA_API"}
+    sandbox_job = {"id": "job-sandbox-001", "title": "Sandbox Job", "is_demo": True, "source": "SANDBOX_SIMULATION"}
+    real_js = {"job_id": "job-real-001", "skill_id": "sk-001"}
+    sandbox_js = {"job_id": "job-sandbox-001", "skill_id": "sk-sandbox-999"}
+
+    monkeypatch.setattr(repo, "list_jobs", lambda *args, **kwargs: [real_job, sandbox_job])
+    monkeypatch.setattr(repo, "list_job_skills", lambda *args, **kwargs: [real_js, sandbox_js])
+
+    # Real user request: must exclude sandbox job
+    real_alerts = get_personalized_industry_alerts(student_id="usr-real-student-non-demo")
+    assert real_alerts is not None
+
+    # Demo student request: must use demo dataset directly
+    demo_alerts = get_personalized_industry_alerts(student_id="demo-student-001")
+    assert demo_alerts is not None
+    assert demo_alerts.get("data_provenance") == "GROUNDED_DEMO_DATASET"
+
+
+def test_review7_migration_sql_explicit_source_mappings():
+    """Verify migration SQL defines explicit source mappings and no broad ELSE fallbacks."""
+    from pathlib import Path
+    mig_path = Path(__file__).resolve().parent.parent / "data" / "migrations" / "20260904_add_provenance_columns.sql"
+    content = mig_path.read_text(encoding="utf-8")
+
+    # Both UPDATE jobs and UPDATE schemes must explicitly map SANDBOX_SIMULATION and VERIFIED_SNAPSHOT
+    assert "WHEN source = 'SANDBOX_SIMULATION' THEN 'SANDBOX_SIMULATION'" in content
+    assert "WHEN source = 'VERIFIED_SNAPSHOT' THEN 'VERIFIED_SNAPSHOT'" in content
+    assert "ELSE NULL" in content
+    assert "ELSE 'LIVE_API'" not in content

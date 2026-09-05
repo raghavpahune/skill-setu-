@@ -51,10 +51,29 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
 
 -- Backfill pre-existing rows only when provenance fields are missing
 UPDATE jobs
-   SET source_type = COALESCE(source_type, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END),
-       verification_status = COALESCE(verification_status, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END),
-       confidence = COALESCE(confidence, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 90 END),
-       is_demo = COALESCE(is_demo, CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END)
+   SET source_type = COALESCE(source_type, CASE
+           WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC'
+           WHEN source = 'SANDBOX_SIMULATION' THEN 'SANDBOX_SIMULATION'
+           WHEN source = 'VERIFIED_SNAPSHOT' THEN 'VERIFIED_SNAPSHOT'
+           WHEN source IN ('ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN 'LIVE_API'
+           ELSE NULL
+       END),
+       verification_status = COALESCE(verification_status, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN 'UNVERIFIED'
+           WHEN source IN ('VERIFIED_SNAPSHOT', 'ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN 'VERIFIED'
+           ELSE NULL
+       END),
+       confidence = COALESCE(confidence, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN 0
+           WHEN source = 'VERIFIED_SNAPSHOT' THEN 85
+           WHEN source IN ('ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN 90
+           ELSE NULL
+       END),
+       is_demo = COALESCE(is_demo, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN TRUE
+           WHEN source IN ('VERIFIED_SNAPSHOT', 'ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN FALSE
+           ELSE NULL
+       END)
  WHERE source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL;
 
 
@@ -99,10 +118,29 @@ ALTER TABLE schemes ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT TRUE;
 
 -- Backfill pre-existing rows only when provenance fields are missing
 UPDATE schemes
-   SET source_type = COALESCE(source_type, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC' ELSE 'LIVE_API' END),
-       verification_status = COALESCE(verification_status, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 'UNVERIFIED' ELSE 'VERIFIED' END),
-       confidence = COALESCE(confidence, CASE WHEN source = 'DEMO_SYNTHETIC' THEN 0 ELSE 95 END),
-       is_demo = COALESCE(is_demo, CASE WHEN source = 'DEMO_SYNTHETIC' THEN TRUE ELSE FALSE END)
+   SET source_type = COALESCE(source_type, CASE
+           WHEN source = 'DEMO_SYNTHETIC' THEN 'DEMO_SYNTHETIC'
+           WHEN source = 'SANDBOX_SIMULATION' THEN 'SANDBOX_SIMULATION'
+           WHEN source = 'VERIFIED_SNAPSHOT' THEN 'VERIFIED_SNAPSHOT'
+           WHEN source IN ('DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN 'LIVE_API'
+           ELSE NULL
+       END),
+       verification_status = COALESCE(verification_status, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN 'UNVERIFIED'
+           WHEN source IN ('VERIFIED_SNAPSHOT', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN 'VERIFIED'
+           ELSE NULL
+       END),
+       confidence = COALESCE(confidence, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN 0
+           WHEN source = 'VERIFIED_SNAPSHOT' THEN 90
+           WHEN source IN ('DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN 95
+           ELSE NULL
+       END),
+       is_demo = COALESCE(is_demo, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN TRUE
+           WHEN source IN ('VERIFIED_SNAPSHOT', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN FALSE
+           ELSE NULL
+       END)
  WHERE source_type IS NULL OR verification_status IS NULL OR confidence IS NULL OR is_demo IS NULL;
 
 

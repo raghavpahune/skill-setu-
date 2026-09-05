@@ -60,17 +60,27 @@ TRAINER_UPGRADE_CATALOG = {
 }
 
 
-def audit_all_courses() -> list[dict[str, Any]]:
+def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Execute deep health, obsolescence, and oversupply audit across all institutional courses."""
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
+    if is_demo is True:
         courses = get_demo("courses")
+    elif is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            courses = list_courses() or []
+        except Exception:
+            courses = []
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            repo_courses = list_courses()
+            courses = repo_courses if repo_courses else get_demo("courses")
+        except Exception:
+            courses = get_demo("courses")
     course_skills_raw = get_demo("course_skills")
     placements = {p["course_id"]: p for p in get_demo("placements")}
     skills_map = {s["id"]: s for s in get_demo("skills")}
-    forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts()}
+    forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=is_demo)}
 
     # Group skills taught by course
     course_skills_map: dict[str, list[dict]] = {}
@@ -84,7 +94,7 @@ def audit_all_courses() -> list[dict[str, Any]]:
 
     for c in courses:
         cid = c["id"]
-        c_name = c["name"]
+        c_name = c.get("name") or c.get("title", "Technical Course")
         institute = c.get("institute", "Government Technical Institute")
         district = c.get("district", "Maharashtra")
         enrolment = c.get("enrolment_count", 60)

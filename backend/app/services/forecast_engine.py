@@ -17,24 +17,29 @@ logger = logging.getLogger("skillsetu.forecast_engine")
 
 def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Compute 6m, 12m, 24m forecast trajectories and confidence for all skills."""
-    skills = get_demo("skills")
     if is_demo is False:
         try:
-            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills
+            repo_skills = list_skills(limit=10000)
+            skills = repo_skills if repo_skills else get_demo("skills")
             jobs = list_jobs(limit=10000) or []
             job_ids = {j.get("id") for j in jobs if j.get("id")}
             repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         except Exception as e:
             logger.warning("[ForecastEngine] Supabase unavailable for real forecast request: %s", e)
+            skills = get_demo("skills")
             jobs = []
             job_skills = []
     elif is_demo is True:
+        skills = get_demo("skills")
         jobs = get_demo("jobs")
         job_skills = get_demo("job_skills")
     else:
         try:
-            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills
+            repo_skills = list_skills(limit=10000)
+            skills = repo_skills if repo_skills else get_demo("skills")
             repo_jobs = list_jobs(limit=10000)
             if repo_jobs:
                 jobs = repo_jobs
@@ -45,6 +50,7 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
                 jobs = get_demo("jobs")
                 job_skills = get_demo("job_skills")
         except Exception:
+            skills = get_demo("skills")
             jobs = get_demo("jobs")
             job_skills = get_demo("job_skills")
     if is_demo is True:
