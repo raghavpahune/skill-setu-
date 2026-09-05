@@ -1,6 +1,7 @@
 from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, status, Depends
 from app.config import settings
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.ingestion.datagov_connector import (
     DataGovConnector,
@@ -42,19 +43,36 @@ async def trigger_sync(
 async def get_sync_logs(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Retrieve audit history of automated sync operations."""
-    logs = list(get_demo("sync_logs"))
+    if is_explicit_demo_mode(is_demo):
+        logs = list(get_demo("sync_logs"))
+    else:
+        try:
+            from app.repositories.supabase_repository import list_sync_logs
+            logs = list_sync_logs(limit=limit + offset)
+        except Exception:
+            logs = []
     # Return sorted with most recent first
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     return logs[offset : offset + limit]
 
 
 @router.get("/sync/status")
-async def get_sync_status():
+async def get_sync_status(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Return health, configuration state, and overview of the automated ingestion pipeline."""
     connector = DataGovConnector()
-    logs = list(get_demo("sync_logs"))
+    if is_explicit_demo_mode(is_demo):
+        logs = list(get_demo("sync_logs"))
+    else:
+        try:
+            from app.repositories.supabase_repository import list_sync_logs
+            logs = list_sync_logs(limit=10)
+        except Exception:
+            logs = []
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_run = logs[0] if logs else None
 

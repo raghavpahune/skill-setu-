@@ -11,8 +11,17 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
     Coverage score: weighted average of course coverage × training capacity.
     Gap = demand - coverage. Negative gaps are clamped to 0.
     """
-    if is_demo is False:
-        # Real/authoritative request: read authoritative jobs from repository
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
+        courses = get_demo("courses")
+        course_skills_data = get_demo("course_skills")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        employer_demands = get_demo("employer_demands")
+    else:
         try:
             from app.repositories.supabase_repository import list_jobs, list_job_skills
             jobs = list_jobs(limit=10000) or []
@@ -22,85 +31,44 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
         except Exception:
             jobs = []
             job_skills = []
-    elif is_demo is True:
-        # Explicit demo mode
-        jobs = get_demo("jobs")
-        job_skills = get_demo("job_skills")
-    else:
-        # Unspecified: query repository first, fall back to demo fixtures if empty
-        try:
-            from app.repositories.supabase_repository import list_jobs, list_job_skills
-            repo_jobs = list_jobs(limit=10000)
-            if repo_jobs:
-                jobs = repo_jobs
-                job_ids = {j.get("id") for j in jobs if j.get("id")}
-                repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
-                job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
-            else:
-                jobs = get_demo("jobs")
-                job_skills = get_demo("job_skills")
-        except Exception:
-            jobs = get_demo("jobs")
-            job_skills = get_demo("job_skills")
 
-    course_skills_data = [] if is_demo is False else get_demo("course_skills")
-    if is_demo is True:
-        courses = get_demo("courses")
-        skills_map = {s["id"]: s for s in get_demo("skills")}
-    elif is_demo is False:
         try:
-            from app.repositories.supabase_repository import list_courses
+            from app.repositories.supabase_repository import list_courses, list_course_skills
             courses = list_courses() or []
+            c_ids = [c["id"] for c in courses if c.get("id")]
+            course_skills_data = list_course_skills(course_ids=c_ids) if c_ids else []
         except Exception:
             courses = []
+            course_skills_data = []
+
         try:
             from app.repositories.supabase_repository import list_skills
             repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
         except Exception:
             skills_map = {}
-    else:
+
         try:
-            from app.repositories.supabase_repository import list_courses
-            repo_courses = list_courses()
-            courses = repo_courses if repo_courses else get_demo("courses")
+            from app.repositories.supabase_repository import list_employer_demands
+            employer_demands = list_employer_demands(is_demo=False) or []
         except Exception:
-            courses = get_demo("courses")
-        try:
-            from app.repositories.supabase_repository import list_skills
-            repo_skills = list_skills(limit=10000)
-            skills_map = {s["id"]: s for s in repo_skills if "id" in s} if repo_skills else {s["id"]: s for s in get_demo("skills")}
-        except Exception:
-            skills_map = {s["id"]: s for s in get_demo("skills")}
+            employer_demands = []
+
+    if not is_demo_mode and (not jobs or not skills_map):
+        return []
 
     # Filter jobs by district if specified
     if district:
-        district_job_ids = {j["id"] for j in jobs if j["district"].lower() == district.lower()}
-        filtered_js = [js for js in job_skills if js["job_id"] in district_job_ids]
+        district_job_ids = {j["id"] for j in jobs if j.get("district", "").lower() == district.lower()}
+        filtered_js = [js for js in job_skills if js.get("job_id") in district_job_ids]
         total_jobs = len(district_job_ids) or 1
     else:
         filtered_js = job_skills
         total_jobs = len(jobs) or 1
 
     # Demand: what % of all job postings require this skill
-    demand_counts = Counter(js["skill_id"] for js in filtered_js)
+    demand_counts = Counter(js["skill_id"] for js in filtered_js if js.get("skill_id"))
 
-    # Phase 14: Incorporate validated first-party employer demands
-    if is_demo is True:
-        employer_demands = get_demo("employer_demands")
-    elif is_demo is False:
-        try:
-            from app.repositories.supabase_repository import list_employer_demands
-            employer_demands = list_employer_demands(is_demo=False) or []
-        except Exception:
-            employer_demands = []
-    else:
-        try:
-            from app.repositories.supabase_repository import list_employer_demands
-            repo_demands = list_employer_demands()
-            employer_demands = repo_demands if repo_demands else get_demo("employer_demands")
-        except Exception:
-            employer_demands = get_demo("employer_demands")
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     validated_demands = [
         d for d in employer_demands
@@ -134,7 +102,7 @@ def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> li
         if cid in course_enrolment:
             existing_cs_course_ids.add(cid)
             sid = cs["skill_id"]
-            lvl = cs.get("coverage_level", 0)
+            lvl = cs.get("coverage_level") or cs.get("proficiency_level") or 0
             enrol = course_enrolment.get(cid, 0)
             weighted = (lvl / 5) * enrol
             skill_coverage_weighted[sid] = skill_coverage_weighted.get(sid, 0) + weighted

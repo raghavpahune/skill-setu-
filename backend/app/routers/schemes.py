@@ -1,6 +1,7 @@
 """Schemes API — student welfare and government schemes."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from app.core.data_mode import is_explicit_demo_mode
 from app.core.security import get_optional_current_user, is_demo_student_id
 from app.db import get_demo
 
@@ -24,23 +25,15 @@ async def list_schemes(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List available student welfare, scholarship, and government schemes with optional filters."""
-    if is_demo is True:
+    if is_explicit_demo_mode(is_demo):
         schemes = get_demo("schemes")
     else:
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-            db_schemes = list_schemes_repo(scheme_type=scheme_type, status=status, limit=1000)
-            if db_schemes:
-                schemes = db_schemes
-            elif is_demo is False:
-                return []
-            else:
-                schemes = get_demo("schemes")
+            schemes = list_schemes_repo(scheme_type=scheme_type, status=status, limit=1000) or []
         except Exception as e:
             logger.warning("[Schemes] Supabase unavailable: %s", e)
-            if is_demo is False:
-                return []
-            schemes = get_demo("schemes")
+            schemes = []
 
     filtered = []
     for s in schemes:
@@ -96,24 +89,15 @@ async def get_scheme_metadata(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Return distinct categories, scheme types, and course types for UI filtering."""
-    if is_demo is True:
+    if is_explicit_demo_mode(is_demo):
         schemes = get_demo("schemes")
     else:
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-            db_schemes = list_schemes_repo(limit=1000)
-            if db_schemes:
-                schemes = db_schemes
-            elif is_demo is False:
-                schemes = []
-            else:
-                schemes = get_demo("schemes")
+            schemes = list_schemes_repo(limit=1000) or []
         except Exception as e:
             logger.warning("[Schemes] Supabase unavailable for metadata: %s", e)
-            if is_demo is False:
-                schemes = []
-            else:
-                schemes = get_demo("schemes")
+            schemes = []
     categories = set()
     scheme_types = set()
     course_types = set()

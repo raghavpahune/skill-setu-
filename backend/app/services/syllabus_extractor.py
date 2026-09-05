@@ -67,6 +67,7 @@ def extract_raw_text_from_pdf(pdf_bytes: bytes) -> str:
 def extract_skills_from_syllabus(
     content: str | bytes,
     course_name_hint: str | None = None,
+    is_demo: bool | None = None,
 ) -> dict[str, Any]:
     """Analyze syllabus text or PDF document and map contents to the standard skill taxonomy."""
     # 1. Obtain clean string text
@@ -86,7 +87,15 @@ def extract_skills_from_syllabus(
     clean_text_lower = clean_text.lower()
 
     # 2. Match against platform standard taxonomy
-    all_skills = get_demo("skills") or []
+    from app.core.data_mode import is_explicit_demo_mode
+    if is_explicit_demo_mode(is_demo):
+        all_skills = get_demo("skills") or []
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            all_skills = list_skills(limit=10000) or []
+        except Exception:
+            all_skills = []
     matched_skills = []
     seen_ids = set()
     category_counts: Counter[str] = Counter()

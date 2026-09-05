@@ -20,6 +20,14 @@ load_demo_data()
 client = TestClient(app)
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def enable_demo_mode_for_step3b(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+
+
 def test_gemini_provider_models_configuration():
     """Verify Gemini 3.6 Flash is the primary model and retired models are excluded."""
     assert "gemini-3.6-flash" in MODELS

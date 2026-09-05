@@ -158,16 +158,19 @@ def _is_live_employer_demand(demand: dict[str, Any]) -> bool:
     return False
 
 
-def _get_validated_employer_demands() -> list[dict[str, Any]]:
+def _get_validated_employer_demands(is_demo: bool = False) -> list[dict[str, Any]]:
     """Retrieve only real employer demands that are strictly VALIDATED (Phase 14 rule)."""
-    try:
-        from app.repositories.supabase_repository import list_employer_demands
-        demands = list_employer_demands()
-    except Exception:
+    if is_demo:
         demands = get_demo("employer_demands")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            demands = list_employer_demands() or []
+        except Exception:
+            demands = []
     validated = []
     for d in demands:
-        if not _is_live_employer_demand(d):
+        if not is_demo and not _is_live_employer_demand(d):
             continue
         status = (d.get("validation_status") or d.get("status") or "").upper()
         if status in ("VALIDATED", "APPROVED"):
@@ -214,15 +217,27 @@ def _match_skills(student_skills: list[dict[str, Any]], required_skill_names: li
     return matched, missing, match_pct
 
 
-def compute_career_recommendations(student_id: str) -> dict[str, Any]:
+def compute_career_recommendations(student_id: str, is_demo: bool | None = None) -> dict[str, Any]:
     """Deterministic recommendation engine combining assessment, employer demand, and gov opportunities."""
+    from app.core.data_mode import is_explicit_demo_mode
     profile = _resolve_student_profile(student_id)
     if not profile:
         raise ValueError(f"Student profile or assessment with ID '{student_id}' not found.")
 
+    source_provenance = profile.get("source", "DEMO_SYNTHETIC")
+    is_demo_mode = is_explicit_demo_mode(is_demo) or (is_demo_student_id(student_id) and (profile.get("is_demo") is True or source_provenance == "DEMO_SYNTHETIC"))
+
     # 1. Normalize Student Current Skills
     current_skills_raw = profile.get("skills", []) or profile.get("current_skills", [])
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    if is_demo_mode:
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception:
+            skills_map = {}
     
     current_skills_normalized = []
     for s in current_skills_raw:
@@ -254,13 +269,12 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     candidate_district = profile.get("district") or "Maharashtra"
     candidate_education = profile.get("education") or "Diploma / Degree"
     quiz_score_pct = profile.get("quiz_score_pct", 75)
-    source_provenance = profile.get("source", "DEMO_SYNTHETIC")
 
     # 2. Extract strictly VALIDATED Employer Demands
-    validated_demands = _get_validated_employer_demands()
+    validated_demands = _get_validated_employer_demands(is_demo=is_demo_mode)
 
     # 3. Extract Government Opportunities & Welfare Schemes
-    if is_demo_student_id(student_id) or profile.get("is_demo") or source_provenance == "DEMO_SYNTHETIC":
+    if is_demo_mode:
         gov_opportunities = get_demo("gov_opportunities")
         schemes = get_demo("schemes")
         gov_opps_source = "DEMO_SYNTHETIC"
@@ -349,11 +363,14 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
                 })
 
         # Connect with matching institute training programs (Phase 25)
-        try:
-            from app.repositories.supabase_repository import list_courses
-            all_courses = list_courses()
-        except Exception:
+        if is_demo_mode:
             all_courses = get_demo("courses")
+        else:
+            try:
+                from app.repositories.supabase_repository import list_courses
+                all_courses = list_courses() or []
+            except Exception:
+                all_courses = []
         role_courses = []
         for c in all_courses:
             if c.get("status", "active").lower() not in ("active", "needs_attention"):
@@ -462,24 +479,28 @@ def compute_career_recommendations(student_id: str) -> dict[str, Any]:
     top_recommended_role = career_evaluations[0]
 
     # 5. Build Targeted Next Learning Steps (Roadmap with Institute Training Availability)
-    try:
-        from app.repositories.supabase_repository import list_courses
-        all_courses = list_courses()
-    except Exception:
+    if is_demo_mode:
         all_courses = get_demo("courses")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            all_courses = list_courses() or []
+        except Exception:
+            all_courses = []
     is_real_candidate = not is_demo_student_id(student_id) and source_provenance != "DEMO_SYNTHETIC" and not profile.get("is_demo", False)
 
     fc_from_repo = False
     try:
         from app.repositories.supabase_repository import list_skill_forecasts
-        fc_list = list_skill_forecasts()
+        fc_list = list_skill_forecasts() or []
         fc_from_repo = True
     except Exception as e:
-        if is_real_candidate:
+        if is_real_candidate or not is_demo_mode:
             logger.exception("[RecommendationEngine] Supabase forecast query failed for real candidate '%s': %s", student_id, e)
-            raise RuntimeError("Database error fetching skill forecasts for candidate roadmap.") from e
-        logger.warning("[RecommendationEngine] Supabase forecasts unavailable, using demo fixtures for demo student '%s': %s", student_id, e)
-        fc_list = get_demo("skill_forecasts")
+            raise RuntimeError(f"Database error fetching skill forecasts: {e}") from e
+        else:
+            logger.warning("[RecommendationEngine] Supabase forecasts unavailable, using demo fixtures for demo student '%s': %s", student_id, e)
+            fc_list = get_demo("skill_forecasts")
     roadmap_steps = []
     for idx, skill in enumerate(top_recommended_role["missing_skills"], start=1):
         # Grounded why

@@ -569,16 +569,18 @@ def test_review5_forecast_engine_filters_job_skills_by_job_ids():
         {"job_id": "job-alpha", "skill_id": "sk-001"},
         {"job_id": "job-beta-outside-scope", "skill_id": "sk-002"},
     ]
+    mock_skills = [{"id": "sk-001", "name": "Skill 1"}, {"id": "sk-002", "name": "Skill 2"}]
     with patch("app.repositories.supabase_repository.list_jobs", return_value=mock_jobs) as mock_lj:
         with patch("app.repositories.supabase_repository.list_job_skills", return_value=mock_job_skills) as mock_ljs:
-            with patch("app.repositories.supabase_repository.list_employer_demands", return_value=[]):
-                forecasts = compute_multi_horizon_forecasts(is_demo=False)
-                mock_lj.assert_called_once_with(limit=10000)
-                mock_ljs.assert_called_once_with(job_ids=["job-alpha"])
-                assert isinstance(forecasts, list)
-                f_map = {f["skill_id"]: f for f in forecasts}
-                assert f_map["sk-001"]["current_demand_score"] == 100.0
-                assert f_map["sk-002"]["current_demand_score"] == 20.0
+            with patch("app.repositories.supabase_repository.list_skills", return_value=mock_skills):
+                with patch("app.repositories.supabase_repository.list_employer_demands", return_value=[]):
+                    forecasts = compute_multi_horizon_forecasts(is_demo=False)
+                    mock_lj.assert_called_once_with(limit=10000)
+                    mock_ljs.assert_called_once_with(job_ids=["job-alpha"])
+                    assert isinstance(forecasts, list)
+                    f_map = {f["skill_id"]: f for f in forecasts}
+                    assert f_map["sk-001"]["current_demand_score"] == 100.0
+                    assert f_map["sk-002"]["current_demand_score"] == 20.0
 
 
 def test_review5_student_assessment_preserves_demo_provenance():
@@ -831,3 +833,48 @@ def test_review7_migration_sql_explicit_source_mappings():
     assert "WHEN source = 'VERIFIED_SNAPSHOT' THEN 'VERIFIED_SNAPSHOT'" in content
     assert "ELSE NULL" in content
     assert "ELSE 'LIVE_API'" not in content
+
+
+def test_review8_findings_isolation_and_authoritative_audit(monkeypatch):
+    """Verify Review 8 findings: authoritative audit inputs, no demo skill leak, and consistent mode fallbacks."""
+    import app.repositories.supabase_repository as repo
+    from app.services.curriculum_engine import audit_all_courses
+    from app.services.forecast_engine import compute_multi_horizon_forecasts
+    from app.services.gap_engine import compute_gaps
+    from app.services.district_service import get_district_plan
+
+    # 1. Authoritative audit with no courses must return empty list (no demo fallback)
+    monkeypatch.setattr(repo, "list_courses", lambda: [])
+    audited = audit_all_courses(is_demo=False)
+    assert audited == []
+
+    # 2. Authoritative forecast with zero skills must return empty list (no demo skill leak)
+    monkeypatch.setattr(repo, "list_skills", lambda *args, **kwargs: [])
+    monkeypatch.setattr(repo, "list_jobs", lambda *args, **kwargs: [])
+    monkeypatch.setattr(repo, "list_job_skills", lambda *args, **kwargs: [])
+    forecasts = compute_multi_horizon_forecasts(is_demo=False)
+    assert forecasts == []
+
+    # 3. Gap engine in real mode must load authoritative course-skill links
+    auth_course = {"id": "c-auth-100", "title": "Real Course", "enrolment_count": 50, "district": "pune"}
+    auth_cs = [{"course_id": "c-auth-100", "skill_id": "sk-auth-100", "coverage_level": 4}]
+    auth_job = {"id": "j-auth-100", "district": "pune", "is_demo": False}
+    auth_js = [{"job_id": "j-auth-100", "skill_id": "sk-auth-100"}]
+    auth_skill = {"id": "sk-auth-100", "name": "Real Tech Skill", "category": "Tech"}
+
+    monkeypatch.setattr(repo, "list_courses", lambda: [auth_course])
+    monkeypatch.setattr(repo, "list_course_skills", lambda *args, **kwargs: auth_cs)
+    monkeypatch.setattr(repo, "list_jobs", lambda *args, **kwargs: [auth_job])
+    monkeypatch.setattr(repo, "list_job_skills", lambda *args, **kwargs: auth_js)
+    monkeypatch.setattr(repo, "list_skills", lambda *args, **kwargs: [auth_skill])
+
+    gaps = compute_gaps(district="pune", is_demo=False)
+    assert len(gaps) > 0
+    assert gaps[0]["skill_id"] == "sk-auth-100"
+    assert gaps[0]["coverage_pct"] > 0
+
+    # 4. District plan in unspecified mode with empty repo jobs must use demo skills consistently
+    monkeypatch.setattr(repo, "list_jobs", lambda: [])
+    plan = get_district_plan("pune", is_demo=None)
+    assert plan["district"].lower() == "pune"
+    assert len(plan["top_skills"]) > 0

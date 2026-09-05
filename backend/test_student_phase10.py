@@ -6,6 +6,11 @@ from app.main import app
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def enable_demo_mode_for_phase10(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+
+
 def test_alert_domains_endpoint():
     """GET /api/student/alert-domains returns all 7 spec-mandated domains."""
     res = client.get("/api/student/alert-domains")

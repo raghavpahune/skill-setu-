@@ -26,6 +26,7 @@ from app.db import (
 )
 from app.ingestion.industry_intelligence import industry_ingestor, calculate_freshness
 
+from app.core.data_mode import is_explicit_demo_mode
 from app.core.security import verify_admin_access, is_demo_student_id
 
 router = APIRouter()
@@ -272,13 +273,18 @@ async def list_admin_employer_demands(
     search: str | None = Query(None, description="Search company name, role, or skills"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List employer demands for administrative audit and validation with aggregate counts."""
-    try:
-        from app.repositories.supabase_repository import list_employer_demands
-        all_demands = list_employer_demands()
-    except Exception:
+    if is_explicit_demo_mode(is_demo):
         all_demands = get_demo("employer_demands")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            all_demands = list_employer_demands() or []
+        except Exception as e:
+            logger.warning("[AdminDemands] Failed loading demands from repository: %s", e)
+            all_demands = []
 
     # Calculate overall KPIs
     total_demands = len(all_demands)
@@ -453,9 +459,18 @@ async def list_admin_gov_opportunities(
     search: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List and filter government opportunities for administrative management."""
-    all_records = get_demo("gov_opportunities")
+    if is_explicit_demo_mode(is_demo):
+        all_records = get_demo("gov_opportunities")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_gov_opportunities
+            all_records = list_gov_opportunities(limit=1000) or []
+        except Exception as e:
+            logger.warning("[AdminGovOpportunities] Failed loading opportunities: %s", e)
+            all_records = []
 
     results = all_records
 
@@ -770,6 +785,7 @@ async def list_admin_industry_signals(
     search: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Admin endpoint to view, filter, and audit all industry signals including pending/rejected."""
     from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo, SupabaseRepositoryError
@@ -778,7 +794,14 @@ async def list_admin_industry_signals(
     except SupabaseRepositoryError as e:
         logger.exception("[AdminSignals] Failed querying signals: %s", e)
         raise HTTPException(status_code=500, detail="Industry signals database unavailable.")
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    if is_explicit_demo_mode(is_demo):
+        skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            skills_map = {s["id"]: s.get("name", s["id"]) for s in (list_skills() or []) if "id" in s}
+        except Exception:
+            skills_map = {}
 
     # Normalize all records for admin view
     results = []

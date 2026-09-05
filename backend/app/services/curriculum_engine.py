@@ -62,25 +62,33 @@ TRAINER_UPGRADE_CATALOG = {
 
 def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Execute deep health, obsolescence, and oversupply audit across all institutional courses."""
-    if is_demo is True:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
         courses = get_demo("courses")
-    elif is_demo is False:
-        try:
-            from app.repositories.supabase_repository import list_courses
-            courses = list_courses() or []
-        except Exception:
-            courses = []
+        course_skills_raw = get_demo("course_skills")
+        placements = {p["course_id"]: p for p in get_demo("placements")}
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=True)}
     else:
         try:
-            from app.repositories.supabase_repository import list_courses
-            repo_courses = list_courses()
-            courses = repo_courses if repo_courses else get_demo("courses")
+            from app.repositories.supabase_repository import list_courses, list_course_skills, list_skills
+            courses = list_courses() or []
+            if not courses:
+                return []
+            c_ids = [c["id"] for c in courses if c.get("id")]
+            course_skills_raw = list_course_skills(course_ids=c_ids) if c_ids else []
+            from app.db import get_supabase_client
+            client = get_supabase_client()
+            res = client.table("placements").select("*").execute() if client else None
+            p_rows = getattr(res, "data", []) or []
+            placements = {p["course_id"]: p for p in p_rows if p.get("course_id")}
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
         except Exception:
-            courses = get_demo("courses")
-    course_skills_raw = get_demo("course_skills")
-    placements = {p["course_id"]: p for p in get_demo("placements")}
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=is_demo)}
+            return []
+        forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=False)}
 
     # Group skills taught by course
     course_skills_map: dict[str, list[dict]] = {}
@@ -214,9 +222,9 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
     return audited_courses
 
 
-def get_course_modernization_blueprint(course_id: str) -> dict[str, Any] | None:
+def get_course_modernization_blueprint(course_id: str, is_demo: bool | None = None) -> dict[str, Any] | None:
     """Generate a detailed 5-point modernization blueprint for a specific institutional course."""
-    audited = audit_all_courses()
+    audited = audit_all_courses(is_demo=is_demo)
     course = next((c for c in audited if c["course_id"] == course_id), None)
     if not course:
         return None

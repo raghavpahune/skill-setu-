@@ -3,9 +3,10 @@
 All results are deterministic derivations from existing SkillSetu data.
 Every projection is labelled SIMULATED ESTIMATE per spec Section 20.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.services.gap_engine import compute_gaps
 
@@ -18,26 +19,38 @@ class WhatIfScenario(BaseModel):
     district: str | None = None
     capacity_change_pct: int = 30  # for capacity_increase
     stale_years: int = 2  # for curriculum_stale
+    is_demo: bool | None = None
 
 
 # ---------------------------------------------------------------------------
-# Helpers — reuse existing demo data, no new data files
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _skill_categories() -> list[str]:
+def _skill_categories(is_demo: bool = False) -> list[str]:
     """Return sorted unique categories from the skills table."""
-    return sorted({s.get("category", "") for s in get_demo("skills") if s.get("category")})
-
-
-def _baseline_metrics(district: str | None = None) -> dict:
-    """Compute current-state metrics from existing data."""
-    gaps = compute_gaps(district=district)
+    if is_demo:
+        return sorted({s.get("category", "") for s in get_demo("skills") if s.get("category")})
     try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
+        from app.repositories.supabase_repository import list_skills
+        return sorted({s.get("category", "") for s in (list_skills() or []) if s.get("category")})
     except Exception:
+        return []
+
+
+def _baseline_metrics(district: str | None = None, is_demo: bool = False) -> dict:
+    """Compute current-state metrics from existing data."""
+    gaps = compute_gaps(district=district, is_demo=is_demo)
+    if is_demo:
         courses = get_demo("courses")
-    placements = get_demo("placements")
+        placements = get_demo("placements")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses, list_placements
+            courses = list_courses() or []
+            placements = list_placements() or []
+        except Exception:
+            courses = []
+            placements = []
 
     # Filter courses/placements by district if requested
     if district:
@@ -67,25 +80,33 @@ def _baseline_metrics(district: str | None = None) -> dict:
     }
 
 
-def _simulate_capacity_increase(baseline: dict, scenario: WhatIfScenario) -> dict:
+def _simulate_capacity_increase(baseline: dict, scenario: WhatIfScenario, is_demo: bool = False) -> dict:
     """Simulate increasing training capacity for a skill category/district."""
     pct = max(1, min(200, scenario.capacity_change_pct))
-    gaps = compute_gaps(district=scenario.district)
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
+    gaps = compute_gaps(district=scenario.district, is_demo=is_demo)
+    if is_demo:
         courses = get_demo("courses")
-    course_skills_data = get_demo("course_skills")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+        course_skills_data = get_demo("course_skills")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses, list_course_skills, list_skills
+            courses = list_courses() or []
+            course_ids = [c["id"] for c in courses if c.get("id")]
+            course_skills_data = list_course_skills(course_ids=course_ids) if course_ids else []
+            skills_map = {s["id"]: s for s in (list_skills() or [])}
+        except Exception:
+            courses = []
+            course_skills_data = []
+            skills_map = {}
 
     # Identify which courses/skills are affected by the category filter
     cat_lower = (scenario.skill_category or "").lower()
     if cat_lower:
-        cat_skill_ids = {s["id"] for s in get_demo("skills") if s.get("category", "").lower() == cat_lower}
-        affected_course_ids = {cs["course_id"] for cs in course_skills_data if cs["skill_id"] in cat_skill_ids}
+        cat_skill_ids = {s["id"] for s in skills_map.values() if s.get("category", "").lower() == cat_lower}
+        affected_course_ids = {cs["course_id"] for cs in course_skills_data if cs.get("skill_id") in cat_skill_ids}
     else:
-        cat_skill_ids = {s["id"] for s in get_demo("skills")}
+        cat_skill_ids = set(skills_map.keys())
         affected_course_ids = {c["id"] for c in courses}
 
     # Apply district filter
@@ -136,18 +157,25 @@ def _simulate_capacity_increase(baseline: dict, scenario: WhatIfScenario) -> dic
     }
 
 
-def _simulate_curriculum_stale(baseline: dict, scenario: WhatIfScenario) -> dict:
+def _simulate_curriculum_stale(baseline: dict, scenario: WhatIfScenario, is_demo: bool = False) -> dict:
     """Simulate what happens if curriculum is NOT updated for N years."""
     years = max(1, min(5, scenario.stale_years))
     from app.repositories.supabase_repository import list_skill_forecasts
     forecasts = list_skill_forecasts()
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    if is_demo:
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            skills_map = {s["id"]: s for s in (list_skills() or [])}
+        except Exception:
+            skills_map = {}
 
     # Skills with rising trends will worsen the gap
     rising_skills = [f for f in forecasts if f.get("trend") == "rising"]
     cat_lower = (scenario.skill_category or "").lower()
     if cat_lower:
-        rising_skills = [f for f in rising_skills if skills_map.get(f["skill_id"], {}).get("category", "").lower() == cat_lower]
+        rising_skills = [f for f in rising_skills if skills_map.get(f.get("skill_id", ""), {}).get("category", "").lower() == cat_lower]
 
     # Each year of stale curriculum worsens gap by ~8% compounding
     decay_per_year = 0.08
@@ -159,7 +187,7 @@ def _simulate_curriculum_stale(baseline: dict, scenario: WhatIfScenario) -> dict
     # Identify skills that would become critical
     emerging_uncovered = []
     for f in rising_skills[:12]:
-        skill = skills_map.get(f["skill_id"], {})
+        skill = skills_map.get(f.get("skill_id", ""), {})
         # ponytail: confidence degrades with stale curricula
         projected_confidence = max(30, f.get("confidence", 75) - years * 8)
         emerging_uncovered.append({
@@ -182,11 +210,18 @@ def _simulate_curriculum_stale(baseline: dict, scenario: WhatIfScenario) -> dict
     }
 
 
-def _simulate_new_course(baseline: dict, scenario: WhatIfScenario) -> dict:
+def _simulate_new_course(baseline: dict, scenario: WhatIfScenario, is_demo: bool = False) -> dict:
     """Simulate adding a new course targeting a specific skill category/district."""
     cat_lower = (scenario.skill_category or "").lower()
-    gaps = compute_gaps(district=scenario.district)
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    gaps = compute_gaps(district=scenario.district, is_demo=is_demo)
+    if is_demo:
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            skills_map = {s["id"]: s for s in (list_skills() or [])}
+        except Exception:
+            skills_map = {}
 
     # Find the top gaps in the target category
     if cat_lower:
@@ -240,7 +275,8 @@ async def run_whatif(scenario: WhatIfScenario):
 
     All projections are labelled SIMULATED ESTIMATE per spec Section 20.
     """
-    baseline = _baseline_metrics(district=scenario.district)
+    is_demo_mode = is_explicit_demo_mode(scenario.is_demo)
+    baseline = _baseline_metrics(district=scenario.district, is_demo=is_demo_mode)
 
     simulators = {
         "capacity_increase": _simulate_capacity_increase,
@@ -252,7 +288,7 @@ async def run_whatif(scenario: WhatIfScenario):
         # Fallback: treat unknown type as capacity_increase
         simulate_fn = _simulate_capacity_increase
 
-    projection = simulate_fn(baseline, scenario)
+    projection = simulate_fn(baseline, scenario, is_demo=is_demo_mode)
 
     return {
         "label": "SIMULATED ESTIMATE",
@@ -268,12 +304,14 @@ async def run_whatif(scenario: WhatIfScenario):
         },
         "baseline": baseline,
         "projection": projection,
-        "available_categories": _skill_categories(),
+        "available_categories": _skill_categories(is_demo=is_demo_mode),
         "confidence_level": "medium",
     }
 
 
 @router.get("/simulator/categories")
-async def get_categories():
+async def get_categories(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Return available skill categories for the simulator dropdowns."""
-    return {"categories": _skill_categories()}
+    return {"categories": _skill_categories(is_demo=is_explicit_demo_mode(is_demo))}

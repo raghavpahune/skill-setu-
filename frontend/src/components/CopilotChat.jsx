@@ -122,7 +122,7 @@ export default function CopilotChat({
   const [errorState, setErrorState] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [lastQuery, setLastQuery] = useState('');
-  const [systemHealth, setSystemHealth] = useState({ ai_available: false, demo_mode: true });
+  const [systemHealth, setSystemHealth] = useState({ ai_available: false, demo_mode: false });
 
   const [messages, setMessages] = useState([
     {
@@ -132,10 +132,10 @@ export default function CopilotChat({
 
 I am your official **Maharashtra Labour-Market Intelligence & Evidence-Based Decision Assistant**, directly grounded in verified state datasets:
 
-* **560+ Active Job Postings** across 10 key Maharashtra industrial districts.
-* **55+ NSQF-Aligned Competencies** spanning AI/ML, Cloud, EV Tech, Advanced Manufacturing, and Healthcare.
-* **27 Accredited Training Courses** across government ITIs, polytechnics, and engineering universities.
-* **Quarterly Employer Feedback & Ingestion Feeds** (NAPS apprenticeships, PMKVY certifications, and MahaDBT schemes).
+* **Authoritative Job Postings** across key Maharashtra industrial districts.
+* **NSQF-Aligned Competencies** spanning AI/ML, Cloud, EV Tech, Advanced Manufacturing, and Healthcare.
+* **Accredited Training Courses** across government ITIs, polytechnics, and engineering universities.
+* **Active Ingestion Feeds & Telemetry** (NAPS apprenticeships, PMKVY certifications, and MahaDBT schemes).
 
 Select your stakeholder role above or explore one of the verified inquiries below to begin.`,
       isGrounded: true,
@@ -302,25 +302,43 @@ Select your stakeholder role above or explore one of the verified inquiries belo
         },
       ]);
     } catch (err) {
-      console.warn('[Copilot] Live API call failed, generating grounded client fallback:', err);
-      setErrorState(null); // Clear blocking red banner since we provide grounded offline fallback
-      
-      const fallback = generateClientFallback(trimmed, role, district || undefined);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `cop-${Date.now()}`,
-          sender: 'copilot',
-          text: fallback.answer,
-          isGrounded: false,
-          isFallback: true,
-          demoMode: true,
-          model: fallback.model || 'Offline Intelligence (Static Fallback)',
-          provenanceLabel: '⚠️ Offline Static Fallback (Backend Unavailable)',
-          notice: fallback.notice,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      console.warn('[Copilot] Live API call failed:', err);
+      if (systemHealth.demo_mode) {
+        setErrorState(null); // Clear blocking red banner in explicit demo mode since fallback is available
+        const fallback = generateClientFallback(trimmed, role, district || undefined);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `cop-${Date.now()}`,
+            sender: 'copilot',
+            text: fallback.answer,
+            isGrounded: false,
+            isFallback: true,
+            demoMode: true,
+            model: fallback.model || 'Offline Intelligence (Static Fallback)',
+            provenanceLabel: '⚠️ Offline Static Fallback (Demo Mode)',
+            notice: fallback.notice,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      } else {
+        const errMsg = err?.message || 'Service unreachable';
+        setErrorState(`Copilot service temporarily unavailable (${errMsg})`);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `cop-${Date.now()}`,
+            sender: 'copilot',
+            text: `⚠️ **Service Unavailable**: Unable to reach the SkillSetu AI Copilot service (${errMsg}). In Real Data mode, synthetic factual fallbacks are disabled to prevent inaccurate labour market intelligence.`,
+            isGrounded: false,
+            isFallback: false,
+            demoMode: false,
+            model: 'Real Data Service (Offline)',
+            provenanceLabel: '⚠️ Service Offline',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
     }

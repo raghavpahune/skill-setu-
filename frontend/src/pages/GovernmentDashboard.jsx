@@ -206,7 +206,7 @@ export default function GovernmentDashboard() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [selectedDistrict, setSelectedDistrict] = useState('Pune');
-  const [jobsCount, setJobsCount] = useState(550);
+  const [jobsCount, setJobsCount] = useState(0);
   const [gaps, setGaps] = useState([]);
   const [signals, setSignals] = useState([]);
   const [forecasts, setForecasts] = useState([]);
@@ -548,8 +548,8 @@ export default function GovernmentDashboard() {
               {/* Supporting Metric 2 */}
               <StatCard
                 title="State Job Demand"
-                value={jobsCount > 0 ? `${jobsCount}+` : '550+'}
-                subtitle="Indexed across 10 industrial hubs"
+                value={jobsCount > 0 ? `${jobsCount.toLocaleString()}+` : (loading ? '...' : '0')}
+                subtitle="Indexed across industrial hubs"
                 icon="💼"
                 color="white"
               />

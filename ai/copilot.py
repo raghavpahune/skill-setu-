@@ -18,6 +18,8 @@ if str(_backend_dir) not in sys.path:
 from ai.provider import LLMProvider
 from ai.gemini_provider import GeminiProvider
 from ai.demo_provider import DemoProvider
+from app.core.data_mode import is_explicit_demo_mode
+from app.core.security import is_demo_student_id
 
 KNOWN_EXTERNAL_TECHS = {
     "go": "Go / Golang",
@@ -49,7 +51,7 @@ KNOWN_EXTERNAL_TECHS = {
 }
 
 
-def _get_provider() -> LLMProvider:
+def _get_provider(is_demo: bool | None = None) -> LLMProvider | None:
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         try:
@@ -66,6 +68,8 @@ def _get_provider() -> LLMProvider:
         except Exception as e:
             logger.error(f"[Copilot] GeminiProvider initialization failed: {e}")
 
+    if is_demo is False:
+        return None
     return DemoProvider()
 
 
@@ -130,18 +134,49 @@ def _build_context(
     student_id: str | None = None,
     context_data: dict | None = None,
     current_user: dict | None = None,
+    is_demo: bool = False,
 ) -> dict[str, Any]:
     """Fetch relevant structured data to ground the response accurately without polluting query context."""
     try:
-        from app.db import get_demo
         from app.services.gap_engine import compute_gaps
         from app.services.district_service import get_all_districts, get_district_plan
 
-        skills = get_demo("skills")
-        jobs = get_demo("jobs")
-        job_skills = get_demo("job_skills")
-        courses = get_demo("courses")
-        course_skills = get_demo("course_skills")
+        if is_demo:
+            from app.db import get_demo
+            skills = get_demo("skills")
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+            courses = get_demo("courses")
+            course_skills = get_demo("course_skills")
+        else:
+            from app.repositories import supabase_repository
+            try:
+                skills = supabase_repository.list_skills() or []
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch skills: {e}")
+                skills = []
+            try:
+                jobs = supabase_repository.list_jobs(limit=500) or []
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch jobs: {e}")
+                jobs = []
+            job_ids = [j.get("id") for j in jobs if j.get("id")]
+            try:
+                job_skills = supabase_repository.list_job_skills(job_ids=job_ids) if job_ids else []
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch job_skills: {e}")
+                job_skills = []
+            try:
+                courses = supabase_repository.list_courses(limit=500) or []
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch courses: {e}")
+                courses = []
+            course_ids = [c.get("id") for c in courses if c.get("id")]
+            try:
+                course_skills = supabase_repository.list_course_skills(course_ids=course_ids) if course_ids else []
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch course_skills: {e}")
+                course_skills = []
 
         # Check for district mentions or explicit district parameter
         q_lower = question.lower() if question else ""
@@ -151,14 +186,14 @@ def _build_context(
         if district and district.strip():
             target_district_name = district.strip()
         elif question:
-            for d in get_all_districts():
+            for d in get_all_districts(is_demo=is_demo):
                 dname = d.get("name", "")
                 if dname and dname.lower() in q_lower:
                     target_district_name = dname
                     break
 
         if target_district_name:
-            plan = get_district_plan(target_district_name)
+            plan = get_district_plan(target_district_name, is_demo=is_demo)
             focused_district = {
                 "district": target_district_name,
                 "total_jobs": plan.get("total_jobs", 0),
@@ -178,10 +213,13 @@ def _build_context(
 
         context: dict[str, Any] = {
             "query_type": "general_overview",
-            "top_skill_gaps": compute_gaps()[:10],
+            "top_skill_gaps": compute_gaps(is_demo=is_demo)[:10],
             "total_skills_tracked": len(skills),
             "total_jobs": len(jobs),
         }
+
+        if not is_demo and not skills and not jobs:
+            context["authoritative_data_status"] = "empty_or_unindexed"
 
         if queried_skill_info:
             if queried_skill_info["type"] == "indexed":
@@ -202,7 +240,7 @@ def _build_context(
                 district_counts = dict(Counter(j.get("district", "Unknown") for j in matching_jobs).most_common(5))
 
                 # Gap engine metrics for this skill
-                all_gaps = compute_gaps(focused_district.get("district") if focused_district else None)
+                all_gaps = compute_gaps(focused_district.get("district") if focused_district else None, is_demo=is_demo)
                 gap_entry = next((g for g in all_gaps if g["skill_id"] == sid), None)
 
                 # Teaching courses for this skill from live accredited courses
@@ -239,12 +277,13 @@ def _build_context(
                 tech_name = queried_skill_info["name"]
                 context["query_type"] = "skill_specific"
                 context["data_available_for_skill"] = False
+                dataset_label = "Maharashtra 10-district demo dataset" if is_demo else "authoritative database"
                 context["queried_skill"] = {
                     "name": tech_name,
                     "found_in_dataset": False,
                     "verified_job_count": 0,
                     "verified_course_count": 0,
-                    "message": f"No verified job postings or accredited state courses for '{tech_name}' exist in the current Maharashtra 10-district dataset.",
+                    "message": f"No verified job postings or accredited state courses for '{tech_name}' exist in the {dataset_label}.",
                 }
 
         # Attach Recommendation Handoff data if supplied from frontend modal
@@ -273,7 +312,7 @@ def _build_context(
             _verify_student_recommendations_access(effective_student_id, current_user)
             try:
                 from app.services.career_recommendation_engine import compute_career_recommendations
-                student_rec = compute_career_recommendations(effective_student_id)
+                student_rec = compute_career_recommendations(effective_student_id, is_demo=is_demo)
                 top_role = student_rec.get("top_recommendation", {}).get("role_name", "")
                 missing_skills = student_rec.get("top_recommendation", {}).get("missing_skills", [])
                 matching_skills = student_rec.get("top_recommendation", {}).get("matching_skills", [])
@@ -330,28 +369,52 @@ def _build_context(
                 logger.warning(f"[Copilot] Failed to attach student recommendation context: {rec_err}")
 
         if role == "student":
-            context["student_profiles"] = [
-                {"name": p["name"], "target_role": p["target_role"], "match": p["skill_match_pct"]}
-                for p in get_demo("student_profiles")
-            ]
+            if is_demo:
+                from app.db import get_demo
+                context["student_profiles"] = [
+                    {"name": p["name"], "target_role": p["target_role"], "match": p["skill_match_pct"]}
+                    for p in get_demo("student_profiles")
+                ]
+            else:
+                from app.repositories import supabase_repository
+                try:
+                    profiles = supabase_repository.list_student_profiles() or []
+                    context["student_profiles"] = [
+                        {"name": p.get("name", ""), "target_role": p.get("target_role", ""), "match": p.get("skill_match_pct", 0)}
+                        for p in profiles
+                    ]
+                except Exception:
+                    context["student_profiles"] = []
         elif role == "government":
             from app.services.district_service import get_all_districts
-            context["districts"] = get_all_districts()
+            context["districts"] = get_all_districts(is_demo=is_demo)
         elif role == "institute":
             context["institutes_summary"] = {
                 "total_courses": len(courses),
                 "sample_institutes": sorted(list(set(c.get("institute", "") for c in courses if c.get("institute"))))[:6],
             }
         elif role == "employer":
-            feedback = get_demo("employer_feedback")
-            context["pending_validations"] = len([f for f in feedback if f["status"] == "pending"])
-            context["confirmed"] = len([f for f in feedback if f["status"] == "confirmed"])
+            if is_demo:
+                from app.db import get_demo
+                feedback = get_demo("employer_feedback")
+                context["pending_validations"] = len([f for f in feedback if f.get("status") == "pending"])
+                context["confirmed"] = len([f for f in feedback if f.get("status") == "confirmed"])
+            else:
+                from app.repositories import supabase_repository
+                try:
+                    feedback = supabase_repository.list_employer_feedback() or []
+                    context["pending_validations"] = len([f for f in feedback if f.get("status") == "pending"])
+                    context["confirmed"] = len([f for f in feedback if f.get("status") == "confirmed"])
+                except Exception:
+                    context["pending_validations"] = 0
+                    context["confirmed"] = 0
 
         if focused_district:
             context["focused_district"] = focused_district
 
         if question:
-            for p in get_demo("student_profiles"):
+            student_profiles_list = get_demo("student_profiles") if is_demo else []
+            for p in student_profiles_list:
                 target = p.get("target_role", "")
                 if target and target.lower() in q_lower:
                     skills_map = {s["id"]: s.get("name", "") for s in skills}
@@ -377,15 +440,28 @@ async def handle_question(
     student_id: str | None = None,
     context_data: dict | None = None,
     current_user: dict | None = None,
+    is_demo: bool | None = None,
 ) -> dict[str, Any]:
-    """Handle a copilot question end-to-end with live inference and resilient offline fallback."""
-    provider = _get_provider()
-    context = _build_context(role, question, district, student_id, context_data, current_user)
+    """Handle a copilot question end-to-end with live inference and real-data-first isolation."""
+    is_demo_mode = is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id))
+    provider = _get_provider(is_demo=is_demo_mode)
+    context = _build_context(role, question, district, student_id, context_data, current_user, is_demo=is_demo_mode)
     is_live_ai = isinstance(provider, GeminiProvider)
 
-    logger.info(f"[Copilot] Query: '{question}' (student_id={student_id}, district={district}, provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
+    logger.info(f"[Copilot] Query: '{question}' (student_id={student_id}, district={district}, provider={provider.__class__.__name__ if provider else 'None'}, is_live={is_live_ai}, role={role}, is_demo={is_demo_mode})")
 
-    if is_live_ai:
+    if not is_demo_mode:
+        # REAL MODE: Must NEVER call DemoProvider and NEVER fabricate facts.
+        if not is_live_ai or provider is None:
+            return {
+                "answer": "AI Copilot live inference is temporarily unavailable because the Gemini AI service is not configured or reachable. In Real Data mode, synthetic factual fallbacks are disabled to prevent inaccurate labour market intelligence.",
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "model": "Real Data Service (Offline)",
+                "provenance_label": "⚠️ Service Offline",
+            }
         try:
             answer = await provider.generate(question, context)
             return {
@@ -395,39 +471,40 @@ async def handle_question(
                 "demo_mode": False,
                 "data_grounded": bool(context),
                 "model": getattr(provider, "model", "gemini-3.6-flash"),
-                "provenance_label": "✨ Generated by Gemini AI (Grounded in SkillSetu Data)",
+                "provenance_label": "✨ Generated by Gemini AI (Grounded in Authoritative Data)",
             }
         except Exception as e:
             err_msg = str(e)
-            logger.error(f"[Copilot] Live generation error, switching to rule-based offline fallback: {err_msg}")
-            # Fallback to DemoProvider rule-based intelligence so application never crashes
-            try:
-                demo_prov = DemoProvider()
-                fallback_answer = await demo_prov.generate(question, context)
-                return {
-                    "answer": fallback_answer,
-                    "role": role,
-                    "student_id": student_id,
-                    "demo_mode": True,
-                    "data_grounded": bool(context),
-                    "model": "Rule-Based Offline Intelligence",
-                    "provenance_label": "🛡️ Grounded Deterministic Intelligence (Offline Fallback)",
-                    "notice": "AI service temporarily unavailable. Switched to grounded deterministic intelligence.",
-                }
-            except Exception:
-                return {
-                    "answer": f"[Gemini API Error] {err_msg}\n\nPlease check your Google AI Studio quota / API key permissions on Render.",
-                    "role": role,
-                    "student_id": student_id,
-                    "demo_mode": True,
-                    "data_grounded": bool(context),
-                    "error_details": err_msg,
-                    "model": "Rule-Based Offline Intelligence",
-                    "provenance_label": "🛡️ Error Diagnostic Output",
-                }
+            logger.error(f"[Copilot] Live generation error in real mode: {err_msg}")
+            return {
+                "answer": f"AI Copilot live inference encountered an error: {err_msg}. In Real Data mode, synthetic factual fallbacks are disabled.",
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "error_details": err_msg,
+                "model": "Real Data Service (Error)",
+                "provenance_label": "⚠️ Service Error",
+            }
 
-    # Demo mode provider
-    answer = await provider.generate(question, context)
+    # EXPLICIT DEMO MODE
+    if is_live_ai and provider is not None:
+        try:
+            answer = await provider.generate(question, context)
+            return {
+                "answer": answer,
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "model": getattr(provider, "model", "gemini-3.6-flash"),
+                "provenance_label": "✨ Generated by Gemini AI",
+            }
+        except Exception as e:
+            logger.warning(f"[Copilot] Live generation failed in demo mode, falling back to DemoProvider: {e}")
+
+    demo_prov = DemoProvider()
+    answer = await demo_prov.generate(question, context)
     return {
         "answer": answer,
         "role": role,

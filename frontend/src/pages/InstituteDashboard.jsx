@@ -16,176 +16,6 @@ import RecommendationCard from '../components/RecommendationCard';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const DEFAULT_COURSES = [
-  {
-    id: 'cr-001',
-    name: 'Advanced AI & Machine Learning',
-    description: 'Covers ML, DL, NLP, and AI applications. MSBTE affiliated.',
-    institute: 'COEP Technological University',
-    district: 'Pune',
-    enrolment_count: 120,
-    placed_count: 108,
-    placement_rate: 90,
-    status: 'active',
-    category: 'Computer & Emerging Tech',
-    nsqf_level: 6,
-    skills: ['Python', 'Machine Learning', 'Deep Learning', 'PyTorch'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-002',
-    name: 'Full Stack Web Development',
-    description: 'MERN stack, DevOps, and cloud-native web deployment.',
-    institute: 'Symbiosis Institute of Technology',
-    district: 'Pune',
-    enrolment_count: 90,
-    placed_count: 76,
-    placement_rate: 84,
-    status: 'active',
-    category: 'Information Technology',
-    nsqf_level: 5,
-    skills: ['React', 'Node.js', 'SQL', 'Git', 'Docker'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-003',
-    name: 'Data Science & Analytics',
-    description: 'Python, SQL, statistics, Power BI, and ML telemetry fundamentals.',
-    institute: 'IIT Bombay (CEP)',
-    district: 'Mumbai',
-    enrolment_count: 150,
-    placed_count: 135,
-    placement_rate: 90,
-    status: 'active',
-    category: 'Analytics & Data',
-    nsqf_level: 6,
-    skills: ['Python', 'SQL', 'Data Analytics', 'Power BI'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-005',
-    name: 'Cloud Computing & DevOps',
-    description: 'AWS, Azure, Kubernetes, and automated CI/CD pipelines.',
-    institute: 'Persistent Systems Training Centre',
-    district: 'Pune',
-    enrolment_count: 80,
-    placed_count: 70,
-    placement_rate: 88,
-    status: 'active',
-    category: 'Cloud Infrastructure',
-    nsqf_level: 6,
-    skills: ['AWS', 'Kubernetes', 'CI/CD', 'Linux'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-010',
-    name: 'EV Technology & Maintenance',
-    description: 'EV battery management systems, motor diagnostics, and powertrain maintenance.',
-    institute: 'KPIT Skill Centre',
-    district: 'Pune',
-    enrolment_count: 40,
-    placed_count: 36,
-    placement_rate: 90,
-    status: 'active',
-    category: 'Automotive & Clean Energy',
-    nsqf_level: 5,
-    skills: ['EV Powertrain', 'Battery Management (BMS)', 'Motor Control'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-016',
-    name: 'Industrial Automation & Robotics',
-    description: 'PLC programming, SCADA interfaces, and industrial robotics for Industry 4.0.',
-    institute: 'Siemens Technical Academy',
-    district: 'Pune',
-    enrolment_count: 50,
-    placed_count: 44,
-    placement_rate: 88,
-    status: 'active',
-    category: 'Advanced Manufacturing',
-    nsqf_level: 6,
-    skills: ['PLC Programming', 'SCADA', 'Industrial Robotics'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-027',
-    name: 'CAD/CAM Design',
-    description: 'AutoCAD, SolidWorks, 3D modelling, and precision manufacturing design.',
-    institute: 'Government Polytechnic Nashik',
-    district: 'Nashik',
-    enrolment_count: 55,
-    placed_count: 34,
-    placement_rate: 62,
-    status: 'needs_attention',
-    category: 'Mechanical Design',
-    nsqf_level: 4,
-    skills: ['CAD/CAM', 'SolidWorks', '3D Modelling'],
-    source: 'DEMO_SYNTHETIC',
-  },
-  {
-    id: 'cr-025',
-    name: 'Traditional Office Data Entry',
-    description: 'Basic data entry, legacy typewriter speed, and basic spreadsheet operations.',
-    institute: 'Various Private Centres',
-    district: 'Mumbai',
-    enrolment_count: 200,
-    placed_count: 48,
-    placement_rate: 24,
-    status: 'review_oversupply',
-    category: 'General Administration',
-    nsqf_level: 3,
-    skills: ['Data Entry', 'Typing', 'Spreadsheet Basics'],
-    source: 'DEMO_SYNTHETIC',
-  },
-];
-
-const DEFAULT_RECOMMENDATIONS = [
-  {
-    skill_name: 'Generative AI & Agentic RAG',
-    recommendation: 'Incorporate Generative AI & Vector Search Modules into Computer Engineering Curriculum',
-    reason: '68% of technology job specifications across Pune & Mumbai industrial clusters now require hands-on LLM, agent orchestration, and RAG capabilities.',
-    confidence: 94,
-    priority: 'CRITICAL',
-    future_demand: 'high',
-    trend: 'rising',
-    gap_pct: 42,
-    related_signals: ['Nasscom GenAI Talent Surge 2026', 'Maharashtra IT Policy 2024-29'],
-  },
-  {
-    skill_name: 'EV Battery Management Systems (BMS)',
-    recommendation: 'Expand EV Powertrain & Diagnostics Lab Capacity in Chakan-Pimpri ITIs',
-    reason: 'Automotive tier-1 suppliers in Pune & Aurangabad report 38% hiring deficit for battery testing and high-voltage safety certified technicians.',
-    confidence: 91,
-    priority: 'HIGH',
-    future_demand: 'high',
-    trend: 'rising',
-    gap_pct: 35,
-    related_signals: ['Pune Automotive Cluster Expansion', 'National Electric Mobility Mission'],
-  },
-  {
-    skill_name: 'Office Data Entry Modernization',
-    recommendation: 'Pivot Traditional Office Data Entry Trades into Digital Media & Low-Code Web Development',
-    reason: 'Placement rates for traditional manual typing/entry have fallen to 24% statewide due to robotic process automation (RPA) and automated document workflows.',
-    confidence: 89,
-    priority: 'CRITICAL',
-    future_demand: 'declining',
-    trend: 'declining',
-    gap_pct: 68,
-    related_signals: ['State Vocational Modernization Directive', 'Administrative Automation Survey'],
-  },
-  {
-    skill_name: 'Industrial IoT & SCADA Telemetry',
-    recommendation: 'Introduce IIoT Sensor Integration in Government Polytechnic Electrical Syllabi',
-    reason: 'Rapid transition of manufacturing plants in Nagpur and Nashik towards smart factories creates urgent demand for programmable sensor diagnostics.',
-    confidence: 88,
-    priority: 'HIGH',
-    future_demand: 'high',
-    trend: 'rising',
-    gap_pct: 31,
-    related_signals: ['Industry 4.0 Maharashtra Smart Factory Initiative'],
-  },
-];
-
 const DISTRICTS = [
   'All Districts',
   'Pune',
@@ -213,8 +43,8 @@ const CATEGORIES = [
 
 export default function InstituteDashboard() {
   const { user } = useAuth();
-  const [courses, setCourses] = useState(DEFAULT_COURSES);
-  const [recommendations, setRecommendations] = useState(DEFAULT_RECOMMENDATIONS);
+  const [courses, setCourses] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDistrict, setSelectedDistrict] = useState('All Districts');
   const [provenanceFilter, setProvenanceFilter] = useState('all'); // 'all' | 'user' | 'demo'
@@ -303,15 +133,15 @@ export default function InstituteDashboard() {
         api.getInstituteCourses(),
         api.getCourseRecommendations(),
       ]);
-      if (Array.isArray(coursesRes) && coursesRes.length > 0) {
+      if (Array.isArray(coursesRes)) {
         setCourses(coursesRes);
       }
-      if (Array.isArray(recsRes) && recsRes.length > 0) {
+      if (Array.isArray(recsRes)) {
         setRecommendations(recsRes);
       }
     } catch (err) {
       console.warn('Failed loading institute live data:', err);
-      setApiError(err?.message || 'Could not connect to live backend API. Displaying offline demo baseline.');
+      setApiError(err?.message || 'Could not connect to live backend API.');
     } finally {
       setLoading(false);
     }

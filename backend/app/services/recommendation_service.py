@@ -3,17 +3,32 @@ from app.db import get_demo
 from app.services.gap_engine import compute_gaps
 
 
-def get_curriculum_recommendations() -> list[dict]:
+def get_curriculum_recommendations(is_demo: bool | None = None) -> list[dict]:
     """Generate curriculum recommendations based on skill gaps, forecasts, and industry signals."""
-    gaps = compute_gaps()
-    from app.repositories.supabase_repository import list_skill_forecasts
-    forecasts = list_skill_forecasts()
-    try:
-        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-        signals = list_industry_signals_repo()
-    except Exception:
-        signals = []  # ponytail: non-critical supplement, degrade gracefully
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    gaps = compute_gaps(is_demo=is_demo)
+    if is_demo_mode:
+        forecasts = get_demo("skill_forecasts")
+        signals = get_demo("industry_signals")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        from app.repositories.supabase_repository import list_skill_forecasts, list_skills
+        try:
+            forecasts = list_skill_forecasts() or []
+        except Exception:
+            forecasts = []
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            signals = list_industry_signals_repo() or []
+        except Exception:
+            signals = []
+        try:
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception:
+            skills_map = {}
 
     # Build forecast lookup (best period per skill)
     fc_map = {}

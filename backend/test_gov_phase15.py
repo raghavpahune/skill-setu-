@@ -7,6 +7,11 @@ client = TestClient(app)
 ADMIN_KEY = "demo-admin-key-2026"
 
 
+@pytest.fixture(autouse=True)
+def enable_demo_mode_for_phase15(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+
+
 def test_list_gov_opportunities():
     """Verify list_gov_opportunities endpoint returns opportunities with proper structure."""
     res = client.get("/api/gov/opportunities")

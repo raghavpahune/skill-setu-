@@ -1117,6 +1117,67 @@ def list_job_skills(job_ids: list[str] | None = None) -> list[dict[str, Any]]:
         raise SupabaseRepositoryError(f"Database query failed for job_skills: {e}") from e
 
 
+def list_course_skills(course_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """List course-skill relationships from Supabase, optionally filtering by course_ids."""
+    try:
+        client = get_client()
+        if course_ids is not None:
+            if not course_ids:
+                return []
+            all_skills = []
+            chunk_size = 500
+            for i in range(0, len(course_ids), chunk_size):
+                chunk = course_ids[i : i + chunk_size]
+                res = client.table("course_skills").select("*").in_("course_id", chunk).execute()
+                all_skills.extend(getattr(res, "data", []) or [])
+            return all_skills
+
+        res = client.table("course_skills").select("*").execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing course skills: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for course_skills: {e}") from e
+
+
+def list_placements(course_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """List placement records from Supabase, optionally filtering by course_ids."""
+    try:
+        client = get_client()
+        if course_ids is not None:
+            if not course_ids:
+                return []
+            all_placements = []
+            chunk_size = 500
+            for i in range(0, len(course_ids), chunk_size):
+                chunk = course_ids[i : i + chunk_size]
+                res = client.table("placements").select("*").in_("course_id", chunk).execute()
+                all_placements.extend(getattr(res, "data", []) or [])
+            return all_placements
+
+        res = client.table("placements").select("*").execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing placements: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for placements: {e}") from e
+
+
+def list_sync_logs(limit: int = 100) -> list[dict[str, Any]]:
+    """List automated synchronization audit logs from Supabase."""
+    try:
+        client = get_client()
+        res = client.table("sync_logs").select("*").order("started_at", desc=True).limit(limit).execute()
+        return getattr(res, "data", []) or []
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing sync_logs: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for sync_logs: {e}") from e
+
+
 # ============================================================================
 # SCHEMES REPOSITORY DOMAIN (Phase 1 Real Data Ingestion)
 # ============================================================================

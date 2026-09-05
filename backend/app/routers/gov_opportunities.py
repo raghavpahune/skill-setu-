@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from app.db import get_demo, save_gov_opportunity
+from app.core.data_mode import is_explicit_demo_mode
 from app.core.security import require_roles, get_optional_current_user, is_demo_student_id
+from app.db import get_demo, save_gov_opportunity
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,19 @@ async def create_gov_opportunity(
     }
 
 
+def _is_authoritative_gov_opp(o: dict) -> bool:
+    return (
+        isinstance(o, dict)
+        and o.get("is_demo") is False
+        and o.get("source_type") not in ("SANDBOX_SIMULATION", "DEMO_SYNTHETIC")
+        and o.get("source") != "DEMO_SYNTHETIC"
+        and (
+            o.get("data_provenance") == "GOVERNMENT_OFFICIAL"
+            or o.get("source") in ("DATAGOV_IN", "OGD_DATAGOV_IN", "USER_SUBMITTED", "ADMIN_CREATED")
+        )
+    )
+
+
 def _match_student_to_opportunities(opportunities: list[dict], profile: dict) -> list[dict]:
     """Score and rank government opportunities against a student profile or assessment record.
 
@@ -103,45 +117,52 @@ def _match_student_to_opportunities(opportunities: list[dict], profile: dict) ->
         score = 0
         reasons = []
 
-        # Skill match
+        # Skill match: opportunity target_skills vs student current skills
         opp_skills = {s.lower() for s in (opp.get("target_skills") or [])}
         matched_skills = student_skills & opp_skills
         if matched_skills:
             score += len(matched_skills) * 3
-            reasons.append(f"Matches skills: {', '.join(sorted(matched_skills)[:3])}")
+            reasons.append(f"Direct match with your skills: {', '.join(sorted(matched_skills)[:3])}")
 
-        # Interest match
-        matched_interests = student_interests & opp_skills
-        if matched_interests:
-            score += len(matched_interests) * 2
-            reasons.append(f"Aligns with interests: {', '.join(sorted(matched_interests)[:3])}")
+        # District match: statewide always matches, local district gets boost
+        districts = opp.get("district_coverage", [])
+        if isinstance(districts, str):
+            districts = [districts]
+        districts_lower = [d.lower() for d in districts]
 
-        # District match
-        opp_coverage = opp.get("district_coverage", "")
-        if isinstance(opp_coverage, list):
-            opp_districts = {d.lower() for d in opp_coverage}
-        else:
-            opp_districts = {opp_coverage.lower()} if opp_coverage else set()
+        if any("maharashtra" in d or "state-wide" in d or "all" in d for d in districts_lower):
+            score += 1
+            reasons.append("Statewide opportunity (open to all districts)")
+        elif student_district and any(student_district in d for d in districts_lower):
+            score += 3
+            reasons.append(f"Available locally in {student_district.title()}")
 
-        if student_district:
-            if student_district in opp_districts:
-                score += 5
-                reasons.append(f"Available in your district ({student_district.title()})")
-            elif any("state-wide" in d for d in opp_districts):
-                score += 3
-                reasons.append("Available state-wide in Maharashtra")
-
-        # Career goal / education match (text overlap)
+        # Interest / Career Goal keyword match in name or description
         opp_text = f"{opp.get('name', '')} {opp.get('description', '')}".lower()
-        if student_career and any(word in opp_text for word in student_career.split() if len(word) > 3):
+        if student_career and any(w in opp_text for w in student_career.split() if len(w) > 3):
             score += 2
-            reasons.append(f"Related to career goal: {student_career.title()}")
+            reasons.append(f"Aligns with your career goal '{profile.get('target_role') or profile.get('career_goal')}'")
 
-        if student_education:
-            edu_keywords = [w for w in student_education.split() if len(w) > 2]
-            if any(kw.lower() in opp_text for kw in edu_keywords):
+        for interest in student_interests:
+            if interest in opp_text:
                 score += 1
-                reasons.append("Matches education background")
+                reasons.append(f"Matches your interest in '{interest.title()}'")
+                break
+
+        # Education level suitability
+        eligibility = (opp.get("eligibility_criteria") or "").lower()
+        if student_education and student_education in eligibility:
+            score += 2
+            reasons.append(f"Eligible for your education level ({student_education.title()})")
+
+        # Opportunity type priority
+        opp_type = (opp.get("opportunity_type") or "APPRENTICESHIP").upper()
+        if opp_type == "APPRENTICESHIP":
+            score += 2
+            reasons.append("State-prioritized apprenticeship pathway")
+        elif opp_type == "VOCATIONAL_TRAINING":
+            score += 1
+            reasons.append("Accredited vocational training program")
 
         if score > 0:
             scored.append({
@@ -164,9 +185,20 @@ async def list_gov_opportunities(
     q: str | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List government opportunities with optional filtering."""
-    records = get_demo("gov_opportunities")
+    if is_explicit_demo_mode(is_demo):
+        records = get_demo("gov_opportunities")
+    else:
+        try:
+            from app.repositories.supabase_repository import get_client
+            client = get_client()
+            res = client.table("gov_opportunities").select("*").execute()
+            records = [r for r in (res.data or []) if _is_authoritative_gov_opp(r)]
+        except Exception as e:
+            logger.warning("[GovOpps] Supabase unavailable: %s", e)
+            records = []
 
     filtered = []
     for r in records:
@@ -210,9 +242,22 @@ async def list_gov_opportunities(
 
 
 @router.get("/gov/opportunities/types")
-async def gov_opportunity_types():
+async def gov_opportunity_types(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Return distinct opportunity types and districts for UI filtering."""
-    records = get_demo("gov_opportunities")
+    if is_explicit_demo_mode(is_demo):
+        records = get_demo("gov_opportunities")
+    else:
+        try:
+            from app.repositories.supabase_repository import get_client
+            client = get_client()
+            res = client.table("gov_opportunities").select("*").execute()
+            records = [r for r in (res.data or []) if _is_authoritative_gov_opp(r)]
+        except Exception as e:
+            logger.warning("[GovOpps] Supabase unavailable for types: %s", e)
+            records = []
+
     types = set()
     districts = set()
     skills = set()
@@ -288,23 +333,8 @@ async def recommended_gov_opportunities(
         except Exception:
             db_opps = []
 
-        def _is_authoritative_gov_opp(o: dict) -> bool:
-            return (
-                isinstance(o, dict)
-                and o.get("is_demo") is False
-                and o.get("source_type") not in ("SANDBOX_SIMULATION", "DEMO_SYNTHETIC")
-                and o.get("source") != "DEMO_SYNTHETIC"
-                and (
-                    o.get("data_provenance") == "GOVERNMENT_OFFICIAL"
-                    or o.get("source") in ("DATAGOV_IN", "OGD_DATAGOV_IN", "USER_SUBMITTED", "ADMIN_CREATED")
-                )
-            )
-
         valid_db_opps = [o for o in db_opps if _is_authoritative_gov_opp(o)]
-        cache_real_opps = [o for o in get_demo("gov_opportunities") if _is_authoritative_gov_opp(o)]
-        seen_ids = {d.get("id") for d in valid_db_opps}
-        real_opps = valid_db_opps + [o for o in cache_real_opps if o.get("id") not in seen_ids]
-        opportunities = real_opps
+        opportunities = valid_db_opps
         note = "Recommendations are based on official government opportunities and schemes. Verify eligibility on official portals before applying."
 
     ranked = _match_student_to_opportunities(opportunities, profile)
@@ -318,11 +348,24 @@ async def recommended_gov_opportunities(
 
 
 @router.get("/gov/opportunities/{opp_id}")
-async def get_gov_opportunity(opp_id: str):
+async def get_gov_opportunity(
+    opp_id: str,
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Get individual government opportunity by ID."""
-    records = get_demo("gov_opportunities")
-    for r in records:
-        if r.get("id") == opp_id:
-            return r
+    if is_explicit_demo_mode(is_demo):
+        records = get_demo("gov_opportunities")
+        for r in records:
+            if r.get("id") == opp_id:
+                return r
+    else:
+        try:
+            from app.repositories.supabase_repository import get_client
+            client = get_client()
+            res = client.table("gov_opportunities").select("*").eq("id", opp_id).execute()
+            if res.data and len(res.data) > 0 and _is_authoritative_gov_opp(res.data[0]):
+                return res.data[0]
+        except Exception as e:
+            logger.warning("[GovOpps] Supabase error fetching %s: %s", opp_id, e)
 
     raise HTTPException(status_code=404, detail="Government opportunity not found")

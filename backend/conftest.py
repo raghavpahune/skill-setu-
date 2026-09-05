@@ -70,6 +70,10 @@ class MockSupabaseQuery:
         self._limit = count
         return self
 
+    def order(self, column: str, desc: bool = False):
+        self._order_by = (column, desc)
+        return self
+
     def execute(self):
         import re
 
@@ -151,6 +155,9 @@ class MockSupabaseQuery:
 
         if self._action == "select":
             selected_rows = deepcopy(matching_rows)
+            if hasattr(self, "_order_by") and self._order_by:
+                col, desc = self._order_by
+                selected_rows.sort(key=lambda r: str(r.get(col, "")), reverse=desc)
             if hasattr(self, "_range") and self._range is not None:
                 start, end = self._range
                 selected_rows = selected_rows[start : end + 1]
@@ -194,7 +201,27 @@ class MockSupabaseTable:
 
 
 class MockSupabaseClient:
-    def __init__(self, feedback_rows=None, demands_rows=None, profiles_rows=None, assessments_rows=None, courses_rows=None, industry_signals_rows=None, skill_forecasts_rows=None, schemes_rows=None, gov_opportunities_rows=None):
+    def __init__(
+        self,
+        feedback_rows=None,
+        demands_rows=None,
+        profiles_rows=None,
+        assessments_rows=None,
+        courses_rows=None,
+        industry_signals_rows=None,
+        skill_forecasts_rows=None,
+        schemes_rows=None,
+        gov_opportunities_rows=None,
+        skills_rows=None,
+        job_skills_rows=None,
+        course_skills_rows=None,
+        placements_rows=None,
+        jobs_rows=None,
+        sync_logs_rows=None,
+        employers_rows=None,
+        users_rows=None,
+        difficult_skills_rows=None,
+    ):
         self.tables = {
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
@@ -205,6 +232,15 @@ class MockSupabaseClient:
             "skill_forecasts": MockSupabaseTable(skill_forecasts_rows),
             "schemes": MockSupabaseTable(schemes_rows),
             "gov_opportunities": MockSupabaseTable(gov_opportunities_rows),
+            "skills": MockSupabaseTable(skills_rows),
+            "job_skills": MockSupabaseTable(job_skills_rows),
+            "course_skills": MockSupabaseTable(course_skills_rows),
+            "placements": MockSupabaseTable(placements_rows),
+            "jobs": MockSupabaseTable(jobs_rows),
+            "sync_logs": MockSupabaseTable(sync_logs_rows),
+            "employers": MockSupabaseTable(employers_rows),
+            "users": MockSupabaseTable(users_rows),
+            "difficult_skills": MockSupabaseTable(difficult_skills_rows),
         }
 
     def table(self, table_name: str) -> MockSupabaseTable:
@@ -383,28 +419,54 @@ _PRISTINE_FORECASTS = deepcopy(_load_initial_skill_forecasts_rows())
 _PRISTINE_GOV_OPPORTUNITIES = deepcopy(_load_initial_gov_opportunities_rows())
 
 
-@pytest.fixture(scope="session", autouse=True)
-def preserve_real_disk_files():
-    """Snapshot and restore data/real/*.json before and after the test session."""
-    real_dir = Path(__file__).resolve().parent.parent / "data" / "real"
-    snapshots = {}
-    if real_dir.is_dir():
-        for f in real_dir.glob("*.json"):
-            try:
-                snapshots[f] = f.read_bytes()
-            except Exception:
-                pass
-    yield
-    for f, content in snapshots.items():
+_REAL_DISK_DIR = Path(__file__).resolve().parent.parent / "data" / "real"
+_REAL_DISK_SNAPSHOT: dict[Path, bytes] = {}
+if _REAL_DISK_DIR.is_dir():
+    for _f in _REAL_DISK_DIR.glob("*.json"):
         try:
-            f.write_bytes(content)
+            _REAL_DISK_SNAPSHOT[_f] = _f.read_bytes()
         except Exception:
             pass
 
 
+def _restore_real_disk_files():
+    for _f, _content in _REAL_DISK_SNAPSHOT.items():
+        try:
+            _f.write_bytes(_content)
+        except Exception:
+            pass
+
+
+def _build_pristine_cache() -> dict[str, list[dict]]:
+    from app.db import _cache, load_demo_data, load_real_data, init_demo_users
+    _restore_real_disk_files()
+    _cache.clear()
+    load_demo_data()
+    load_real_data()
+    init_demo_users()
+    _cache["employer_feedback"] = deepcopy(_PRISTINE_FEEDBACK)
+    _cache["employer_demands"] = deepcopy(_PRISTINE_DEMANDS)
+    _cache["student_profiles"] = deepcopy(_PRISTINE_PROFILES)
+    _cache["student_assessments"] = deepcopy(_PRISTINE_ASSESSMENTS)
+    _cache["courses"] = deepcopy(_PRISTINE_COURSES)
+    _cache["industry_signals"] = deepcopy(_PRISTINE_SIGNALS)
+    _cache["skill_forecasts"] = deepcopy(_PRISTINE_FORECASTS)
+    _cache["gov_opportunities"] = deepcopy(_PRISTINE_GOV_OPPORTUNITIES)
+    return deepcopy(_cache)
+
+
+_PRISTINE_CACHE = _build_pristine_cache()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def preserve_real_disk_files():
+    _restore_real_disk_files()
+    yield
+    _restore_real_disk_files()
+
+
 @pytest.fixture(autouse=True)
 def mock_supabase_for_tests():
-    """Autouse fixture providing an isolated Supabase test double for unit test suites."""
     from app.db import _cache, load_demo_data, load_real_data, init_demo_users
     for tbl in ("skills", "jobs", "schemes", "gov_opportunities"):
         if tbl not in _cache or not _cache[tbl]:
@@ -412,6 +474,17 @@ def mock_supabase_for_tests():
             break
     load_real_data()
     init_demo_users()
+
+    _cache["employer_feedback"] = deepcopy(_PRISTINE_FEEDBACK)
+    _cache["employer_demands"] = deepcopy(_PRISTINE_DEMANDS)
+    _cache["student_profiles"] = deepcopy(_PRISTINE_PROFILES)
+    _cache["student_assessments"] = deepcopy(_PRISTINE_ASSESSMENTS)
+    _cache["courses"] = deepcopy(_PRISTINE_COURSES)
+    _cache["industry_signals"] = deepcopy(_PRISTINE_SIGNALS)
+    _cache["skill_forecasts"] = deepcopy(_PRISTINE_FORECASTS)
+    _cache["gov_opportunities"] = deepcopy(_PRISTINE_GOV_OPPORTUNITIES)
+    _cache["job_skills"] = deepcopy(_PRISTINE_CACHE.get("job_skills", []))
+    _cache["course_skills"] = deepcopy(_PRISTINE_CACHE.get("course_skills", []))
 
     mock_client = MockSupabaseClient(
         feedback_rows=deepcopy(_PRISTINE_FEEDBACK),
@@ -423,6 +496,15 @@ def mock_supabase_for_tests():
         skill_forecasts_rows=deepcopy(_PRISTINE_FORECASTS),
         schemes_rows=deepcopy(_cache.get("schemes", [])),
         gov_opportunities_rows=deepcopy(_PRISTINE_GOV_OPPORTUNITIES),
+        skills_rows=deepcopy(_cache.get("skills", [])),
+        job_skills_rows=deepcopy(_cache.get("job_skills", [])),
+        course_skills_rows=deepcopy(_cache.get("course_skills", [])),
+        placements_rows=deepcopy(_cache.get("placements", [])),
+        jobs_rows=deepcopy(_cache.get("jobs", [])),
+        sync_logs_rows=deepcopy(_cache.get("sync_logs", [])),
+        employers_rows=deepcopy(_cache.get("employers", [])),
+        users_rows=deepcopy(_cache.get("users", [])),
+        difficult_skills_rows=deepcopy(_cache.get("difficult_skills", [])),
     )
     set_supabase_client(mock_client)
     yield mock_client

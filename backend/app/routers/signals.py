@@ -8,6 +8,7 @@ Provides:
 import logging
 from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.ingestion.industry_intelligence import calculate_freshness, STATUS_APPROVED
 from app.repositories.supabase_repository import (
@@ -19,6 +20,16 @@ from app.repositories.supabase_repository import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_skills_map(is_demo: bool = False) -> dict[str, str]:
+    if is_demo:
+        return {s["id"]: s["name"] for s in get_demo("skills")}
+    try:
+        from app.repositories.supabase_repository import list_skills
+        return {s["id"]: s.get("name", s["id"]) for s in (list_skills() or [])}
+    except Exception:
+        return {}
 
 
 def _normalize_signal_output(sig: dict[str, Any], skills_map: dict[str, str]) -> dict[str, Any]:
@@ -79,6 +90,7 @@ async def list_industry_signals(
     search: str | None = Query(None, description="Search query across title, description, skills, tools"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Retrieve public, approved, active industry intelligence signals."""
     try:
@@ -89,7 +101,7 @@ async def list_industry_signals(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database failure listing industry signals.",
         )
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))
 
     normalized = [_normalize_signal_output(s, skills_map) for s in raw_signals]
 
@@ -136,7 +148,10 @@ async def list_industry_signals(
 
 
 @router.get("/industry/signals/{signal_id}")
-async def get_industry_signal(signal_id: str):
+async def get_industry_signal(
+    signal_id: str,
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Retrieve detailed metadata for an approved active industry signal."""
     try:
         matched = get_industry_signal_repo(signal_id)
@@ -149,7 +164,7 @@ async def get_industry_signal(signal_id: str):
     if not matched:
         raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
 
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))
     normalized = _normalize_signal_output(matched, skills_map)
     if not normalized.get("is_active") or normalized.get("validation_status") != STATUS_APPROVED:
         raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' is not active or approved.")
@@ -159,7 +174,9 @@ async def get_industry_signal(signal_id: str):
 
 # Backward Compatibility Endpoints
 @router.get("/signals")
-async def legacy_list_signals():
+async def legacy_list_signals(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Legacy backward-compatible endpoint for existing dashboard widgets."""
     try:
         raw_signals = list_industry_signals_repo()
@@ -169,14 +186,17 @@ async def legacy_list_signals():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database failure listing signals.",
         )
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))
     results = [_normalize_signal_output(s, skills_map) for s in raw_signals if s.get("is_active", True)]
     results.sort(key=lambda x: x.get("published_at", ""), reverse=True)
     return results
 
 
 @router.get("/signals/{signal_id}")
-async def legacy_get_signal(signal_id: str):
+async def legacy_get_signal(
+    signal_id: str,
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Legacy backward-compatible detail endpoint."""
     try:
         matched = get_industry_signal_repo(signal_id)
@@ -188,5 +208,5 @@ async def legacy_get_signal(signal_id: str):
         )
     if not matched:
         return {"error": "not found"}
-    skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+    skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))
     return _normalize_signal_output(matched, skills_map)

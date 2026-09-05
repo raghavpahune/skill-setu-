@@ -48,37 +48,35 @@ def get_all_districts(is_demo: bool | None = None) -> list[dict]:
 
 def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, Any]:
     """Generate a comprehensive training plan for a district covering all §13 requirements."""
-    if is_demo is False:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
+        jobs = get_demo("jobs")
+        courses = get_demo("courses")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        placements = get_demo("placements")
+        employer_demands = get_demo("employer_demands")
+    else:
         try:
             from app.repositories.supabase_repository import list_jobs
             jobs = list_jobs() or []
         except Exception:
             jobs = []
-    elif is_demo is True:
-        jobs = get_demo("jobs")
-    else:
-        try:
-            from app.repositories.supabase_repository import list_jobs
-            repo_jobs = list_jobs()
-            jobs = repo_jobs if repo_jobs else get_demo("jobs")
-        except Exception:
-            jobs = get_demo("jobs")
-    if is_demo is True:
-        courses = get_demo("courses")
-        skills_map = {s["id"]: s for s in get_demo("skills")}
-        placements = get_demo("placements")
-    elif is_demo is False:
+
         try:
             from app.repositories.supabase_repository import list_courses
             courses = list_courses() or []
         except Exception:
             courses = []
+
         try:
             from app.repositories.supabase_repository import list_skills
             repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
         except Exception:
             skills_map = {}
+
         try:
             from app.db import get_supabase_client
             client = get_supabase_client()
@@ -86,27 +84,12 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
             placements = getattr(res, "data", []) or []
         except Exception:
             placements = []
-    else:
+
         try:
-            from app.repositories.supabase_repository import list_courses
-            repo_courses = list_courses()
-            courses = repo_courses if repo_courses else get_demo("courses")
+            from app.repositories.supabase_repository import list_employer_demands
+            employer_demands = list_employer_demands() or []
         except Exception:
-            courses = get_demo("courses")
-        try:
-            from app.repositories.supabase_repository import list_skills
-            repo_skills = list_skills(limit=10000)
-            skills_map = {s["id"]: s for s in repo_skills if "id" in s} if repo_skills else {s["id"]: s for s in get_demo("skills")}
-        except Exception:
-            skills_map = {s["id"]: s for s in get_demo("skills")}
-        try:
-            from app.db import get_supabase_client
-            client = get_supabase_client()
-            res = client.table("placements").select("*").execute() if client else None
-            repo_placements = getattr(res, "data", []) or []
-            placements = repo_placements if repo_placements else get_demo("placements")
-        except Exception:
-            placements = get_demo("placements")
+            employer_demands = []
 
     audited_courses_all = audit_all_courses(is_demo=is_demo)
 
@@ -118,34 +101,17 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
     district_courses = [c for c in courses if c.get("district", "").strip().lower() == d_clean]
     district_job_ids = {j["id"] for j in district_jobs}
 
-    if is_demo is False:
+    if is_demo_mode:
+        job_skills = get_demo("job_skills")
+    else:
         try:
             from app.repositories.supabase_repository import list_job_skills
             job_skills = list_job_skills(job_ids=list(district_job_ids)) if district_job_ids else []
         except Exception:
             job_skills = []
-    else:
-        job_skills = get_demo("job_skills")
 
     # 2. Top 5 Demanded Roles (§13)
     role_counts = Counter(j["title"] for j in district_jobs if j.get("title"))
-
-    # Incorporate user-submitted employer demands
-    if is_demo is True:
-        employer_demands = get_demo("employer_demands")
-    elif is_demo is False:
-        try:
-            from app.repositories.supabase_repository import list_employer_demands
-            employer_demands = list_employer_demands() or []
-        except Exception:
-            employer_demands = []
-    else:
-        try:
-            from app.repositories.supabase_repository import list_employer_demands
-            repo_demands = list_employer_demands()
-            employer_demands = repo_demands if repo_demands else get_demo("employer_demands")
-        except Exception:
-            employer_demands = get_demo("employer_demands")
 
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     district_js = [js for js in job_skills if js.get("job_id") in district_job_ids]
@@ -206,7 +172,7 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
         pc = p.get("placed_count", 0)
         local_courses.append({
             "id": c["id"],
-            "name": c["name"],
+            "name": c.get("name") or c.get("title", ""),
             "institute": c.get("institute", f"Government ITI, {district}"),
             "enrolment": c.get("enrolment_count", 0),
             "placement_rate": round((pc / max(1, sc)) * 100) if sc else 0,
@@ -215,14 +181,16 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
     # 6. Industry Sector Clusters (§13)
     industry_counts = Counter(j["industry"] for j in district_jobs if j.get("industry"))
     industries = [{"industry": k, "count": v} for k, v in industry_counts.most_common()]
-    if not industries and is_demo is not False:
+    if not industries and is_demo_mode:
         industries = [
             {"industry": "Manufacturing & Precision Engineering", "count": max(12, len(district_jobs))},
             {"industry": "AgriTech & Renewable Energy", "count": max(8, int(len(district_jobs) * 0.6))},
             {"industry": "Automotive Services & Logistics", "count": max(6, int(len(district_jobs) * 0.4))},
         ]
 
-    total_enrolment = sum(c.get("enrolment_count", 0) for c in district_courses) or max(120, len(district_jobs) * 4)
+    total_enrolment = sum(c.get("enrolment_count", 0) for c in district_courses)
+    if not total_enrolment and is_demo_mode:
+        total_enrolment = max(120, len(district_jobs) * 4)
 
     # 7. Courses Needing Review / Obsolescence Flags in District (§13 & §11)
     district_audited = [
@@ -250,7 +218,7 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
     total_seat_deficit = sum(
         max(30, int((g["gap_pct"] / 100) * 120))
         for g in gaps[:5]
-    ) if gaps else 180
+    ) if gaps else (180 if is_demo_mode else 0)
 
     # 9. Required Equipment & Procurement Budget Allocation (§13)
     required_equipment = []
@@ -278,13 +246,13 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
             required_equipment.append({**item, "total_cost_inr": cost, "domain": "General Technical Labs"})
 
     # 10. Required Trainers / Certified Instructors (§13)
-    required_trainers_count = max(2, math.ceil(total_seat_deficit / 25))
+    required_trainers_count = max(2, math.ceil(total_seat_deficit / 25)) if total_seat_deficit > 0 else 0
     trainer_programs = []
     if any("ai" in c.lower() for c in gap_categories):
         trainer_programs.extend(TRAINER_UPGRADE_CATALOG.get("Artificial Intelligence", []))
     if any("ev" in c.lower() for c in gap_categories):
         trainer_programs.extend(TRAINER_UPGRADE_CATALOG.get("Electric Vehicles", []))
-    if not trainer_programs:
+    if not trainer_programs and (is_demo_mode or gaps):
         trainer_programs.extend(TRAINER_UPGRADE_CATALOG.get("General Technical", []))
 
     # 11. Nearby Accredited Training Institutes (§13)
@@ -300,8 +268,8 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
             })
     if not nearby_institutes:
         nearby_institutes = [
-            {"name": f"Government ITI, {district}", "district": district, "type": "Vocational Training Hub", "active_courses_count": 4},
-            {"name": f"District Polytechnic Institute, {district}", "district": district, "type": "Technical Training Institute", "active_courses_count": 3},
+            {"name": f"Government ITI, {district}", "district": district, "type": "Vocational Training Hub", "active_courses_count": 4 if is_demo_mode else 0},
+            {"name": f"District Polytechnic Institute, {district}", "district": district, "type": "Technical Training Institute", "active_courses_count": 3 if is_demo_mode else 0},
         ]
 
     # 12. Recommended Modernized Courses (§13)
@@ -317,19 +285,19 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
         })
 
     # 13. Expected Impact Metrics (§13)
-    avg_gap_before = round(sum(g["gap_pct"] for g in gaps) / max(1, len(gaps)), 1) if gaps else 35.0
-    projected_gap_after = max(5.0, round(avg_gap_before * 0.45, 1))
+    avg_gap_before = round(sum(g["gap_pct"] for g in gaps) / max(1, len(gaps)), 1) if gaps else (35.0 if is_demo_mode else 0.0)
+    projected_gap_after = max(5.0, round(avg_gap_before * 0.45, 1)) if avg_gap_before > 0 else 0.0
     expected_impact = {
-        "projected_placement_lift_pct": 18.5,
-        "projected_skill_deficit_reduction_pct": round(((avg_gap_before - projected_gap_after) / max(1.0, avg_gap_before)) * 100, 1),
+        "projected_placement_lift_pct": 18.5 if (total_seat_deficit > 0 or is_demo_mode) else 0.0,
+        "projected_skill_deficit_reduction_pct": round(((avg_gap_before - projected_gap_after) / max(1.0, avg_gap_before)) * 100, 1) if avg_gap_before > 0 else 0.0,
         "target_placed_students": int(total_seat_deficit * 0.85),
         "total_budget_estimate_inr": total_equipment_budget_inr + (required_trainers_count * 150000),
     }
 
     return {
         "district": district,
-        "total_jobs": len(district_jobs) or 38,
-        "total_courses": len(district_courses) or len(local_courses),
+        "total_jobs": len(district_jobs) if not is_demo_mode else (len(district_jobs) or 38),
+        "total_courses": len(district_courses),
         "total_enrolment": total_enrolment,
         "top_roles": top_roles,
         "top_demanded_roles": top_roles,
@@ -352,7 +320,16 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
 
 def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
     """Compute the 7 platform-level success metrics specified in PROJECT_SPEC Section 33."""
-    if is_demo is False:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
+        jobs = get_demo("jobs")
+        courses = get_demo("courses")
+        skills = get_demo("skills")
+        placements = get_demo("placements")
+        employer_feedback = get_demo("employer_feedback")
+    else:
         try:
             from app.repositories.supabase_repository import list_jobs
             jobs = list_jobs() or []
@@ -380,46 +357,17 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
             employer_feedback = list_employer_feedback() or []
         except Exception:
             employer_feedback = []
-    elif is_demo is True:
-        jobs = get_demo("jobs")
-        courses = get_demo("courses")
-        skills = get_demo("skills")
-        placements = get_demo("placements")
-        employer_feedback = get_demo("employer_feedback")
-    else:
-        try:
-            from app.repositories.supabase_repository import list_jobs
-            repo_jobs = list_jobs()
-            jobs = repo_jobs if repo_jobs else get_demo("jobs")
-        except Exception:
-            jobs = get_demo("jobs")
-        try:
-            from app.repositories.supabase_repository import list_courses
-            courses = list_courses()
-        except Exception:
-            courses = get_demo("courses")
-        try:
-            from app.repositories.supabase_repository import list_skills
-            skills = list_skills()
-        except Exception:
-            skills = get_demo("skills")
-        placements = get_demo("placements")
-        try:
-            from app.repositories.supabase_repository import list_employer_feedback
-            employer_feedback = list_employer_feedback()
-        except Exception:
-            employer_feedback = get_demo("employer_feedback")
 
-    audited_courses = audit_all_courses()
+    audited_courses = audit_all_courses(is_demo=is_demo)
     gaps = compute_gaps(is_demo=is_demo)
 
     # 1. State-wide Placement Rate
     total_students = sum(p.get("student_count", 0) for p in placements)
     total_placed = sum(p.get("placed_count", 0) for p in placements)
-    placement_rate = round((total_placed / max(1, total_students)) * 100, 1) if total_students else (0.0 if is_demo is False else 78.4)
+    placement_rate = round((total_placed / max(1, total_students)) * 100, 1) if total_students else (78.4 if is_demo_mode else 0.0)
 
     # 2. Net Skill Mismatch Score (Average Skill Gap Index 0-100)
-    skill_mismatch_score = round(sum(g.get("gap_pct", 0) for g in gaps) / max(1, len(gaps)), 1) if gaps else (0.0 if is_demo is False else 32.5)
+    skill_mismatch_score = round(sum(g.get("gap_pct", 0) for g in gaps) / max(1, len(gaps)), 1) if gaps else (32.5 if is_demo_mode else 0.0)
 
     # 3. Employer Validation / Approval Rate (%)
     total_feedback = len(employer_feedback)
@@ -427,10 +375,10 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
         1 for ef in employer_feedback
         if str(ef.get("status", "")).lower() in ("confirmed", "validated", "approved")
     )
-    employer_approval_rate = round((confirmed_or_valid / max(1, total_feedback)) * 100, 1) if total_feedback else (0.0 if is_demo is False else 87.5)
+    employer_approval_rate = round((confirmed_or_valid / max(1, total_feedback)) * 100, 1) if total_feedback else (87.5 if is_demo_mode else 0.0)
 
     # 4. Curriculum Update Time (Average modernization cycle in months)
-    avg_curriculum_update_time_months = 3.8
+    avg_curriculum_update_time_months = 3.8 if (courses or is_demo_mode) else 0.0
 
     # 5. Training Capacity Deficit (Total missing seats in critical/high gap skills)
     training_capacity_deficit_seats = sum(
@@ -446,7 +394,7 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
     )
 
     # 7. Student Recommendation Engagement Rate (%)
-    student_engagement_rate = 86.2
+    student_engagement_rate = 86.2 if is_demo_mode else 0.0
 
     return {
         "status": "success",

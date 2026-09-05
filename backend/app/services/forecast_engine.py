@@ -17,69 +17,51 @@ logger = logging.getLogger("skillsetu.forecast_engine")
 
 def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Compute 6m, 12m, 24m forecast trajectories and confidence for all skills."""
-    if is_demo is False:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
+        skills = get_demo("skills")
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
+        employer_demands = get_demo("employer_demands")
+        industry_signals = get_demo("industry_signals")
+        stored_forecasts = {f.get("skill_id"): f for f in get_demo("skill_forecasts") if f.get("skill_id")}
+        placements = get_demo("placements")
+    else:
         try:
             from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills
-            repo_skills = list_skills(limit=10000)
-            skills = repo_skills if repo_skills else get_demo("skills")
+            skills = list_skills(limit=10000) or []
             jobs = list_jobs(limit=10000) or []
             job_ids = {j.get("id") for j in jobs if j.get("id")}
             repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
         except Exception as e:
             logger.warning("[ForecastEngine] Supabase unavailable for real forecast request: %s", e)
-            skills = get_demo("skills")
+            skills = []
             jobs = []
             job_skills = []
-    elif is_demo is True:
-        skills = get_demo("skills")
-        jobs = get_demo("jobs")
-        job_skills = get_demo("job_skills")
-    else:
-        try:
-            from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills
-            repo_skills = list_skills(limit=10000)
-            skills = repo_skills if repo_skills else get_demo("skills")
-            repo_jobs = list_jobs(limit=10000)
-            if repo_jobs:
-                jobs = repo_jobs
-                job_ids = {j.get("id") for j in jobs if j.get("id")}
-                repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
-                job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
-            else:
-                jobs = get_demo("jobs")
-                job_skills = get_demo("job_skills")
-        except Exception:
-            skills = get_demo("skills")
-            jobs = get_demo("jobs")
-            job_skills = get_demo("job_skills")
-    if is_demo is True:
-        employer_demands = get_demo("employer_demands")
-    else:
+
         try:
             from app.repositories.supabase_repository import list_employer_demands
-            employer_demands = list_employer_demands()
+            employer_demands = list_employer_demands() or []
         except Exception as e:
             logger.warning("[ForecastEngine] Employer demands unavailable: %s", e)
-            employer_demands = [] if is_demo is False else get_demo("employer_demands")
-    if is_demo is True:
-        industry_signals = get_demo("industry_signals")
-        stored_forecasts = {f.get("skill_id"): f for f in get_demo("skill_forecasts") if f.get("skill_id")}
-        placements = get_demo("placements")
-    else:
+            employer_demands = []
+
         try:
             from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-            industry_signals = list_industry_signals_repo()
+            industry_signals = list_industry_signals_repo() or []
         except Exception:
-            industry_signals = [] if is_demo is False else get_demo("industry_signals")
+            industry_signals = []
 
         try:
             from app.repositories.supabase_repository import list_skill_forecasts, SupabaseRepositoryError
-            raw_stored = list_skill_forecasts()
+            raw_stored = list_skill_forecasts() or []
         except SupabaseRepositoryError:
             raise
         except Exception:
-            raw_stored = [] if is_demo is False else get_demo("skill_forecasts")
+            raw_stored = []
 
         stored_forecasts = {}
         for f in raw_stored:
@@ -89,16 +71,16 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
             if sid not in stored_forecasts or f.get("confidence", 0) > stored_forecasts[sid].get("confidence", 0):
                 stored_forecasts[sid] = f
 
-        if is_demo is False:
-            try:
-                from app.db import get_supabase_client
-                client = get_supabase_client()
-                res = client.table("placements").select("*").execute() if client else None
-                placements = getattr(res, "data", []) or []
-            except Exception:
-                placements = []
-        else:
-            placements = get_demo("placements")
+        try:
+            from app.db import get_supabase_client
+            client = get_supabase_client()
+            res = client.table("placements").select("*").execute() if client else None
+            placements = getattr(res, "data", []) or []
+        except Exception:
+            placements = []
+
+    if not skills:
+        return []
 
     # 1. Calculate Current Job Demand Velocity per skill
     total_jobs = max(1, len(jobs))
@@ -191,10 +173,18 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
         # Determine Key Drivers
         drivers = sig_data["drivers"][:3]
         if not drivers:
-            drivers = stored.get("key_drivers", [
-                "Labour market digital transformation",
-                "Maharashtra industrial corridor expansion"
-            ])
+            stored_drivers = stored.get("key_drivers")
+            if stored_drivers:
+                drivers = stored_drivers
+            elif emp_score > 0 or job_count > 0:
+                drivers = ["Employer demand expansion", "Regional industry hiring"]
+            elif is_demo_mode:
+                drivers = [
+                    "Labour market digital transformation",
+                    "Maharashtra industrial corridor expansion"
+                ]
+            else:
+                drivers = ["Labour market baseline demand"]
 
         # Confidence calculation
         confidence = min(98, max(65, int(base_confidence + (2 if emp_score > 0 else 0) + (3 if sig_score > 0 else 0))))

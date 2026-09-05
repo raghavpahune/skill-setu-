@@ -1,19 +1,32 @@
 """Opportunities API — internships, apprenticeships, vocational training, and jobs."""
 from fastapi import APIRouter, HTTPException, Query
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 
 router = APIRouter()
 
 
-def _get_skills_by_job() -> dict[str, list[dict]]:
+def _get_skills_by_job(is_demo: bool = False, job_ids: list[str] | None = None) -> dict[str, list[dict]]:
     """Build a lookup of required skills per job/opportunity."""
-    job_skills = get_demo("job_skills")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    if is_demo:
+        job_skills = get_demo("job_skills")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        try:
+            from app.repositories import supabase_repository
+            job_skills = supabase_repository.list_job_skills(job_ids=job_ids) if job_ids else []
+            skills = supabase_repository.list_skills(limit=1000) or []
+            skills_map = {s["id"]: s for s in skills}
+        except Exception:
+            job_skills = []
+            skills_map = {}
 
     result: dict[str, list[dict]] = {}
     for js in job_skills:
-        jid = js["job_id"]
-        sid = js["skill_id"]
+        jid = js.get("job_id")
+        sid = js.get("skill_id")
+        if not jid or not sid:
+            continue
         skill_info = skills_map.get(sid, {})
         if jid not in result:
             result[jid] = []
@@ -37,14 +50,26 @@ async def list_opportunities(
     q: str | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List opportunities (jobs, internships, apprenticeships, vocational training).
 
     Supports filtering by opportunity type, district, industry, required skill,
     stipend, status, and search query.
     """
-    jobs = get_demo("jobs")
-    skills_by_job = _get_skills_by_job()
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+    if is_demo_mode:
+        jobs = get_demo("jobs")
+        skills_by_job = _get_skills_by_job(is_demo=True)
+    else:
+        try:
+            from app.repositories import supabase_repository
+            jobs = supabase_repository.list_jobs(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit) or []
+            job_ids = [j.get("id") for j in jobs if j.get("id")]
+            skills_by_job = _get_skills_by_job(is_demo=False, job_ids=job_ids)
+        except Exception:
+            jobs = []
+            skills_by_job = {}
 
     filtered = []
     for j in jobs:
@@ -73,7 +98,7 @@ async def list_opportunities(
                 continue
 
         # Attached skills
-        opp_skills = skills_by_job.get(j["id"], [])
+        opp_skills = skills_by_job.get(j.get("id", ""), [])
 
         # Skill filter: matches either skill ID or skill name (case-insensitive)
         if skill:
@@ -94,11 +119,11 @@ async def list_opportunities(
 
         # Enriched opportunity item
         filtered.append({
-            "id": j["id"],
-            "title": j["title"],
-            "company": j["company"],
-            "district": j["district"],
-            "industry": j["industry"],
+            "id": j.get("id"),
+            "title": j.get("title"),
+            "company": j.get("company"),
+            "district": j.get("district"),
+            "industry": j.get("industry"),
             "opportunity_type": opp_type,
             "portal_source": j.get("portal_source", "direct"),
             "stipend_amount": j.get("stipend_amount"),
@@ -109,7 +134,7 @@ async def list_opportunities(
             "description": j.get("description", ""),
             "posted_date": j.get("posted_date"),
             "status": j.get("status", "active"),
-            "source": j.get("source", "DEMO_SYNTHETIC"),
+            "source": j.get("source", "DEMO_SYNTHETIC" if is_demo_mode else "LIVE_API"),
             "skills": opp_skills,
         })
 
@@ -117,9 +142,19 @@ async def list_opportunities(
 
 
 @router.get("/opportunities/summary")
-async def opportunities_summary():
+async def opportunities_summary(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Return count breakdown by opportunity_type and portal source."""
-    jobs = get_demo("jobs")
+    if is_explicit_demo_mode(is_demo):
+        jobs = get_demo("jobs")
+    else:
+        try:
+            from app.repositories import supabase_repository
+            jobs = supabase_repository.list_jobs(limit=1000) or []
+        except Exception:
+            jobs = []
+
     type_counts: dict[str, int] = {}
     district_counts: dict[str, int] = {}
 
@@ -141,31 +176,61 @@ async def opportunities_summary():
 
 
 @router.get("/opportunities/{opportunity_id}")
-async def get_opportunity(opportunity_id: str):
+async def get_opportunity(
+    opportunity_id: str,
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Get single opportunity details by ID, including required skills."""
-    jobs = get_demo("jobs")
-    skills_by_job = _get_skills_by_job()
-
-    for j in jobs:
-        if j["id"] == opportunity_id:
-            return {
-                "id": j["id"],
-                "title": j["title"],
-                "company": j["company"],
-                "district": j["district"],
-                "industry": j["industry"],
-                "opportunity_type": j.get("opportunity_type", "job"),
-                "portal_source": j.get("portal_source", "direct"),
-                "stipend_amount": j.get("stipend_amount"),
-                "duration_months": j.get("duration_months"),
-                "min_education": j.get("min_education"),
-                "vacancies_count": j.get("vacancies_count", 1),
-                "apply_url": j.get("apply_url"),
-                "description": j.get("description", ""),
-                "posted_date": j.get("posted_date"),
-                "status": j.get("status", "active"),
-                "source": j.get("source", "DEMO_SYNTHETIC"),
-                "skills": skills_by_job.get(j["id"], []),
-            }
+    if is_explicit_demo_mode(is_demo):
+        jobs = get_demo("jobs")
+        skills_by_job = _get_skills_by_job(is_demo=True)
+        for j in jobs:
+            if j.get("id") == opportunity_id:
+                return {
+                    "id": j["id"],
+                    "title": j["title"],
+                    "company": j["company"],
+                    "district": j["district"],
+                    "industry": j["industry"],
+                    "opportunity_type": j.get("opportunity_type", "job"),
+                    "portal_source": j.get("portal_source", "direct"),
+                    "stipend_amount": j.get("stipend_amount"),
+                    "duration_months": j.get("duration_months"),
+                    "min_education": j.get("min_education"),
+                    "vacancies_count": j.get("vacancies_count", 1),
+                    "apply_url": j.get("apply_url"),
+                    "description": j.get("description", ""),
+                    "posted_date": j.get("posted_date"),
+                    "status": j.get("status", "active"),
+                    "source": j.get("source", "DEMO_SYNTHETIC"),
+                    "skills": skills_by_job.get(j["id"], []),
+                }
+    else:
+        try:
+            from app.repositories import supabase_repository
+            job = supabase_repository.get_job(opportunity_id)
+            if job:
+                skills_by_job = _get_skills_by_job(is_demo=False, job_ids=[opportunity_id])
+                return {
+                    "id": job["id"],
+                    "title": job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "district": job.get("district", ""),
+                    "industry": job.get("industry", ""),
+                    "opportunity_type": job.get("opportunity_type", "job"),
+                    "portal_source": job.get("portal_source", "direct"),
+                    "stipend_amount": job.get("stipend_amount"),
+                    "duration_months": job.get("duration_months"),
+                    "min_education": job.get("min_education"),
+                    "vacancies_count": job.get("vacancies_count", 1),
+                    "apply_url": job.get("apply_url"),
+                    "description": job.get("description", ""),
+                    "posted_date": job.get("posted_date"),
+                    "status": job.get("status", "active"),
+                    "source": job.get("source", "LIVE_API"),
+                    "skills": skills_by_job.get(job["id"], []),
+                }
+        except Exception:
+            pass
 
     raise HTTPException(status_code=404, detail="Opportunity not found")

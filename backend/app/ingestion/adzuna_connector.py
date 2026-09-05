@@ -207,8 +207,14 @@ class AdzunaConnector(BaseSourceAdapter):
         as a live feed, and preserves genuine historical capture timestamps.
         """
         if master_skills is None:
-            from app.db import get_demo
-            master_skills = get_demo("skills")
+            try:
+                from app.repositories.supabase_repository import list_skills
+                master_skills = list_skills(limit=10000) or []
+            except Exception:
+                master_skills = []
+            if not master_skills:
+                from app.db import get_demo
+                master_skills = get_demo("skills")
 
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
         transformed = []

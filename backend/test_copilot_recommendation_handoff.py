@@ -10,7 +10,8 @@ client = TestClient(app)
 def pin_demo_provider(monkeypatch):
     """Ensure all tests deterministically use DemoProvider and never make external Gemini calls."""
     from ai.demo_provider import DemoProvider
-    monkeypatch.setattr("ai.copilot._get_provider", lambda: DemoProvider())
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+    monkeypatch.setattr("ai.copilot._get_provider", lambda *args, **kwargs: DemoProvider())
 
 
 def test_copilot_recommendation_handoff_generative_ai():
