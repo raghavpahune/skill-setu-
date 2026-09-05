@@ -25,11 +25,21 @@ def get_all_districts(is_demo: bool | None = None) -> list[dict]:
             jobs = repo_jobs if repo_jobs else get_demo("jobs")
         except Exception:
             jobs = get_demo("jobs")
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
-        courses = [] if is_demo is False else get_demo("courses")
+    if is_demo is False:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            courses = list_courses() or []
+        except Exception:
+            courses = []
+    elif is_demo is True:
+        courses = get_demo("courses")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            repo_courses = list_courses()
+            courses = repo_courses if repo_courses else get_demo("courses")
+        except Exception:
+            courses = get_demo("courses")
     
     job_counts = Counter(j["district"] for j in jobs if j.get("district"))
     course_counts = Counter(c["district"] for c in courses if c.get("district"))
@@ -286,7 +296,7 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
 
     # 13. Expected Impact Metrics (§13)
     avg_gap_before = round(sum(g["gap_pct"] for g in gaps) / max(1, len(gaps)), 1) if gaps else (35.0 if is_demo_mode else 0.0)
-    projected_gap_after = max(5.0, round(avg_gap_before * 0.45, 1)) if avg_gap_before > 0 else 0.0
+    projected_gap_after = min(avg_gap_before, max(0.0, round(avg_gap_before * 0.45, 1))) if avg_gap_before > 0 else 0.0
     expected_impact = {
         "projected_placement_lift_pct": 18.5 if (total_seat_deficit > 0 or is_demo_mode) else 0.0,
         "projected_skill_deficit_reduction_pct": round(((avg_gap_before - projected_gap_after) / max(1.0, avg_gap_before)) * 100, 1) if avg_gap_before > 0 else 0.0,

@@ -309,7 +309,21 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
         gov_opportunities = real_opps
         gov_opps_source = "GOVERNMENT_OFFICIAL" if gov_opportunities else "NO_OFFICIAL_MATCHES"
 
-    # 4. Evaluate each Career Role in Benchmark Taxonomy
+    if is_demo_mode:
+        all_courses = get_demo("courses")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses
+            all_courses = list_courses() or []
+        except Exception:
+            all_courses = []
+
+    try:
+        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+        all_signals = list_industry_signals_repo()
+    except Exception:
+        all_signals = []
+
     career_evaluations = []
     for role_def in CAREER_ROLES_BENCHMARK:
         role_name = role_def["role_name"]
@@ -362,15 +376,6 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
                     "source": g.get("source", "DEMO_SYNTHETIC"),
                 })
 
-        # Connect with matching institute training programs (Phase 25)
-        if is_demo_mode:
-            all_courses = get_demo("courses")
-        else:
-            try:
-                from app.repositories.supabase_repository import list_courses
-                all_courses = list_courses() or []
-            except Exception:
-                all_courses = []
         role_courses = []
         for c in all_courses:
             if c.get("status", "active").lower() not in ("active", "needs_attention"):
@@ -391,11 +396,6 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
                     "is_demo": c.get("is_demo", True),
                 })
 
-        try:
-            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-            all_signals = list_industry_signals_repo()
-        except Exception:
-            all_signals = []  # ponytail: non-critical supplement, degrade gracefully
         role_signals = []
         for s in all_signals:
             if not s.get("is_active", True) or s.get("validation_status", "APPROVED") != "APPROVED":

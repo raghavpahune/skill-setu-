@@ -155,14 +155,14 @@ def _match_student_to_opportunities(opportunities: list[dict], profile: dict) ->
             score += 2
             reasons.append(f"Eligible for your education level ({student_education.title()})")
 
-        # Opportunity type priority
-        opp_type = (opp.get("opportunity_type") or "APPRENTICESHIP").upper()
-        if opp_type == "APPRENTICESHIP":
-            score += 2
-            reasons.append("State-prioritized apprenticeship pathway")
-        elif opp_type == "VOCATIONAL_TRAINING":
-            score += 1
-            reasons.append("Accredited vocational training program")
+        if score > 0:
+            opp_type = (opp.get("opportunity_type") or "APPRENTICESHIP").upper()
+            if opp_type == "APPRENTICESHIP":
+                score += 2
+                reasons.append("State-prioritized apprenticeship pathway")
+            elif opp_type == "VOCATIONAL_TRAINING":
+                score += 1
+                reasons.append("Accredited vocational training program")
 
         if score > 0:
             scored.append({
@@ -189,7 +189,7 @@ async def list_gov_opportunities(
 ):
     """List government opportunities with optional filtering."""
     if is_explicit_demo_mode(is_demo):
-        records = get_demo("gov_opportunities")
+        records = [r for r in get_demo("gov_opportunities") if r.get("is_demo") is not False]
     else:
         try:
             from app.repositories.supabase_repository import get_client
@@ -247,7 +247,7 @@ async def gov_opportunity_types(
 ):
     """Return distinct opportunity types and districts for UI filtering."""
     if is_explicit_demo_mode(is_demo):
-        records = get_demo("gov_opportunities")
+        records = [r for r in get_demo("gov_opportunities") if r.get("is_demo") is not False]
     else:
         try:
             from app.repositories.supabase_repository import get_client

@@ -266,7 +266,7 @@ export default function InstituteDashboard() {
   const alignedCount = useMemo(() => courses.filter((c) => c.status === 'active').length, [courses]);
 
   const avgPlacement = useMemo(() => {
-    if (!courses.length) return 74;
+    if (!courses.length) return 0;
     const total = courses.reduce((acc, c) => acc + (c.placement_rate || 0), 0);
     return Math.round(total / courses.length);
   }, [courses]);

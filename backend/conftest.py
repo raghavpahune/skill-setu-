@@ -465,8 +465,7 @@ def preserve_real_disk_files():
     _restore_real_disk_files()
 
 
-@pytest.fixture(autouse=True)
-def mock_supabase_for_tests():
+def ensure_cache_baseline():
     from app.db import _cache, load_demo_data, load_real_data, init_demo_users
     for tbl in ("skills", "jobs", "schemes", "gov_opportunities"):
         if tbl not in _cache or not _cache[tbl]:
@@ -474,6 +473,17 @@ def mock_supabase_for_tests():
             break
     load_real_data()
     init_demo_users()
+
+
+@pytest.fixture
+def enable_demo_mode(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+
+
+@pytest.fixture(autouse=True)
+def mock_supabase_for_tests():
+    ensure_cache_baseline()
+    from app.db import _cache
 
     _cache["employer_feedback"] = deepcopy(_PRISTINE_FEEDBACK)
     _cache["employer_demands"] = deepcopy(_PRISTINE_DEMANDS)

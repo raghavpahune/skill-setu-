@@ -24,11 +24,19 @@ async def list_courses(
         ) from e
 
     if is_explicit_demo_mode(is_demo):
-        placements = {p["course_id"]: p for p in get_demo("placements")}
+        placements = {
+            p["course_id"]: p
+            for p in sorted(get_demo("placements"), key=lambda r: r.get("year") or 0)
+            if p.get("course_id")
+        }
     else:
         try:
             repo_placements = list_placements_repo() or []
-            placements = {p["course_id"]: p for p in repo_placements if p.get("course_id")}
+            placements = {
+                p["course_id"]: p
+                for p in sorted(repo_placements, key=lambda r: r.get("year") or 0)
+                if p.get("course_id")
+            }
         except Exception as e:
             logger.warning("[Courses] Could not fetch real placements: %s", e)
             placements = {}

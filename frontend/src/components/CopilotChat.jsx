@@ -332,6 +332,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
             text: `⚠️ **Service Unavailable**: Unable to reach the SkillSetu AI Copilot service (${errMsg}). In Real Data mode, synthetic factual fallbacks are disabled to prevent inaccurate labour market intelligence.`,
             isGrounded: false,
             isFallback: false,
+            isError: true,
             demoMode: false,
             model: 'Real Data Service (Offline)',
             provenanceLabel: '⚠️ Service Offline',
@@ -683,8 +684,7 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
                 </div>
               )}
 
-              {/* Copilot Verification & Model Metadata Footer */}
-              {m.sender === 'copilot' && (
+              {m.sender === 'copilot' && !m.isError && (
                 <div className="mt-3.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
                   <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
                     <span>✓</span> Verified against Maharashtra Labour Dataset

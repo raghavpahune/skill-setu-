@@ -7,9 +7,7 @@ client = TestClient(app)
 ADMIN_KEY = "demo-admin-key-2026"
 
 
-@pytest.fixture(autouse=True)
-def enable_demo_mode_for_phase15(monkeypatch):
-    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
 
 
 def test_list_gov_opportunities():
@@ -27,7 +25,7 @@ def test_list_gov_opportunities():
     assert "opportunity_type" in first
     assert "source" in first
     assert "last_updated" in first
-    assert first["source"] in ("DEMO_SYNTHETIC", "USER_SUBMITTED", "GOVERNMENT_OFFICIAL")
+    assert first["source"] in ("DEMO_SYNTHETIC", "GOVERNMENT_OFFICIAL")
 
 
 def test_gov_opportunities_filtering_by_type_and_district():

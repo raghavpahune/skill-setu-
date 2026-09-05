@@ -64,7 +64,7 @@ async def list_opportunities(
     else:
         try:
             from app.repositories import supabase_repository
-            jobs = supabase_repository.list_jobs(district=district, industry=industry, opportunity_type=opportunity_type, limit=limit) or []
+            jobs = supabase_repository.list_jobs(district=district, industry=industry, opportunity_type=opportunity_type, limit=offset + limit) or []
             job_ids = [j.get("id") for j in jobs if j.get("id")]
             skills_by_job = _get_skills_by_job(is_demo=False, job_ids=job_ids)
         except Exception:

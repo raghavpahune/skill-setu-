@@ -545,14 +545,19 @@ export default function GovernmentDashboard() {
                 trend="up"
                 trendLabel="+4% YoY"
               />
-              {/* Supporting Metric 2 */}
-              <StatCard
-                title="State Job Demand"
-                value={jobsCount > 0 ? `${jobsCount.toLocaleString()}+` : (loading ? '...' : '0')}
-                subtitle="Indexed across industrial hubs"
-                icon="💼"
-                color="white"
-              />
+              {errors.jobs ? (
+                <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
+                  <ErrorState title="Demand Unavailable" message="Failed to load job demand telemetry" onRetry={fetchData} />
+                </div>
+              ) : (
+                <StatCard
+                  title="State Job Demand"
+                  value={jobsCount > 0 ? `${jobsCount.toLocaleString()}+` : '0'}
+                  subtitle="Indexed across industrial hubs"
+                  icon="💼"
+                  color="white"
+                />
+              )}
               {/* Supporting Metric 3 */}
               <StatCard
                 title="Curriculum Upgrades"

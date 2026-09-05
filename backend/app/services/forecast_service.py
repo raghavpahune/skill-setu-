@@ -11,10 +11,9 @@ def get_forecasts(skill_id: str | None = None, is_demo: bool | None = None) -> l
     from app.core.data_mode import is_explicit_demo_mode
     if is_explicit_demo_mode(is_demo):
         skills_map = {s["id"]: s for s in get_demo("skills")}
-        try:
-            forecasts = list_skill_forecasts(skill_id=skill_id) or get_demo("skill_forecasts")
-        except Exception:
-            forecasts = get_demo("skill_forecasts")
+        forecasts = get_demo("skill_forecasts")
+        if skill_id:
+            forecasts = [f for f in forecasts if f.get("skill_id") == skill_id]
     else:
         from app.repositories.supabase_repository import list_skills
         try:

@@ -110,19 +110,20 @@ def get_personalized_industry_alerts(
     """Retrieve personalized technology and labour-market signals for a domain."""
     from app.core.data_mode import is_explicit_demo_mode
     is_demo_req = is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id))
-    try:
-        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-        signals_all = {s["id"]: s for s in list_industry_signals_repo()}
-    except Exception:
-        signals_all = {}  # ponytail: non-critical supplement, degrade gracefully
 
     if is_demo_req:
+        signals_all = {s["id"]: s for s in get_demo("industry_signals")}
         skills_map = {s["id"]: s for s in get_demo("skills")}
         jobs = get_demo("jobs")
         job_skills = get_demo("job_skills")
         courses = get_demo("courses")
         course_skills = get_demo("course_skills")
     else:
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            signals_all = {s["id"]: s for s in list_industry_signals_repo()}
+        except Exception:
+            signals_all = {}
         try:
             from app.repositories.supabase_repository import list_skills
             repo_skills = list_skills(limit=10000) or []
@@ -449,11 +450,14 @@ def get_skill_explainability(
     except Exception:
         feedback = [] if not is_explicit_demo else get_demo("employer_feedback")
     difficult_skills = get_demo("difficult_skills") if is_demo_req else []
-    try:
-        from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
-        signals = list_industry_signals_repo()
-    except Exception:
-        signals = []  # ponytail: non-critical supplement, degrade gracefully
+    if is_demo_req:
+        signals = get_demo("industry_signals")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_industry_signals as list_industry_signals_repo
+            signals = list_industry_signals_repo()
+        except Exception:
+            signals = []
     gaps_list = compute_gaps(is_demo=is_demo_req)
     gaps_map = {g["skill_id"]: g for g in gaps_list}
 

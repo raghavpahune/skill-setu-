@@ -731,14 +731,8 @@ def test_review7_conftest_fixture_table_independence():
     # Remove schemes to simulate a missing table in partial cache
     _cache.pop("schemes", None)
 
-    # Invoking the fixture logic directly should recover missing tables and demo accounts
-    from app.db import load_demo_data, load_real_data, init_demo_users
-    for tbl in ("skills", "jobs", "schemes", "gov_opportunities"):
-        if tbl not in _cache or not _cache[tbl]:
-            load_demo_data()
-            load_real_data()
-            break
-    init_demo_users()
+    from conftest import ensure_cache_baseline
+    ensure_cache_baseline()
 
     assert "schemes" in _cache and len(_cache["schemes"]) > 0
     assert any(u.get("email") == "student@skillsetu.gov.in" for u in _cache.get("users", []))
@@ -862,7 +856,7 @@ def test_review8_findings_isolation_and_authoritative_audit(monkeypatch):
     auth_js = [{"job_id": "j-auth-100", "skill_id": "sk-auth-100"}]
     auth_skill = {"id": "sk-auth-100", "name": "Real Tech Skill", "category": "Tech"}
 
-    monkeypatch.setattr(repo, "list_courses", lambda: [auth_course])
+    monkeypatch.setattr(repo, "list_courses", lambda *args, **kwargs: [auth_course])
     monkeypatch.setattr(repo, "list_course_skills", lambda *args, **kwargs: auth_cs)
     monkeypatch.setattr(repo, "list_jobs", lambda *args, **kwargs: [auth_job])
     monkeypatch.setattr(repo, "list_job_skills", lambda *args, **kwargs: auth_js)
@@ -874,7 +868,7 @@ def test_review8_findings_isolation_and_authoritative_audit(monkeypatch):
     assert gaps[0]["coverage_pct"] > 0
 
     # 4. District plan in unspecified mode with empty repo jobs must use demo skills consistently
-    monkeypatch.setattr(repo, "list_jobs", lambda: [])
+    monkeypatch.setattr(repo, "list_jobs", lambda *args, **kwargs: [])
     plan = get_district_plan("pune", is_demo=None)
     assert plan["district"].lower() == "pune"
     assert len(plan["top_skills"]) > 0

@@ -22,10 +22,7 @@ client = TestClient(app)
 
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def enable_demo_mode_for_step3b(monkeypatch):
-    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
 
 
 def test_gemini_provider_models_configuration():

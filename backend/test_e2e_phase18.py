@@ -22,10 +22,7 @@ EMPLOYER_TOKEN = create_access_token({"sub": "usr-employer-001", "email": "emplo
 EMPLOYER_AUTH_HEADERS = {"Authorization": f"Bearer {EMPLOYER_TOKEN}"}
 
 
-@pytest.fixture(autouse=True)
-def force_demo_mode_for_phase18(monkeypatch):
-    """Ensure Phase 18 E2E test runs deterministically in explicit demo mode."""
-    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
 
 
 # ===========================================================================

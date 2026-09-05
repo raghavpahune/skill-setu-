@@ -6,9 +6,7 @@ from app.main import app
 client = TestClient(app)
 
 
-@pytest.fixture(autouse=True)
-def enable_demo_mode_for_phase10(monkeypatch):
-    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
 
 
 def test_alert_domains_endpoint():

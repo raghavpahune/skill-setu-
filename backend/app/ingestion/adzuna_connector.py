@@ -212,9 +212,6 @@ class AdzunaConnector(BaseSourceAdapter):
                 master_skills = list_skills(limit=10000) or []
             except Exception:
                 master_skills = []
-            if not master_skills:
-                from app.db import get_demo
-                master_skills = get_demo("skills")
 
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
         transformed = []

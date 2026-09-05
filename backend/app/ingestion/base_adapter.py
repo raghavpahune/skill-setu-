@@ -16,7 +16,7 @@ import datetime
 import hashlib
 import logging
 import re
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("skillsetu.ingestion.base_adapter")
@@ -111,6 +111,10 @@ DISTRICT_ALIASES: dict[str, str] = {
     "gadchiroli": "Gadchiroli",
 }
 
+_DISTRICT_ALIASES_BY_LENGTH: list[tuple[str, str]] = sorted(
+    DISTRICT_ALIASES.items(), key=lambda x: len(x[0]), reverse=True
+)
+
 
 def normalize_maharashtra_district(raw_text: str | None, default: str = "Maharashtra") -> str:
     """Resolve free-text location string to a canonical Maharashtra district."""
@@ -119,12 +123,10 @@ def normalize_maharashtra_district(raw_text: str | None, default: str = "Maharas
 
     cleaned = raw_text.strip().lower()
 
-    # Exact alias match
     if cleaned in DISTRICT_ALIASES:
         return DISTRICT_ALIASES[cleaned]
 
-    # Substring search — longest alias first so "navi mumbai" beats "mumbai"
-    for alias, canonical in sorted(DISTRICT_ALIASES.items(), key=lambda x: len(x[0]), reverse=True):
+    for alias, canonical in _DISTRICT_ALIASES_BY_LENGTH:
         pattern = r"\b" + re.escape(alias) + r"\b"
         if re.search(pattern, cleaned):
             return canonical
@@ -167,7 +169,7 @@ def compute_freshness(
     - EXPIRED: > 180 days
     - UNKNOWN: missing or unparseable timestamp
     """
-    ts_str = published_at or snapshot_captured_at
+    ts_str = published_at or snapshot_captured_at or last_seen_at
     if not ts_str:
         return "UNKNOWN"
 
@@ -180,7 +182,6 @@ def compute_freshness(
         delta_days = (now - dt).days
 
         if delta_days < 0:
-            # Future date or minor clock skew
             return "NEW"
         elif delta_days <= 7:
             return "NEW"
@@ -196,14 +197,10 @@ def compute_freshness(
         return "UNKNOWN"
 
 
-# ---------------------------------------------------------------------------
-# Provenance Metadata Schema
-# ---------------------------------------------------------------------------
-
 class ProvenanceMetadata(BaseModel):
     """Standardized, unforgeable provenance stamp attached to all ingested records."""
     source: str = Field(..., description="Provider identifier (e.g., ADZUNA_API, OGD_DATAGOV_IN)")
-    source_type: str = Field(
+    source_type: Literal["LIVE_API", "VERIFIED_SNAPSHOT", "SANDBOX_SIMULATION", "DEMO_SYNTHETIC"] = Field(
         ...,
         description="Explicit classification: LIVE_API, VERIFIED_SNAPSHOT, SANDBOX_SIMULATION, DEMO_SYNTHETIC",
     )

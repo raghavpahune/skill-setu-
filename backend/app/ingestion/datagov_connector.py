@@ -213,15 +213,15 @@ class DataGovConnector(BaseSourceAdapter):
         resource_id: str | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
-        """Dispatch validation and transformation based on resource type."""
+        kwargs_override = {"resource_id": resource_id} if resource_id is not None else {}
         if resource_type == "scholarship":
-            return self.transform_scholarship_schemes(raw_records, resource_id=resource_id)
+            return self.transform_scholarship_schemes(raw_records, **kwargs_override)
         elif resource_type == "cts":
-            return self.transform_cts_schemes(raw_records, resource_id=resource_id)
+            return self.transform_cts_schemes(raw_records, **kwargs_override)
         elif resource_type == "naps":
-            return self.transform_naps_opportunities(raw_records, resource_id=resource_id)
+            return self.transform_naps_opportunities(raw_records, **kwargs_override)
         elif resource_type == "pmkvy":
-            return self.transform_pmkvy_opportunities(raw_records, resource_id=resource_id)
+            return self.transform_pmkvy_opportunities(raw_records, **kwargs_override)
         return []
 
     def verify_record(self, record: dict[str, Any]) -> tuple[bool, str, int]:
