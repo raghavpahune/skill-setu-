@@ -273,19 +273,10 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
     # 2. Extract strictly VALIDATED Employer Demands
     validated_demands = _get_validated_employer_demands(is_demo=is_demo_mode)
 
-    # 3. Extract Government Opportunities & Welfare Schemes
     if is_demo_mode:
         gov_opportunities = get_demo("gov_opportunities")
-        schemes = get_demo("schemes")
         gov_opps_source = "DEMO_SYNTHETIC"
     else:
-        try:
-            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
-            db_schemes = list_schemes_repo(status="active", limit=100)
-            schemes = db_schemes or []
-        except Exception as e:
-            logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
-            schemes = []
 
         try:
             from app.db import get_supabase_client

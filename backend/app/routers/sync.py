@@ -55,7 +55,8 @@ async def get_sync_logs(
         try:
             from app.repositories.supabase_repository import list_sync_logs
             logs = list_sync_logs(limit=limit + offset)
-        except Exception:
+        except Exception as e:
+            logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             logs = []
     # Return sorted with most recent first
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)

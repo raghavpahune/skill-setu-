@@ -219,9 +219,6 @@ class SyncEngine:
                 source_id_index[s_key] = new_idx
                 added += 1
 
-        set_demo("schemes", current_schemes)
-
-        # Authoritative persistence to Supabase repository
         try:
             from app.repositories.supabase_repository import upsert_schemes
             upsert_schemes(incoming_schemes)
@@ -232,6 +229,7 @@ class SyncEngine:
                 logger.error("[SyncEngine] Supabase scheme persistence failed: %s", e)
                 raise
 
+        set_demo("schemes", current_schemes)
         return added, updated
 
     def _upsert_jobs(self, incoming_jobs: list[dict[str, Any]]) -> tuple[int, int]:
@@ -288,9 +286,6 @@ class SyncEngine:
                 source_id_index[j_key] = new_idx
                 added += 1
 
-        set_demo("jobs", current_jobs)
-
-        # Authoritative persistence to Supabase repository
         try:
             from app.repositories.supabase_repository import upsert_jobs
             upsert_jobs(incoming_jobs)
@@ -301,6 +296,7 @@ class SyncEngine:
                 logger.error("[SyncEngine] Supabase job persistence failed: %s", e)
                 raise
 
+        set_demo("jobs", current_jobs)
         return added, updated
 
     # Alias for backwards compatibility

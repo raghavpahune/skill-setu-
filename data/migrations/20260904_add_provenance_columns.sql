@@ -167,5 +167,5 @@ CREATE INDEX IF NOT EXISTS idx_jobs_live_active ON jobs(district, industry) WHER
 CREATE INDEX IF NOT EXISTS idx_jobs_freshness ON jobs(freshness_status);
 CREATE INDEX IF NOT EXISTS idx_schemes_freshness ON schemes(freshness_status);
 
-ALTER TABLE gov_opportunities ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE gov_opportunities ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
 UPDATE gov_opportunities SET is_demo = FALSE WHERE is_demo IS NULL;

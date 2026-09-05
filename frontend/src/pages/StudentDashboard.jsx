@@ -857,9 +857,15 @@ export default function StudentDashboard() {
                 }
               }).catch(() => {});
               api.getStudents().then((res) => {
-                if (Array.isArray(res) && res.length > 0) {
-                  setStudents(res);
-                }
+                const studentList = Array.isArray(res) ? res : [];
+                setStudents((prev) => {
+                  const hasMe = prev.some((s) => s.user_id === 'me');
+                  const meItem = prev.find((s) => s.user_id === 'me');
+                  if (studentList.length > 0) {
+                    return hasMe ? [meItem, ...studentList.filter((r) => r.user_id !== 'me')] : studentList;
+                  }
+                  return hasMe ? [meItem] : [];
+                });
               });
               setSelectedStudentId('me');
               fetchStudentData();

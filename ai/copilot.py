@@ -448,8 +448,12 @@ async def handle_question(
     current_user: dict | None = None,
     is_demo: bool | None = None,
 ) -> dict[str, Any]:
-    """Handle a copilot question end-to-end with live inference and real-data-first isolation."""
-    is_demo_mode = is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id))
+    if is_demo is False:
+        is_demo_mode = False
+    elif is_demo is True or is_explicit_demo_mode(is_demo):
+        is_demo_mode = True
+    else:
+        is_demo_mode = student_id is not None and is_demo_student_id(student_id)
     provider = _get_provider(is_demo=is_demo_mode)
     context = _build_context(role, question, district, student_id, context_data, current_user, is_demo=is_demo_mode)
     is_live_ai = isinstance(provider, GeminiProvider)
