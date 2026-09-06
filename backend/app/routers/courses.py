@@ -1,8 +1,9 @@
 """Courses API — course health and recommendations."""
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
-from app.repositories.supabase_repository import list_courses as list_courses_repo, SupabaseRepositoryError
+from app.repositories.supabase_repository import list_courses as list_courses_repo, list_placements as list_placements_repo, SupabaseRepositoryError
 from app.services.recommendation_service import get_curriculum_recommendations
 
 logger = logging.getLogger("skillsetu.courses")
@@ -10,17 +11,35 @@ router = APIRouter()
 
 
 @router.get("/courses")
-async def list_courses():
-    try:
-        courses = list_courses_repo()
-    except SupabaseRepositoryError as e:
-        logger.exception("[Courses] Failed fetching courses from Supabase: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database query failed for courses.",
-        ) from e
-
-    placements = {p["course_id"]: p for p in get_demo("placements")}
+async def list_courses(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
+    if is_explicit_demo_mode(is_demo):
+        courses = get_demo("courses")
+        placements = {
+            p["course_id"]: p
+            for p in sorted(get_demo("placements"), key=lambda r: r.get("year") or 0)
+            if p.get("course_id")
+        }
+    else:
+        try:
+            courses = list_courses_repo() or []
+        except SupabaseRepositoryError as e:
+            logger.exception("[Courses] Failed fetching courses from Supabase: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database query failed for courses.",
+            ) from e
+        try:
+            repo_placements = list_placements_repo() or []
+            placements = {
+                p["course_id"]: p
+                for p in sorted(repo_placements, key=lambda r: r.get("year") or 0)
+                if p.get("course_id")
+            }
+        except Exception as e:
+            logger.warning("[Courses] Could not fetch real placements: %s", e)
+            placements = {}
 
     result = []
     for c in courses:
@@ -49,5 +68,7 @@ async def list_courses():
 
 
 @router.get("/courses/recommendations")
-async def course_recommendations():
-    return get_curriculum_recommendations()
+async def course_recommendations(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
+    return get_curriculum_recommendations(is_demo=is_demo)

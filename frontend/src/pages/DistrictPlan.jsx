@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import SkillGapBar from '../components/SkillGapBar';
 import { api } from '../services/api';
+import { isValidDistrictPlan } from '../utils/districtPlanValidator';
 
 const DISTRICT_NAMES = [
   'Pune',
@@ -18,39 +19,33 @@ const DISTRICT_NAMES = [
   'Ratnagiri',
 ];
 
-const DEFAULT_DISTRICT_PLANS = {
-  Pune: {
-    district: 'Pune',
-    total_jobs: 144,
-    total_courses: 8,
-    total_enrolment: 480,
-    top_roles: [
-      { role: 'Generative AI Engineer', count: 42 },
-      { role: 'EV Powertrain Specialist', count: 35 },
-      { role: 'Full Stack Cloud Developer', count: 28 },
-      { role: 'Robotics Automation Technician', count: 21 },
-      { role: 'Data Architecture Engineer', count: 18 },
-    ],
-    industry_demand: [
-      { industry: 'Information Technology & ITES', count: 68 },
-      { industry: 'Automotive & EV Manufacturing', count: 45 },
-      { industry: 'Precision Engineering', count: 18 },
-      { industry: 'Renewable Energy & IoT', count: 13 },
-    ],
-    local_courses: [
-      { name: 'Advanced AI & Machine Learning', institute: 'Government Polytechnic, Pune', enrolment: 60, placement_rate: 90 },
-      { name: 'Electric Vehicle Systems', institute: 'Government ITI, Aundh', enrolment: 50, placement_rate: 88 },
-      { name: 'Cloud Infrastructure & DevOps', institute: 'C-DAC Partner Center', enrolment: 45, placement_rate: 84 },
-      { name: 'CNC Precision Tooling', institute: 'ITI Pimpri-Chinchwad', enrolment: 70, placement_rate: 68 },
-    ],
-    skill_gaps: [
-      { skill_id: 'sk-002', skill_name: 'Generative AI & LLMs', category: 'AI & Data', demand_pct: 78, coverage_pct: 35, gap_pct: 43, priority: 'CRITICAL', demand_count: 42 },
-      { skill_id: 'sk-005', skill_name: 'EV Battery Management Systems', category: 'EV & Automotive', demand_pct: 70, coverage_pct: 38, gap_pct: 32, priority: 'HIGH', demand_count: 35 },
-      { skill_id: 'sk-008', skill_name: 'Vector DBs & RAG Architecture', category: 'Software & Cloud', demand_pct: 62, coverage_pct: 28, gap_pct: 34, priority: 'HIGH', demand_count: 26 },
-      { skill_id: 'sk-011', skill_name: 'Automated Robotics Maintenance', category: 'Precision Engineering', demand_pct: 58, coverage_pct: 32, gap_pct: 26, priority: 'MEDIUM', demand_count: 21 },
-    ],
+const EMPTY_DISTRICT_PLAN = (district) => ({
+  district,
+  total_jobs: 0,
+  total_courses: 0,
+  total_enrolment: 0,
+  top_roles: [],
+  top_demanded_roles: [],
+  industry_demand: [],
+  local_courses: [],
+  skill_gaps: [],
+  top_skills: [],
+  top_demanded_skills: [],
+  required_equipment: [],
+  trainer_programs: [],
+  courses_needing_review: [],
+  recommended_courses: [],
+  nearby_institutes: [],
+  required_training_seats: 0,
+  required_trainers_count: 0,
+  total_equipment_budget_inr: 0,
+  expected_impact: {
+    projected_placement_lift_pct: 0,
+    projected_skill_deficit_reduction_pct: 0,
+    target_placed_students: 0,
+    total_budget_estimate_inr: 0,
   },
-};
+});
 
 function EmptyState({
   title = 'No records available',
@@ -111,78 +106,41 @@ export default function DistrictPlan() {
   const navigate = useNavigate();
   const districtName = name || 'Pune';
 
-  const [plan, setPlan] = useState(DEFAULT_DISTRICT_PLANS[districtName] || DEFAULT_DISTRICT_PLANS.Pune);
+  const [plan, setPlan] = useState(() => EMPTY_DISTRICT_PLAN(districtName));
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const fetchPlan = () => {
+  const fetchPlan = () => setRetryCount((c) => c + 1);
+
+  useEffect(() => {
+    let isCurrent = true;
     setLoading(true);
     setHasError(false);
 
     api.getDistrictPlan(districtName)
       .then((res) => {
-        if (res && res.total_jobs !== undefined) {
+        if (!isCurrent) return;
+        if (isValidDistrictPlan(res)) {
           setPlan(res);
         } else {
-          // Dynamic fallback for districts without full telemetry
-          setPlan({
-            district: districtName,
-            total_jobs: 38,
-            total_courses: 4,
-            total_enrolment: 240,
-            top_roles: [
-              { role: 'Industrial Automation Specialist', count: 16 },
-              { role: 'Solar Power Systems Technician', count: 12 },
-              { role: 'Precision CNC Machinist', count: 10 },
-            ],
-            industry_demand: [
-              { industry: 'Manufacturing & Engineering', count: 22 },
-              { industry: 'AgriTech & Food Processing', count: 16 },
-            ],
-            local_courses: [
-              { name: 'Industrial Electrical & Solar Systems', institute: `Government ITI, ${districtName}`, enrolment: 60, placement_rate: 76 },
-              { name: 'CNC Machine Operations', institute: `District Technical Institute, ${districtName}`, enrolment: 50, placement_rate: 72 },
-            ],
-            skill_gaps: [
-              { skill_id: 'sk-020', skill_name: 'Solar Inverter Maintenance', category: 'CleanTech', demand_pct: 68, coverage_pct: 32, gap_pct: 36, priority: 'HIGH', demand_count: 14 },
-              { skill_id: 'sk-024', skill_name: 'Programmable Logic Controllers (PLC)', category: 'Industrial Tech', demand_pct: 62, coverage_pct: 35, gap_pct: 27, priority: 'MEDIUM', demand_count: 12 },
-            ],
-          });
+          setHasError(true);
+          setPlan(EMPTY_DISTRICT_PLAN(districtName));
         }
         setLoading(false);
       })
       .catch((err) => {
+        if (!isCurrent) return;
         console.warn(`[DistrictPlan] Could not fetch live plan for ${districtName}:`, err);
         setHasError(true);
-        // Fallback to local default so page remains navigable
-        setPlan(
-          DEFAULT_DISTRICT_PLANS[districtName] || {
-            district: districtName,
-            total_jobs: 32,
-            total_courses: 3,
-            total_enrolment: 180,
-            top_roles: [
-              { role: 'Industrial Automation Specialist', count: 14 },
-              { role: 'Solar Power Technician', count: 11 },
-            ],
-            industry_demand: [
-              { industry: 'Manufacturing & Engineering', count: 18 },
-            ],
-            local_courses: [
-              { name: `Advanced Vocational Trade, ${districtName}`, institute: `Government ITI, ${districtName}`, enrolment: 50, placement_rate: 76 },
-            ],
-            skill_gaps: [
-              { skill_id: 'sk-020', skill_name: 'Automated Process Control', category: 'Industrial Tech', demand_pct: 60, coverage_pct: 32, gap_pct: 28, priority: 'HIGH', demand_count: 12 },
-            ],
-          }
-        );
+        setPlan(EMPTY_DISTRICT_PLAN(districtName));
         setLoading(false);
       });
-  };
 
-  useEffect(() => {
-    fetchPlan();
-  }, [districtName]);
+    return () => {
+      isCurrent = false;
+    };
+  }, [districtName, retryCount]);
 
   return (
     <Layout>
@@ -241,10 +199,9 @@ export default function DistrictPlan() {
         </div>
       </div>
 
-      {/* Non-blocking Error Banner if API offline */}
       {hasError && (
         <ErrorBanner
-          message={`Using localized cached benchmark model for ${districtName}. Backend connection was temporarily unavailable.`}
+          message={`Live district planning data is temporarily unavailable for ${districtName}. Backend connection was unreachable.`}
           onRetry={fetchPlan}
         />
       )}
@@ -665,11 +622,11 @@ export default function DistrictPlan() {
                   Trainer & Master Instructor Needs
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Certified faculty upskilling programs to support {plan?.required_training_seats || 180} additional training seats
+                  Certified faculty upskilling programs to support {plan?.required_training_seats ?? 0} additional training seats
                 </p>
               </div>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
-                {plan?.required_trainers_count || 4} Trainers Needed
+                {plan?.required_trainers_count ?? 0} Trainers Needed
               </span>
             </div>
 
@@ -785,22 +742,22 @@ export default function DistrictPlan() {
               <div className="p-3.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
                 <div className="text-[11px] text-emerald-800 dark:text-emerald-300 font-semibold">Placement Rate Lift</div>
                 <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1">
-                  +{plan?.expected_impact?.projected_placement_lift_pct || 18.5}%
+                  +{plan?.expected_impact?.projected_placement_lift_pct ?? 0}%
                 </div>
-                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Target: {plan?.expected_impact?.target_placed_students || 150} candidates</div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Target: {plan?.expected_impact?.target_placed_students ?? 0} candidates</div>
               </div>
 
               <div className="p-3.5 rounded-lg bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800">
                 <div className="text-[11px] text-teal-800 dark:text-teal-300 font-semibold">Skill Deficit Reduction</div>
                 <div className="text-2xl font-black text-teal-700 dark:text-teal-400 mt-1">
-                  -{plan?.expected_impact?.projected_skill_deficit_reduction_pct || 42.0}%
+                  -{plan?.expected_impact?.projected_skill_deficit_reduction_pct ?? 0}%
                 </div>
-                <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Across {plan?.skill_gaps?.length || 4} critical domains</div>
+                <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Across {plan?.skill_gaps?.length ?? 0} critical domains</div>
               </div>
             </div>
 
             <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-bold text-slate-900 dark:text-white">Estimated Budget Package:</span> ₹{(((plan?.expected_impact?.total_budget_estimate_inr || 2400000)) / 100000).toFixed(1)} Lakhs allocated for laboratory rigs and trainer certifications across {districtName}.
+              <span className="font-bold text-slate-900 dark:text-white">Estimated Budget Package:</span> ₹{(((plan?.expected_impact?.total_budget_estimate_inr ?? 0)) / 100000).toFixed(1)} Lakhs allocated for laboratory rigs and trainer certifications across {districtName}.
             </div>
           </div>
         </div>

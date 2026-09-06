@@ -36,3 +36,6 @@ npm-debug.log*
 
 # Runtime persistence (first-party local user registrations)
 data/real/users_runtime.json
+
+# Scratch scripts
+scratch/

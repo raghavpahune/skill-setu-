@@ -3,11 +3,14 @@
 Extracts industry-aligned skills, NSQF levels, and domain categories directly
 from course syllabus documents (PDF or plain text) using zero external dependencies.
 """
+import logging
 import re
 import zlib
 from collections import Counter
 from typing import Any
 from app.db import get_demo
+
+logger = logging.getLogger(__name__)
 
 
 def extract_raw_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -67,6 +70,7 @@ def extract_raw_text_from_pdf(pdf_bytes: bytes) -> str:
 def extract_skills_from_syllabus(
     content: str | bytes,
     course_name_hint: str | None = None,
+    is_demo: bool | None = None,
 ) -> dict[str, Any]:
     """Analyze syllabus text or PDF document and map contents to the standard skill taxonomy."""
     # 1. Obtain clean string text
@@ -86,7 +90,16 @@ def extract_skills_from_syllabus(
     clean_text_lower = clean_text.lower()
 
     # 2. Match against platform standard taxonomy
-    all_skills = get_demo("skills") or []
+    from app.core.data_mode import is_explicit_demo_mode
+    if is_explicit_demo_mode(is_demo):
+        all_skills = get_demo("skills") or []
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skills
+            all_skills = list_skills(limit=10000) or []
+        except Exception as e:
+            logger.warning("[SyllabusExtractor] Failed to load skills from repository: %s", e)
+            all_skills = []
     matched_skills = []
     seen_ids = set()
     category_counts: Counter[str] = Counter()
@@ -98,8 +111,7 @@ def extract_skills_from_syllabus(
         if not s_id or not s_name:
             continue
 
-        # Look for exact word boundary matches for skill name and synonyms
-        candidates = [s_name] + sk.get("synonyms", [])
+        candidates = [s_name] + (sk.get("synonyms") or [])
         matched = False
 
         for cand in candidates:

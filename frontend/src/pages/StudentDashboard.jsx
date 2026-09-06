@@ -11,13 +11,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 
-const DEFAULT_STUDENTS = [
-  { user_id: 'stu-001', name: 'Aarav Patil', target_role: 'AI Engineer', skill_match_pct: 52 },
-  { user_id: 'stu-002', name: 'Priya Deshmukh', target_role: 'Data Analyst', skill_match_pct: 38 },
-  { user_id: 'stu-003', name: 'Rohan Kulkarni', target_role: 'EV Technician', skill_match_pct: 30 },
-  { user_id: 'stu-004', name: 'Sneha Joshi', target_role: 'Cybersecurity Analyst', skill_match_pct: 45 },
-  { user_id: 'stu-005', name: 'Vikram Shinde', target_role: 'Cloud Architect', skill_match_pct: 35 },
-];
+
 
 function EmptyState({
   title = 'No records available',
@@ -117,8 +111,8 @@ export default function StudentDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
   const mainTab = urlTab && VALID_STUDENT_TABS.includes(urlTab) ? urlTab : 'passport';
-  const [students, setStudents] = useState(DEFAULT_STUDENTS);
-  const [selectedStudentId, setSelectedStudentId] = useState(user?.role === 'STUDENT' ? 'me' : 'stu-001');
+  const [students, setStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState(user?.role === 'STUDENT' || user?.id ? 'me' : '');
   const [passport, setPassport] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [schemes, setSchemes] = useState([]);
@@ -155,21 +149,27 @@ export default function StudentDashboard() {
     setExplainModalOpen(true);
   };
 
-  // Load students & check personal student profile on mount / auth change
   useEffect(() => {
-    // 1. If user is logged in as a student, check if they already have personal assessment
+    let isCurrent = true;
+    setStudents((prev) => prev.filter((s) => s.user_id !== 'me'));
+
+    if (!user?.id) {
+      setPassport(null);
+      setSelectedStudentId((prev) => (prev === 'me' ? '' : prev));
+    }
+
     if (user?.id) {
       if (user.role === 'STUDENT') {
         setSelectedStudentId('me');
       }
       api.getMyPassport()
         .then((myPass) => {
+          if (!isCurrent) return;
           if (myPass && (myPass.is_personalized || myPass.source === 'USER_SUBMITTED')) {
             setSelectedStudentId('me');
             setPassport(myPass);
             setStudents((prev) => {
-              const alreadyHasMe = prev.some((s) => s.user_id === 'me');
-              if (alreadyHasMe) return prev;
+              const filtered = prev.filter((s) => s.user_id !== 'me');
               const meItem = {
                 user_id: 'me',
                 name: `${myPass.name || user.full_name || 'My Profile'} (Live Profile)`,
@@ -177,13 +177,12 @@ export default function StudentDashboard() {
                 skill_match_pct: myPass.skill_match_pct || 0,
                 source: 'USER_SUBMITTED',
               };
-              return [meItem, ...prev];
+              return [meItem, ...filtered];
             });
           } else if (myPass && myPass.has_assessment === false) {
             setPassport(myPass);
             setStudents((prev) => {
-              const alreadyHasMe = prev.some((s) => s.user_id === 'me');
-              if (alreadyHasMe) return prev;
+              const filtered = prev.filter((s) => s.user_id !== 'me');
               const meItem = {
                 user_id: 'me',
                 name: `${user.full_name || 'My Profile'} (Unassessed)`,
@@ -191,27 +190,36 @@ export default function StudentDashboard() {
                 skill_match_pct: 0,
                 source: 'NO_SUBMISSION',
               };
-              return [meItem, ...prev];
+              return [meItem, ...filtered];
             });
           }
         })
         .catch(() => {});
     }
 
-    // 2. Load candidates directory
     api.getStudents()
       .then((res) => {
-        if (Array.isArray(res) && res.length > 0) {
-          setStudents((prev) => {
-            const hasMe = prev.some((s) => s.user_id === 'me');
-            const meItem = prev.find((s) => s.user_id === 'me');
-            return hasMe ? [meItem, ...res.filter((r) => r.user_id !== 'me')] : res;
-          });
+        if (!isCurrent) return;
+        const studentList = Array.isArray(res) ? res.filter((r) => r.user_id !== 'me') : [];
+        setStudents((prev) => {
+          const currentMe = user?.id ? prev.find((s) => s.user_id === 'me') : null;
+          if (currentMe) {
+            return [currentMe, ...studentList];
+          }
+          return studentList;
+        });
+        if (studentList.length > 0) {
+          setSelectedStudentId((prev) => prev || (user?.id && user.role === 'STUDENT' ? 'me' : studentList[0].user_id));
         }
       })
       .catch((err) => {
+        if (!isCurrent) return;
         console.warn('Failed to load candidate list:', err);
       });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [user]);
 
   // Load personalized recommendations when student changes (Phase 15)
@@ -406,7 +414,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Candidate Profile Selector & Quick Switch Pills (relevant when on Passport or Recommendations tab) */}
-        {(mainTab === 'passport' || mainTab === 'recommendations') && (
+        {(mainTab === 'passport' || mainTab === 'recommendations') && students.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Candidate:</span>
@@ -613,12 +621,14 @@ export default function StudentDashboard() {
                 >
                   Start Diagnostic Assessment Now →
                 </button>
-                <button
-                  onClick={() => setSelectedStudentId('stu-001')}
-                  className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                >
-                  Preview Demo Student (Aarav Patil)
-                </button>
+                {students.some((s) => s.user_id === 'stu-001') && (
+                  <button
+                    onClick={() => setSelectedStudentId('stu-001')}
+                    className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Preview Demo Student (Aarav Patil)
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -857,9 +867,15 @@ export default function StudentDashboard() {
                 }
               }).catch(() => {});
               api.getStudents().then((res) => {
-                if (Array.isArray(res) && res.length > 0) {
-                  setStudents(res);
-                }
+                const studentList = Array.isArray(res) ? res : [];
+                setStudents((prev) => {
+                  const hasMe = prev.some((s) => s.user_id === 'me');
+                  const meItem = prev.find((s) => s.user_id === 'me');
+                  if (studentList.length > 0) {
+                    return hasMe ? [meItem, ...studentList.filter((r) => r.user_id !== 'me')] : studentList;
+                  }
+                  return hasMe ? [meItem] : [];
+                });
               });
               setSelectedStudentId('me');
               fetchStudentData();

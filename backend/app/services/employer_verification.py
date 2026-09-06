@@ -132,15 +132,15 @@ def verify_employer_credentials(
     has_corp_domain, domain = is_corporate_domain(email)
 
     if has_valid_gstin and has_corp_domain:
-        tier = "ENTERPRISE_VERIFIED"
-        badge = "Verified Enterprise"
+        tier = "GSTIN_SYNTAX_VALIDATED"
+        badge = "GSTIN & Corporate Domain Validated"
         verified = True
-        desc = f"Verified enterprise identity with corporate domain ({domain}) and registered GSTIN ({gstin_result.get('state_name')})."
+        desc = f"Corporate domain ({domain}) with syntax-validated GSTIN ({gstin_result.get('state_name')})."
     elif has_valid_gstin:
-        tier = "GSTIN_VERIFIED"
-        badge = "GSTIN Verified"
+        tier = "GSTIN_SYNTAX_VALIDATED"
+        badge = "GSTIN Syntax Validated"
         verified = True
-        desc = f"Verified commercial registration with GSTIN ({gstin_result.get('state_name')})."
+        desc = f"Validated commercial registration syntax with GSTIN ({gstin_result.get('state_name')})."
     elif has_corp_domain:
         tier = "CORPORATE_DOMAIN_VERIFIED"
         badge = "Corporate Verified"

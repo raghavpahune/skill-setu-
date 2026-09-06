@@ -4,41 +4,71 @@ from app.db import get_demo
 from app.services.career_recommendation_engine import is_live_employer_demand
 
 
-def compute_gaps(district: str | None = None) -> list[dict]:
+def compute_gaps(district: str | None = None, is_demo: bool | None = None) -> list[dict]:
     """Compute skill gaps: demand_score - coverage_score per skill.
 
     Demand score: % of job postings requiring this skill (0-100).
     Coverage score: weighted average of course coverage × training capacity.
     Gap = demand - coverage. Negative gaps are clamped to 0.
     """
-    jobs = get_demo("jobs")
-    job_skills = get_demo("job_skills")
-    course_skills_data = get_demo("course_skills")
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
+        jobs = get_demo("jobs")
+        job_skills = get_demo("job_skills")
         courses = get_demo("courses")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+        course_skills_data = get_demo("course_skills")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        employer_demands = get_demo("employer_demands")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_jobs, list_job_skills
+            jobs = list_jobs(limit=10000) or []
+            job_ids = {j.get("id") for j in jobs if j.get("id")}
+            repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
+            job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
+        except Exception:
+            jobs = []
+            job_skills = []
+
+        try:
+            from app.repositories.supabase_repository import list_courses, list_course_skills
+            courses = list_courses() or []
+            c_ids = [c["id"] for c in courses if c.get("id")]
+            course_skills_data = list_course_skills(course_ids=c_ids) if c_ids else []
+        except Exception:
+            courses = []
+            course_skills_data = []
+
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception:
+            skills_map = {}
+
+        try:
+            from app.repositories.supabase_repository import list_employer_demands
+            employer_demands = list_employer_demands(is_demo=False) or []
+        except Exception:
+            employer_demands = []
+
+    if not is_demo_mode and (not jobs or not skills_map):
+        return []
 
     # Filter jobs by district if specified
     if district:
-        district_job_ids = {j["id"] for j in jobs if j["district"].lower() == district.lower()}
-        filtered_js = [js for js in job_skills if js["job_id"] in district_job_ids]
+        district_job_ids = {j["id"] for j in jobs if j.get("district", "").lower() == district.lower()}
+        filtered_js = [js for js in job_skills if js.get("job_id") in district_job_ids]
         total_jobs = len(district_job_ids) or 1
     else:
         filtered_js = job_skills
         total_jobs = len(jobs) or 1
 
     # Demand: what % of all job postings require this skill
-    demand_counts = Counter(js["skill_id"] for js in filtered_js)
+    demand_counts = Counter(js["skill_id"] for js in filtered_js if js.get("skill_id"))
 
-    # Phase 14: Incorporate validated first-party employer demands
-    try:
-        from app.repositories.supabase_repository import list_employer_demands
-        employer_demands = list_employer_demands()
-    except Exception:
-        employer_demands = get_demo("employer_demands")
     skills_by_name = {s["name"].lower(): s["id"] for s in skills_map.values()}
     validated_demands = [
         d for d in employer_demands
@@ -72,7 +102,21 @@ def compute_gaps(district: str | None = None) -> list[dict]:
         if cid in course_enrolment:
             existing_cs_course_ids.add(cid)
             sid = cs["skill_id"]
-            lvl = cs.get("coverage_level", 0)
+            raw_lvl = cs.get("coverage_level") or cs.get("proficiency_level") or 0
+            if isinstance(raw_lvl, (int, float)):
+                lvl = float(raw_lvl)
+            elif isinstance(raw_lvl, str):
+                s_lvl = raw_lvl.strip().lower()
+                text_map = {"beginner": 2.0, "intermediate": 3.5, "advanced": 5.0, "expert": 5.0}
+                if s_lvl in text_map:
+                    lvl = text_map[s_lvl]
+                else:
+                    try:
+                        lvl = float(s_lvl)
+                    except ValueError:
+                        lvl = 0.0
+            else:
+                lvl = 0.0
             enrol = course_enrolment.get(cid, 0)
             weighted = (lvl / 5) * enrol
             skill_coverage_weighted[sid] = skill_coverage_weighted.get(sid, 0) + weighted

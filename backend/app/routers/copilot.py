@@ -25,12 +25,14 @@ class CopilotQuery(BaseModel):
     district: str | None = None
     student_id: str | None = None
     context_data: CopilotContextData | None = None
+    is_demo: bool | None = None
 
 
 class CareerExplainQuery(BaseModel):
     student_id: str = Field(..., description="Target candidate ID from student profiles or assessments")
     question: str | None = Field(default=None, description="Specific query or custom prompt")
     district: str | None = None
+    is_demo: bool | None = None
 
 
 @router.post("/copilot/ask")
@@ -57,6 +59,7 @@ async def ask_copilot(
         student_id=query.student_id,
         context_data=ctx_data,
         current_user=current_user,
+        is_demo=query.is_demo,
     )
     return answer
 
@@ -80,5 +83,6 @@ async def explain_career(
         district=query.district,
         student_id=query.student_id,
         current_user=current_user,
+        is_demo=query.is_demo,
     )
     return answer

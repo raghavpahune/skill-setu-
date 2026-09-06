@@ -206,7 +206,7 @@ export default function GovernmentDashboard() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [selectedDistrict, setSelectedDistrict] = useState('Pune');
-  const [jobsCount, setJobsCount] = useState(550);
+  const [jobsCount, setJobsCount] = useState(0);
   const [gaps, setGaps] = useState([]);
   const [signals, setSignals] = useState([]);
   const [forecasts, setForecasts] = useState([]);
@@ -452,14 +452,13 @@ export default function GovernmentDashboard() {
     fetchData();
   }, []);
 
-  // Safe calculated metrics
   const avgDeficit = Array.isArray(gaps) && gaps.length > 0
-    ? Math.round(gaps.reduce((acc, g) => acc + (Number(g.gap_pct) || 0), 0) / gaps.length)
-    : 34;
+    ? `${Math.round(gaps.reduce((acc, g) => acc + (Number(g.gap_pct) || 0), 0) / gaps.length)}%`
+    : '0%';
 
   const actionsCount = Array.isArray(recommendations) && recommendations.length > 0
     ? `${recommendations.length} Actions`
-    : '12 Actions';
+    : '0 Actions';
 
   const userRole = (role || user?.role || '').toUpperCase();
   const canPublish = userRole === 'GOVERNMENT' || userRole === 'ADMIN';
@@ -533,34 +532,49 @@ export default function GovernmentDashboard() {
             </>
           ) : (
             <>
-              {/* Dominant Primary Metric */}
-              <StatCard
-                title="Average Skill Deficit"
-                value={`${avgDeficit}%`}
-                subtitle="Demand vs. ITI curriculum coverage"
-                icon="⚡"
-                color="amber"
-                dominant={true}
-                badge="Primary Policy Alert"
-                trend="up"
-                trendLabel="+4% YoY"
-              />
-              {/* Supporting Metric 2 */}
-              <StatCard
-                title="State Job Demand"
-                value={jobsCount > 0 ? `${jobsCount}+` : '550+'}
-                subtitle="Indexed across 10 industrial hubs"
-                icon="💼"
-                color="white"
-              />
-              {/* Supporting Metric 3 */}
-              <StatCard
-                title="Curriculum Upgrades"
-                value={actionsCount}
-                subtitle="High priority syllabus revisions"
-                icon="📘"
-                color="rose"
-              />
+              {errors.gaps ? (
+                <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
+                  <ErrorState title="Deficit Unavailable" message="Failed to load skill deficit telemetry" onRetry={fetchData} />
+                </div>
+              ) : (
+                <StatCard
+                  title="Average Skill Deficit"
+                  value={avgDeficit}
+                  subtitle="Demand vs. ITI curriculum coverage"
+                  icon="⚡"
+                  color="amber"
+                  dominant={true}
+                  badge="Primary Policy Alert"
+                  trend={!Array.isArray(gaps) || gaps.length === 0 ? undefined : 'up'}
+                  trendLabel={!Array.isArray(gaps) || gaps.length === 0 ? undefined : '+4% YoY'}
+                />
+              )}
+              {errors.jobs ? (
+                <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
+                  <ErrorState title="Demand Unavailable" message="Failed to load job demand telemetry" onRetry={fetchData} />
+                </div>
+              ) : (
+                <StatCard
+                  title="State Job Demand"
+                  value={jobsCount > 0 ? `${jobsCount.toLocaleString()}+` : '0'}
+                  subtitle="Indexed across industrial hubs"
+                  icon="💼"
+                  color="white"
+                />
+              )}
+              {errors.recommendations ? (
+                <div className="p-4 sm:p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col justify-center">
+                  <ErrorState title="Upgrades Unavailable" message="Failed to load recommendations" onRetry={fetchData} />
+                </div>
+              ) : (
+                <StatCard
+                  title="Curriculum Upgrades"
+                  value={actionsCount}
+                  subtitle="High priority syllabus revisions"
+                  icon="📘"
+                  color="rose"
+                />
+              )}
               {/* Supporting Metric 4 */}
               <StatCard
                 title="Top Emerging Field"
@@ -1224,7 +1238,7 @@ export default function GovernmentDashboard() {
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">1. Placement Rate</div>
               <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
-                {platformMetrics?.placement_rate_pct || 78.4}%
+                {platformMetrics?.placement_rate_pct != null ? `${platformMetrics.placement_rate_pct}%` : '—'}
               </div>
               <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">State-wide average conversion</div>
             </div>
@@ -1232,7 +1246,7 @@ export default function GovernmentDashboard() {
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">2. Skill Mismatch Score</div>
               <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                {platformMetrics?.skill_mismatch_score || 32.5}%
+                {platformMetrics?.skill_mismatch_score != null ? `${platformMetrics.skill_mismatch_score}%` : '—'}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Average net curriculum deficit</div>
             </div>
@@ -1240,7 +1254,7 @@ export default function GovernmentDashboard() {
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">3. Employer Approval</div>
               <div className="text-xl sm:text-2xl font-black text-teal-600 dark:text-teal-400 mt-1">
-                {platformMetrics?.employer_approval_rate_pct || 87.5}%
+                {platformMetrics?.employer_approval_rate_pct != null ? `${platformMetrics.employer_approval_rate_pct}%` : '—'}
               </div>
               <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5 font-medium">Human-in-the-loop consensus</div>
             </div>
@@ -1248,7 +1262,7 @@ export default function GovernmentDashboard() {
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">4. Syllabus Revision Cycle</div>
               <div className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
-                {platformMetrics?.avg_curriculum_update_time_months || 3.8} mo
+                {platformMetrics?.avg_curriculum_update_time_months != null ? `${platformMetrics.avg_curriculum_update_time_months} mo` : '—'}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Down from 24-month baseline</div>
             </div>
@@ -1256,7 +1270,7 @@ export default function GovernmentDashboard() {
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">5. Training Seat Deficit</div>
               <div className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
-                {(platformMetrics?.training_capacity_deficit_seats || 1420).toLocaleString()}
+                {platformMetrics?.training_capacity_deficit_seats != null ? platformMetrics.training_capacity_deficit_seats.toLocaleString() : '—'}
               </div>
               <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">High-priority seats needed</div>
             </div>
@@ -1264,7 +1278,7 @@ export default function GovernmentDashboard() {
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">6. Equipment & Trainer Gaps</div>
               <div className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
-                {platformMetrics?.equipment_trainer_gap_count || 14} Trades
+                {platformMetrics?.equipment_trainer_gap_count != null ? `${platformMetrics.equipment_trainer_gap_count} Trades` : '—'}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Requiring lab or faculty grants</div>
             </div>
@@ -1273,7 +1287,7 @@ export default function GovernmentDashboard() {
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">7. Student Recommendation Engagement</div>
               <div className="flex items-center justify-between mt-1">
                 <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                  {platformMetrics?.student_engagement_rate_pct || 86.2}%
+                  {platformMetrics?.student_engagement_rate_pct != null ? `${platformMetrics.student_engagement_rate_pct}%` : '—'}
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800 font-bold">
                   High Adoption
