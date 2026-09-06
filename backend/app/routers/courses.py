@@ -70,7 +70,8 @@ async def list_courses(
             **c,
             "student_count": student_count or 0,
             "placed_count": placed_count or 0,
-            "placement_rate": placement_rate if placement_rate is not None else 0,
+            "placement_rate": placement_rate,
+            "placement_data_available": has_placement,
             "status": status_flag,
         })
 

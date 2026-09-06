@@ -148,32 +148,47 @@ def _build_context(
             job_skills = get_demo("job_skills")
             courses = get_demo("courses")
             course_skills = get_demo("course_skills")
+            skills_ok = True
+            jobs_ok = True
+            job_skills_ok = True
+            courses_ok = True
+            course_skills_ok = True
         else:
             from app.repositories import supabase_repository
+            skills_ok = False
+            jobs_ok = False
+            job_skills_ok = False
+            courses_ok = False
+            course_skills_ok = False
             try:
                 skills = supabase_repository.list_skills() or []
+                skills_ok = True
             except Exception as e:
                 logger.warning(f"[Copilot] Failed to fetch skills: {e}")
                 skills = []
             try:
                 jobs = supabase_repository.list_jobs(limit=500) or []
+                jobs_ok = True
             except Exception as e:
                 logger.warning(f"[Copilot] Failed to fetch jobs: {e}")
                 jobs = []
             job_ids = [j.get("id") for j in jobs if j.get("id")]
             try:
                 job_skills = supabase_repository.list_job_skills(job_ids=job_ids) if job_ids else []
+                job_skills_ok = True
             except Exception as e:
                 logger.warning(f"[Copilot] Failed to fetch job_skills: {e}")
                 job_skills = []
             try:
                 courses = supabase_repository.list_courses(limit=500) or []
+                courses_ok = True
             except Exception as e:
                 logger.warning(f"[Copilot] Failed to fetch courses: {e}")
                 courses = []
             course_ids = [c.get("id") for c in courses if c.get("id")]
             try:
                 course_skills = supabase_repository.list_course_skills(course_ids=course_ids) if course_ids else []
+                course_skills_ok = True
             except Exception as e:
                 logger.warning(f"[Copilot] Failed to fetch course_skills: {e}")
                 course_skills = []
@@ -218,16 +233,18 @@ def _build_context(
             "total_jobs": len(jobs),
         }
 
-        if not is_demo and (not skills or not jobs):
+        authoritative_ready = is_demo or (
+            skills_ok and jobs_ok and job_skills_ok and course_skills_ok and bool(skills) and bool(jobs)
+        )
+        if not is_demo and not authoritative_ready:
             context["authoritative_data_status"] = "empty_or_unindexed"
 
         if queried_skill_info:
-            if queried_skill_info["type"] == "indexed":
+            if queried_skill_info["type"] == "indexed" and (is_demo or (skills_ok and jobs_ok and job_skills_ok and course_skills_ok)):
                 skill_obj = queried_skill_info["skill"]
                 sid = skill_obj["id"]
                 sname = skill_obj["name"]
 
-                # Filter matching jobs for this specific skill
                 matching_js = [js for js in job_skills if js["skill_id"] == sid]
                 matching_job_ids = {js["job_id"] for js in matching_js}
                 matching_jobs = [j for j in jobs if j["id"] in matching_job_ids]
@@ -236,14 +253,11 @@ def _build_context(
                 demand_count = len(matching_jobs)
                 demand_pct = round((demand_count / total_jobs_count) * 100) if total_jobs_count else 0
 
-                # District distribution for this skill
                 district_counts = dict(Counter(j.get("district", "Unknown") for j in matching_jobs).most_common(5))
 
-                # Gap engine metrics for this skill
                 all_gaps = compute_gaps(focused_district.get("district") if focused_district else None, is_demo=is_demo)
                 gap_entry = next((g for g in all_gaps if g["skill_id"] == sid), None)
 
-                # Teaching courses for this skill from live accredited courses
                 teaching_course_ids = {cs["course_id"] for cs in course_skills if cs["skill_id"] == sid}
                 teaching_courses = [
                     {
@@ -273,17 +287,20 @@ def _build_context(
                     "sample_courses": teaching_courses,
                 }
             else:
-                # Skill is unindexed / unsupported in current dataset (e.g. Go/Golang, Rust, etc.)
-                tech_name = queried_skill_info["name"]
+                tech_name = queried_skill_info["skill"]["name"] if queried_skill_info.get("skill") else queried_skill_info.get("name", "")
                 context["query_type"] = "skill_specific"
                 context["data_available_for_skill"] = False
                 dataset_label = "Maharashtra 10-district demo dataset" if is_demo else "authoritative database"
+                if queried_skill_info.get("type") == "indexed" and not (skills_ok and jobs_ok and job_skills_ok and course_skills_ok):
+                    msg = f"Authoritative metrics for '{tech_name}' are currently unavailable due to an upstream query failure."
+                else:
+                    msg = f"No verified job postings or accredited state courses for '{tech_name}' exist in the {dataset_label}."
                 context["queried_skill"] = {
                     "name": tech_name,
                     "found_in_dataset": False,
                     "verified_job_count": 0,
                     "verified_course_count": 0,
-                    "message": f"No verified job postings or accredited state courses for '{tech_name}' exist in the {dataset_label}.",
+                    "message": msg,
                 }
 
         # Attach Recommendation Handoff data if supplied from frontend modal

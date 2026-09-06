@@ -3,7 +3,7 @@ import datetime
 import logging
 import uuid
 from collections import Counter
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from app.core.security import get_current_user, get_optional_current_user, require_roles
 from pydantic import BaseModel, Field, model_validator
 from app.core.data_mode import is_explicit_demo_mode
@@ -96,7 +96,7 @@ async def list_validations(
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
         except SupabaseRepositoryError as e:
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Skills repository is temporarily unavailable.",
             ) from e
         except Exception:
@@ -108,7 +108,7 @@ async def list_validations(
             employers_map = {e["id"]: e for e in (res.data or []) if "id" in e}
         except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Employer repository is temporarily unavailable.",
             ) from e
 
@@ -154,7 +154,7 @@ async def submit_feedback(
     user_role = (current_user.get("role") or "").upper()
     if user_role not in ("EMPLOYER", "ADMIN"):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Forbidden: Insufficient role permissions. Required one of: ['EMPLOYER', 'ADMIN']",
         )
 
@@ -163,7 +163,7 @@ async def submit_feedback(
     except SupabaseRepositoryError as e:
         logger.exception("[Employer] Database query error for feedback '%s': %s", submission.feedback_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database query error.",
         ) from e
 
@@ -186,7 +186,7 @@ async def submit_feedback(
         )
         if not is_authorized:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: You do not have permission to modify another employer's feedback.",
             )
 
@@ -213,7 +213,7 @@ async def submit_feedback(
     except SupabaseRepositoryError as e:
         logger.exception("[Employer] Database update failed for feedback '%s': %s", submission.feedback_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database update failed.",
         ) from e
 
@@ -254,7 +254,7 @@ async def submit_demand(
         auth_employer_id = user_org or f"emp-{user_id}"
         if submission.employer_id and user_org and submission.employer_id.strip().lower() != user_org.strip().lower():
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: Cannot submit hiring demand on behalf of another organization.",
             )
         company = (submission.company_name or submission.employer_name or user_org or current_user.get("full_name") or "").strip()
@@ -329,7 +329,7 @@ async def submit_demand(
     except SupabaseRepositoryError as e:
         logger.exception("[Employer] Database insertion failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database insertion failed.",
         ) from e
 
@@ -423,7 +423,7 @@ async def update_my_demand(
 
     if user_role != "ADMIN" and not is_owner:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Forbidden: You do not have permission to modify another employer's demand record.",
         )
 
@@ -439,7 +439,7 @@ async def update_my_demand(
     except SupabaseRepositoryError as e:
         logger.exception("[Employer] Database update failed for demand '%s': %s", demand_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database update failed.",
         ) from e
 
@@ -470,7 +470,7 @@ async def delete_my_demand(
 
     if user_role != "ADMIN" and not is_owner:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Forbidden: You do not have permission to delete another employer's demand record.",
         )
 
@@ -479,7 +479,7 @@ async def delete_my_demand(
     except SupabaseRepositoryError as e:
         logger.exception("[Employer] Database deletion failed for demand '%s': %s", demand_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database deletion failed.",
         ) from e
 

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Any
 import uuid
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status as http_status
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("skillsetu.admin")
@@ -68,7 +68,7 @@ async def list_admin_assessments(
     except Exception as e:
         logger.exception("[AdminAssessments] Supabase query failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database query failed listing assessments.",
         ) from e
     results = assessments
@@ -133,7 +133,7 @@ async def get_admin_assessment_stats():
     except Exception as e:
         logger.exception("[AdminStats] Supabase query failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database query failed retrieving assessment statistics.",
         ) from e
 
@@ -213,7 +213,7 @@ async def get_admin_assessment_detail(assessment_id: str):
     except Exception as e:
         logger.exception("[AdminAssessmentDetail] Supabase error for %s: %s", assessment_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database query failed for assessment '{assessment_id}'.",
         ) from e
 
@@ -240,7 +240,7 @@ async def delete_admin_assessment(assessment_id: str):
     except Exception as e:
         logger.exception("[AdminAssessmentDelete] Supabase deletion failed for %s: %s", assessment_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database deletion failed for assessment '{assessment_id}'.",
         ) from e
 
@@ -286,7 +286,7 @@ async def list_admin_employer_demands(
         except SupabaseRepositoryError as e:
             logger.exception("[AdminDemands] Repository failure loading demands: %s", e)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database query failed for administrative listing.",
             ) from e
         except Exception as e:
@@ -371,13 +371,13 @@ async def update_demand_validation_status(demand_id: str, update: DemandValidati
     raw_status = update.status or update.validation_status
     if not raw_status:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Either 'status' or 'validation_status' must be provided.",
         )
     target_status = raw_status.strip().upper()
     if target_status not in {"VALIDATED", "REJECTED", "PENDING"}:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Status must be one of: 'VALIDATED', 'REJECTED', 'PENDING'.",
         )
 
@@ -391,7 +391,7 @@ async def update_demand_validation_status(demand_id: str, update: DemandValidati
     except Exception as e:
         logger.error("[AdminRouter] Supabase error updating demand status: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database update failed for employer demand.",
         ) from e
 
@@ -413,7 +413,7 @@ async def delete_admin_employer_demand(demand_id: str):
     except Exception as e:
         logger.exception("[AdminRouter] Supabase error deleting demand: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database deletion failed for employer demand.",
         ) from e
 
@@ -478,7 +478,7 @@ async def list_admin_gov_opportunities(
         except SupabaseRepositoryError as e:
             logger.exception("[AdminGovOpportunities] Repository failure loading opportunities: %s", e)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database query failed for administrative listing.",
             ) from e
         except Exception as e:
@@ -1002,7 +1002,7 @@ async def list_admin_forecasts(
     except SupabaseRepositoryError as e:
         logger.exception("[AdminForecasts] Supabase query failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database query failed listing forecasts.",
         ) from e
 
@@ -1021,7 +1021,7 @@ async def create_admin_forecast(payload: SkillForecastAdminCreate):
     except SupabaseRepositoryError as e:
         logger.exception("[AdminForecasts] Supabase persistence failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database persistence failed for skill forecast.",
         ) from e
 
@@ -1049,7 +1049,7 @@ async def update_admin_forecast(forecast_id: str, updates: SkillForecastAdminUpd
     except SupabaseRepositoryError as e:
         logger.exception("[AdminForecasts] Supabase update failed for %s: %s", forecast_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database update failed for skill forecast '{forecast_id}'.",
         ) from e
 
@@ -1073,7 +1073,7 @@ async def delete_admin_forecast(forecast_id: str):
     except SupabaseRepositoryError as e:
         logger.exception("[AdminForecasts] Supabase deletion failed for %s: %s", forecast_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database deletion failed for skill forecast '{forecast_id}'.",
         ) from e
 
@@ -1093,6 +1093,6 @@ async def recompute_admin_forecasts():
     except SupabaseRepositoryError as e:
         logger.exception("[AdminForecasts] Recomputation failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database persistence failed during forecast recomputation.",
         ) from e

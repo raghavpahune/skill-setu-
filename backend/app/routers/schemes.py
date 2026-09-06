@@ -1,6 +1,6 @@
 """Schemes API — student welfare and government schemes."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from app.core.data_mode import is_explicit_demo_mode, is_demo_scheme_id
 from app.core.security import get_optional_current_user, is_demo_student_id
 from app.db import get_demo
@@ -35,7 +35,7 @@ async def list_schemes(
         except SupabaseRepositoryError as e:
             logger.warning("[Schemes] Supabase unavailable: %s", e)
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Schemes repository is temporarily unavailable.",
             ) from e
         except Exception as e:
@@ -105,7 +105,7 @@ async def get_scheme_metadata(
         except SupabaseRepositoryError as e:
             logger.warning("[Schemes] Supabase unavailable for metadata: %s", e)
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Schemes metadata is temporarily unavailable.",
             ) from e
         except Exception as e:
@@ -150,7 +150,7 @@ async def recommended_schemes(
     except Exception as e:
         logger.exception("[RecommendedSchemes] Supabase error for %s: %s", resolved_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database query failed fetching student profile for recommendations.",
         ) from e
 
@@ -199,7 +199,7 @@ async def recommended_schemes(
         except SupabaseRepositoryError as e:
             logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Schemes repository is temporarily unavailable for recommendations.",
             ) from e
         except Exception as e:

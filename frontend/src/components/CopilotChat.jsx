@@ -326,6 +326,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
         setErrorState({
           message: `Copilot service temporarily unavailable (${errMsg})`,
           query: trimmed,
+          contextData: contextData || null,
         });
         setMessages((prev) => [
           ...prev,
@@ -553,7 +554,7 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
             <span>{errorState.message}</span>
           </div>
           <button
-            onClick={() => handleSend(errorState.query)}
+            onClick={() => handleSend(errorState.query, errorState.contextData)}
             disabled={loading}
             className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold shadow-xs cursor-pointer disabled:opacity-50"
           >

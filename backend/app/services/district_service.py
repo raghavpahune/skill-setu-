@@ -174,15 +174,21 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
     placement_map = {p["course_id"]: p for p in placements if p.get("course_id")}
     local_courses = []
     for c in district_courses:
-        p = placement_map.get(c["id"], {})
-        sc = p.get("student_count") or (c.get("enrolment_count") or 60)
-        pc = p.get("placed_count", 0)
+        p = placement_map.get(c["id"])
+        has_placement = bool(p)
+        if has_placement:
+            sc = p.get("student_count") or (c.get("enrolment_count") or 60)
+            pc = p.get("placed_count", 0)
+            placement_rate = round((pc / max(1, sc)) * 100) if sc else 0
+        else:
+            placement_rate = 0 if is_demo_mode else None
         local_courses.append({
             "id": c["id"],
             "name": c.get("name") or c.get("title", ""),
             "institute": c.get("institute", f"Government ITI, {district}"),
             "enrolment": c.get("enrolment_count") or 0,
-            "placement_rate": round((pc / max(1, sc)) * 100) if sc else 0,
+            "placement_rate": placement_rate,
+            "placement_data_available": has_placement,
         })
 
     # 6. Industry Sector Clusters (§13)

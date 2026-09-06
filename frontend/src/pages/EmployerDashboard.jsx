@@ -365,7 +365,7 @@ export default function EmployerDashboard() {
       name: d.skill_name.length > 20 ? d.skill_name.slice(0, 18) + '…' : d.skill_name,
       fullName: d.skill_name,
       deficit: d.deficit_score,
-      daysToFill: d.avg_days_to_fill || 0,
+      daysToFill: d.avg_days_to_fill ?? null,
       category: d.category,
     }));
   }, [difficultSkills]);
@@ -1424,7 +1424,7 @@ export default function EmployerDashboard() {
                             <div className="bg-slate-900 text-white p-3 rounded-lg text-xs shadow-lg border border-slate-700">
                               <p className="font-bold">{data.fullName}</p>
                               <p className="text-teal-300 font-mono mt-1">Shortage Deficit: {data.deficit}%</p>
-                              <p className="text-amber-300 font-mono">Avg Time to Fill: {data.daysToFill} days</p>
+                              <p className="text-amber-300 font-mono">Avg Time to Fill: {data.daysToFill != null ? `${data.daysToFill} days` : 'Unavailable'}</p>
                             </div>
                           );
                         }

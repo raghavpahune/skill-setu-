@@ -53,6 +53,19 @@ def test_mcp_tool_registration():
 
 def test_mcp_refresh_data_source_valid(monkeypatch):
     from app.config import settings
+    from app.ingestion.scheduler import scheduler
+    async def _mock_execute_sync(source="all"):
+        return {
+            "status": "success",
+            "source": source,
+            "records_fetched": 10,
+            "records_added": 5,
+            "records_updated": 5,
+            "records_skipped": 0,
+            "duration_ms": 120,
+            "completed_at": "2026-09-06T12:00:00Z",
+        }
+    monkeypatch.setattr(scheduler, "execute_sync", _mock_execute_sync)
     monkeypatch.setattr(settings, "admin_api_key", "test-admin-secret-123")
     server = MCPServer()
     req = {
