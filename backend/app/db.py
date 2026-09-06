@@ -95,7 +95,14 @@ def get_supabase_client():
 
 
 def is_supabase_connected() -> bool:
-    """Check if Supabase client is connected."""
+    try:
+        from app.repositories.supabase_repository import _client_override
+        if _client_override is not None:
+            return True
+    except Exception:
+        pass
+    if get_supabase_client() is not None:
+        return True
     return _supabase_connected
 
 

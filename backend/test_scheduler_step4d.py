@@ -13,7 +13,17 @@ from app.db import load_demo_data, get_demo
 from app.ingestion.scheduler import IngestionScheduler, scheduler
 from app.main import app
 
-# Ensure demo data loaded
+import pytest
+from copy import deepcopy
+from app.db import _cache
+
+@pytest.fixture(scope="module", autouse=True)
+def isolate_scheduler_step4d_cache():
+    snapshot = deepcopy(_cache)
+    yield
+    _cache.clear()
+    _cache.update(snapshot)
+
 load_demo_data()
 
 
