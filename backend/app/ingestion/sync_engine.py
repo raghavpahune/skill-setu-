@@ -206,7 +206,15 @@ class SyncEngine:
             persisted_schemes = list(get_demo("schemes"))
         elif supabase_ready:
             from app.repositories.supabase_repository import list_schemes
-            persisted_schemes = list_schemes(limit=5000) or []
+            persisted_schemes = []
+            page_size = 1000
+            offset = 0
+            while True:
+                batch = list_schemes(limit=page_size, offset=offset) or []
+                persisted_schemes.extend(batch)
+                if len(batch) < page_size:
+                    break
+                offset += page_size
         elif not settings.use_demo_data:
             from app.repositories.supabase_repository import SupabaseConnectionError
             raise SupabaseConnectionError("Supabase connection required for real-mode sync")
@@ -257,9 +265,8 @@ class SyncEngine:
                 added += 1
 
         if supabase_ready and not is_demo:
-            from app.repositories.supabase_repository import upsert_schemes, list_schemes
+            from app.repositories.supabase_repository import upsert_schemes
             upsert_schemes(incoming_schemes)
-            set_demo("schemes", list_schemes(limit=5000) or persisted_schemes)
         elif is_demo or not supabase_ready:
             set_demo("schemes", persisted_schemes)
             if supabase_ready:
@@ -275,7 +282,15 @@ class SyncEngine:
             persisted_jobs = list(get_demo("jobs"))
         elif supabase_ready:
             from app.repositories.supabase_repository import list_jobs
-            persisted_jobs = list_jobs(limit=5000) or []
+            persisted_jobs = []
+            page_size = 1000
+            offset = 0
+            while True:
+                batch = list_jobs(limit=page_size, offset=offset) or []
+                persisted_jobs.extend(batch)
+                if len(batch) < page_size:
+                    break
+                offset += page_size
         elif not settings.use_demo_data:
             from app.repositories.supabase_repository import SupabaseConnectionError
             raise SupabaseConnectionError("Supabase connection required for real-mode sync")
@@ -328,9 +343,8 @@ class SyncEngine:
                 added += 1
 
         if supabase_ready and not is_demo:
-            from app.repositories.supabase_repository import upsert_jobs, list_jobs
+            from app.repositories.supabase_repository import upsert_jobs
             upsert_jobs(incoming_jobs)
-            set_demo("jobs", list_jobs(limit=5000) or persisted_jobs)
         elif is_demo or not supabase_ready:
             set_demo("jobs", persisted_jobs)
             if supabase_ready:
@@ -376,9 +390,8 @@ class SyncEngine:
 
         if new_links:
             if supabase_ready and not is_demo:
-                from app.repositories.supabase_repository import batch_create_job_skills, list_job_skills
+                from app.repositories.supabase_repository import batch_create_job_skills
                 batch_create_job_skills(new_links)
-                set_demo("job_skills", list_job_skills() or current_js)
             elif is_demo or not supabase_ready:
                 if supabase_ready:
                     from app.repositories.supabase_repository import batch_create_job_skills

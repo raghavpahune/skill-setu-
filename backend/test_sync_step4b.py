@@ -18,11 +18,17 @@ from app.ingestion.sync_engine import SyncEngine
 def isolate_sync_step4b_cache():
     from copy import deepcopy
     snapshot = deepcopy(_cache)
+    old_mode = os.environ.get("SKILLSETU_DATA_MODE")
+    os.environ["SKILLSETU_DATA_MODE"] = "demo"
     _cache["schemes"] = [s for s in _cache.get("schemes", []) if s.get("source") != "OGD_DATAGOV_IN"]
     _cache["sync_logs"] = [l for l in _cache.get("sync_logs", []) if l.get("source_name") != "data.gov.in"]
     yield
     _cache.clear()
     _cache.update(snapshot)
+    if old_mode is None:
+        os.environ.pop("SKILLSETU_DATA_MODE", None)
+    else:
+        os.environ["SKILLSETU_DATA_MODE"] = old_mode
 
 
 load_demo_data()

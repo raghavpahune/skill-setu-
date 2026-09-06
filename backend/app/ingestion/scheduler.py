@@ -101,13 +101,23 @@ class IngestionScheduler:
                         started_dt = datetime.datetime.fromisoformat(started_str)
                         if (now_dt - started_dt).total_seconds() < lease_seconds:
                             return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Error checking active distributed sync: %s", exc)
+            return False
         return False
 
     async def execute_sync(self, source: str = "data.gov.in") -> dict[str, Any]:
         lock = self._get_lock()
-        if lock.locked() or self._is_sync_running or self._check_active_distributed_sync():
+        if lock.locked() or self._is_sync_running:
+            logger.warning("Synchronization requested while another sync is actively running. Skipping.")
+            return {
+                "status": "skipped",
+                "message": "Synchronization is already in progress. Overlapping run prevented.",
+            }
+
+        loop = asyncio.get_running_loop()
+        is_distributed_running = await loop.run_in_executor(None, self._check_active_distributed_sync)
+        if is_distributed_running:
             logger.warning("Synchronization requested while another sync is actively running. Skipping.")
             return {
                 "status": "skipped",
@@ -171,7 +181,9 @@ class IngestionScheduler:
 
     async def _worker_loop(self):
         try:
-            if settings.sync_on_startup or self._should_catchup_sync():
+            loop = asyncio.get_running_loop()
+            should_catchup = await loop.run_in_executor(None, self._should_catchup_sync)
+            if settings.sync_on_startup or should_catchup:
                 logger.info("Performing initial/catch-up data synchronization on startup...")
                 await self.execute_sync(source=settings.sync_sources or "all")
 
@@ -201,8 +213,9 @@ class IngestionScheduler:
             try:
                 from app.repositories.supabase_repository import list_sync_logs
                 logs = list_sync_logs(limit=10)
-            except Exception:
-                logs = list(get_demo("sync_logs"))
+            except Exception as exc:
+                logger.warning("Error fetching sync logs for catchup check: %s", exc)
+                logs = []
 
         if not logs:
             return True
@@ -211,15 +224,16 @@ class IngestionScheduler:
         last_log = logs[0]
         started_str = last_log.get("started_at")
         if not started_str:
-            return False
+            return True
 
         try:
             last_dt = datetime.datetime.fromisoformat(started_str)
             now_dt = datetime.datetime.now(datetime.timezone.utc)
             minutes_elapsed = (now_dt - last_dt).total_seconds() / 60
             return minutes_elapsed >= settings.effective_refresh_interval_minutes
-        except Exception:
-            return False
+        except Exception as exc:
+            logger.warning("Error parsing timestamp for catchup check: %s", exc)
+            return True
 
     def get_status(self) -> dict[str, Any]:
         return {

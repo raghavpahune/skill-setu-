@@ -239,8 +239,8 @@ def test_sync_engine_supabase_authority_real_mode():
 
     with patch("app.repositories.supabase_repository.list_schemes", return_value=mock_existing_schemes) as mock_list, \
          patch("app.repositories.supabase_repository.upsert_schemes", return_value=incoming) as mock_upsert, \
-         patch("app.db.is_supabase_connected", return_value=True), \
-         patch("app.core.data_mode.is_explicit_demo_mode", return_value=False):
+         patch("app.ingestion.sync_engine.is_supabase_connected", return_value=True), \
+         patch("app.ingestion.sync_engine.is_explicit_demo_mode", return_value=False):
 
         added, updated = engine._upsert_schemes(incoming)
         assert updated == 1
@@ -274,8 +274,8 @@ def test_stable_identity_preservation_different_ext_id_same_hash():
 
     with patch("app.repositories.supabase_repository.list_jobs", return_value=mock_jobs), \
          patch("app.repositories.supabase_repository.upsert_jobs", return_value=incoming_jobs), \
-         patch("app.db.is_supabase_connected", return_value=True), \
-         patch("app.core.data_mode.is_explicit_demo_mode", return_value=False):
+         patch("app.ingestion.sync_engine.is_supabase_connected", return_value=True), \
+         patch("app.ingestion.sync_engine.is_explicit_demo_mode", return_value=False):
 
         added, updated = engine._upsert_jobs(incoming_jobs)
         assert added == 1
@@ -310,8 +310,8 @@ def test_repeated_sightings_update_timestamps():
 
     with patch("app.repositories.supabase_repository.list_jobs", return_value=mock_jobs), \
          patch("app.repositories.supabase_repository.upsert_jobs", return_value=incoming), \
-         patch("app.db.is_supabase_connected", return_value=True), \
-         patch("app.core.data_mode.is_explicit_demo_mode", return_value=False):
+         patch("app.ingestion.sync_engine.is_supabase_connected", return_value=True), \
+         patch("app.ingestion.sync_engine.is_explicit_demo_mode", return_value=False):
 
         added, updated = engine._upsert_jobs(incoming)
         assert updated == 1

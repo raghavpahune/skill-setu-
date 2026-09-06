@@ -89,6 +89,7 @@ def tool_get_skill_gaps(args: dict[str, Any]) -> dict[str, Any]:
 
 def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
     requested_source = args.get("source")
+    failed_to_fetch = False
     if is_explicit_demo_mode():
         logs = list(get_demo("sync_logs"))
     else:
@@ -96,7 +97,8 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
             from app.repositories.supabase_repository import list_sync_logs
             logs = list_sync_logs(limit=50)
         except Exception:
-            logs = list(get_demo("sync_logs"))
+            logs = []
+            failed_to_fetch = True
 
     if requested_source:
         logs = [l for l in logs if l.get("source_name") == requested_source]
@@ -105,8 +107,17 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
     last_log = logs[0] if logs else None
     last_success = next((l for l in logs if l.get("status") == "success"), None)
 
+    if failed_to_fetch and not logs:
+        status = "unavailable"
+    elif last_log and last_log.get("status") == "success":
+        status = "healthy"
+    elif last_log and last_log.get("status") == "failed":
+        status = "failed"
+    else:
+        status = "idle"
+
     return {
-        "status": "healthy" if last_log and last_log.get("status") == "success" else ("failed" if last_log and last_log.get("status") == "failed" else "idle"),
+        "status": status,
         "total_sync_runs": len(logs),
         "last_sync_timestamp": last_log.get("completed_at") if last_log else None,
         "last_successful_sync_timestamp": last_success.get("completed_at") if last_success else None,
@@ -154,7 +165,7 @@ def tool_get_sync_logs(args: dict[str, Any]) -> dict[str, Any]:
             from app.repositories.supabase_repository import list_sync_logs
             logs = list_sync_logs(limit=limit * 2)
         except Exception:
-            logs = list(get_demo("sync_logs"))
+            logs = []
 
     if source:
         logs = [l for l in logs if l.get("source_name") == source]
