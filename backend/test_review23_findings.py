@@ -258,3 +258,72 @@ def test_mcp_refresh_data_source_requires_admin_key_when_configured(monkeypatch)
 
     result_authorized = tool_refresh_data_source({"source": "data.gov.in", "admin_key": "secret-test-key-999"})
     assert result_authorized["status"] in ("success", "skipped")
+
+
+def test_schemes_parameter_shadowing_raises_503_on_supabase_error(monkeypatch):
+    def fake_list_schemes(*args, **kwargs):
+        raise SupabaseRepositoryError("Database connection lost")
+
+    monkeypatch.setattr("app.repositories.supabase_repository.list_schemes", fake_list_schemes)
+    response = client.get("/api/schemes?status=active&is_demo=false")
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Schemes repository is temporarily unavailable."
+
+
+def test_courses_telemetry_preserves_nullable_placement_rate(monkeypatch):
+    fake_courses = [
+        {"id": "crs-real-001", "name": "Python Lab", "district": "Pune", "status": "active"}
+    ]
+    monkeypatch.setattr("app.routers.courses.is_explicit_demo_mode", lambda is_demo: False)
+    monkeypatch.setattr("app.routers.courses.list_courses_repo", lambda: fake_courses)
+    monkeypatch.setattr("app.routers.courses.list_placements_repo", lambda: [])
+
+    response = client.get("/api/courses?is_demo=false")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == "crs-real-001"
+    assert data[0]["placement_data_available"] is False
+    assert data[0]["placement_rate"] is None
+
+
+def test_district_plan_local_courses_placement_telemetry(monkeypatch):
+    from app.services.district_service import get_district_plan
+    fake_courses = [
+        {"id": "crs-district-001", "name": "EV Lab", "district": "Pune", "enrolment_count": 50}
+    ]
+    monkeypatch.setattr("app.repositories.supabase_repository.list_courses", lambda **kwargs: fake_courses)
+    monkeypatch.setattr("app.repositories.supabase_repository.list_placements", lambda **kwargs: [])
+    monkeypatch.setattr("app.repositories.supabase_repository.list_jobs", lambda **kwargs: [])
+    monkeypatch.setattr("app.repositories.supabase_repository.list_skills", lambda **kwargs: [])
+    monkeypatch.setattr("app.repositories.supabase_repository.list_job_skills", lambda **kwargs: [])
+    monkeypatch.setattr("app.repositories.supabase_repository.list_course_skills", lambda **kwargs: [])
+
+    plan = get_district_plan("Pune", is_demo=False)
+    assert "local_courses" in plan
+    matched = [c for c in plan["local_courses"] if c["id"] == "crs-district-001"]
+    assert len(matched) == 1
+    assert matched[0]["placement_data_available"] is False
+    assert matched[0]["placement_rate"] is None
+
+
+@pytest.mark.anyio
+async def test_copilot_indexed_skill_gated_on_collection_failure(monkeypatch):
+    from ai.copilot import _build_context, handle_question
+    fake_skills = [{"id": "sk-real-100", "name": "Python", "category": "IT"}]
+    monkeypatch.setattr("app.repositories.supabase_repository.list_skills", lambda: fake_skills)
+    monkeypatch.setattr("app.repositories.supabase_repository.list_jobs", lambda **kwargs: [{"id": "job-1", "title": "Dev", "district": "Pune"}])
+    def fail_job_skills(**kwargs):
+        raise SupabaseRepositoryError("Query failed")
+    monkeypatch.setattr("app.repositories.supabase_repository.list_job_skills", fail_job_skills)
+    monkeypatch.setattr("app.repositories.supabase_repository.list_courses", lambda **kwargs: [])
+    monkeypatch.setattr("app.repositories.supabase_repository.list_course_skills", lambda **kwargs: [])
+
+    ctx = _build_context(question="Tell me about Python", role="student", is_demo=False)
+    assert ctx.get("authoritative_data_status") == "empty_or_unindexed"
+    assert ctx.get("data_available_for_skill") is False
+    assert ctx.get("queried_skill", {}).get("found_in_dataset") is False
+
+    res = await handle_question(question="Tell me about Python", role="student", is_demo=False)
+    assert res["provenance_label"] == "⚠️ No Authoritative Data"
+    assert res["data_grounded"] is False
