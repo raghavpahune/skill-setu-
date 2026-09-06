@@ -161,7 +161,10 @@ test('payload missing numeric totals is rejected by production validator', () =>
   delete missingJobs.total_jobs;
   assert.equal(isValidDistrictPlan(missingJobs), false);
 
-  const nanJobs = { ...baseResponse, total_jobs: 'not-a-number' };
+  const stringJobs = { ...baseResponse, total_jobs: 'not-a-number' };
+  assert.equal(isValidDistrictPlan(stringJobs), false);
+
+  const nanJobs = { ...baseResponse, total_jobs: Number.NaN };
   assert.equal(isValidDistrictPlan(nanJobs), false);
 });
 
@@ -244,6 +247,17 @@ test('payload missing expected_impact or its numeric metrics is rejected by prod
     },
   };
   assert.equal(isValidDistrictPlan(missingImpactMetric), false);
+
+  const nanImpactMetric = {
+    ...baseResponse,
+    expected_impact: {
+      projected_placement_lift_pct: Number.NaN,
+      projected_skill_deficit_reduction_pct: 20,
+      target_placed_students: 8,
+      total_budget_estimate_inr: 50000,
+    },
+  };
+  assert.equal(isValidDistrictPlan(nanImpactMetric), false);
 });
 
 test('null or undefined backend response is rejected by production validator', () => {
