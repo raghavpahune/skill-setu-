@@ -689,9 +689,15 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
 
               {m.sender === 'copilot' && !m.isError && (
                 <div className="mt-3.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
-                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                    <span>✓</span> Verified against Maharashtra Labour Dataset
-                  </span>
+                  {m.isGrounded !== false ? (
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <span>✓</span> Verified against Maharashtra Labour Dataset
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
+                      <span>⚠️</span> Not verified against Maharashtra Labour Dataset
+                    </span>
+                  )}
                   <div className="flex items-center gap-2">
                     {m.demoMode ? (
                       <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded font-mono font-bold">

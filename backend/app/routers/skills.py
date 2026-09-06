@@ -27,7 +27,8 @@ async def list_skills(
             courses = supabase_repository.list_courses(limit=1000) or []
             course_ids = [c.get("id") for c in courses if c.get("id")]
             course_skills = supabase_repository.list_course_skills(course_ids=course_ids) if course_ids else []
-        except Exception:
+        except Exception as e:
+            logger.warning("[Skills] Authoritative lookup failed: %s", e)
             skills = []
             job_skills = []
             course_skills = []

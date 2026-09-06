@@ -433,17 +433,20 @@ def get_skill_explainability(
         and resolved_student.get("is_demo") is not False
     )
     fc_from_repo = False
-    try:
-        from app.repositories.supabase_repository import list_skill_forecasts
-        forecasts = list_skill_forecasts() or []
-        fc_from_repo = True
-    except Exception as e:
-        if is_explicit_demo:
-            logger.warning("[SkillExplainability] Supabase forecasts unavailable, using demo fixtures for demo student %s: %s", student_id, e)
-            forecasts = get_demo("skill_forecasts")
-        else:
-            logger.exception("[SkillExplainability] Supabase forecast query failed for non-demo student %s: %s", student_id, e)
-            raise RuntimeError("Database error fetching skill forecasts.") from e
+    if is_demo_req:
+        forecasts = get_demo("skill_forecasts")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_skill_forecasts
+            forecasts = list_skill_forecasts() or []
+            fc_from_repo = True
+        except Exception as e:
+            if is_explicit_demo:
+                logger.warning("[SkillExplainability] Supabase forecasts unavailable, using demo fixtures for demo student %s: %s", student_id, e)
+                forecasts = get_demo("skill_forecasts")
+            else:
+                logger.exception("[SkillExplainability] Supabase forecast query failed for non-demo student %s: %s", student_id, e)
+                raise RuntimeError("Database error fetching skill forecasts.") from e
     if is_demo_req:
         feedback = get_demo("employer_feedback")
     else:

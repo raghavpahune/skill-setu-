@@ -303,16 +303,17 @@ def extract_skills_and_unmapped(
                 if re.search(pattern, text, re.IGNORECASE):
                     is_matched = True
             else:
-                pattern = r"\b" + re.escape(name) + r"\b"
+                trailing = r"\b" if re.search(r"\w$", name) else r"(?!\w)"
+                pattern = r"\b" + re.escape(name) + trailing
                 if re.search(pattern, text):
                     is_matched = True
         else:
-            pattern = r"\b" + re.escape(name_lower) + r"\b"
+            trailing = r"\b" if re.search(r"\w$", name_lower) else r"(?!\w)"
+            pattern = r"\b" + re.escape(name_lower) + trailing
             if re.search(pattern, text, re.IGNORECASE):
                 is_matched = True
 
         if not is_matched:
-            # Check synonyms
             for syn in (skill.get("synonyms") or []):
                 if not syn:
                     continue
@@ -320,7 +321,6 @@ def extract_skills_and_unmapped(
                 if not syn_clean:
                     continue
                 syn_lower = syn_clean.lower()
-                # Apply short token context checks to synonyms
                 if len(syn_clean) <= 2:
                     if syn_lower == "c":
                         syn_pat = r"\b(c\s*\+\+|c/c\+\+|embedded\s+c|c\s+programming|ansi\s+c)\b"
@@ -332,17 +332,19 @@ def extract_skills_and_unmapped(
                         syn_pat = r"\b(golang|go\s+programming|go\s+developer|go\s+backend)\b"
                         matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
                     else:
-                        syn_pat = r"\b" + re.escape(syn_clean) + r"\b"
+                        trailing = r"\b" if re.search(r"\w$", syn_clean) else r"(?!\w)"
+                        syn_pat = r"\b" + re.escape(syn_clean) + trailing
                         matched_by_context = bool(re.search(syn_pat, text))
                     if matched_by_context:
                         is_matched = True
                         matched_skill_names_lower.add(syn_lower)
                         break
                 else:
-                    syn_pat = r"\b" + re.escape(syn_lower) + r"\b"
+                    trailing = r"\b" if re.search(r"\w$", syn_lower) else r"(?!\w)"
+                    syn_pat = r"\b" + re.escape(syn_lower) + trailing
                     if re.search(syn_pat, text, re.IGNORECASE):
                         is_matched = True
-                        matched_skill_names_lower.add(syn_lower)  # prevent synonym appearing in unmapped
+                        matched_skill_names_lower.add(syn_lower)
                         break
 
         if is_matched:
@@ -350,12 +352,10 @@ def extract_skills_and_unmapped(
             matched_ids.add(sid)
             matched_skill_names_lower.add(name_lower)
 
-    # Extract unmapped technical skills
     unmapped: list[str] = []
     unmapped_seen = set()
 
-    # Match tokens: alphanumeric with optional dots, hyphens, pluses
-    raw_tokens = re.findall(r"\b[A-Za-z0-9+#\.\-]{2,20}\b", text)
+    raw_tokens = re.findall(r"\b[A-Za-z0-9+#\.\-]{2,20}(?!\w)", text)
     for tok in raw_tokens:
         if len(unmapped) >= max_unmapped:
             break

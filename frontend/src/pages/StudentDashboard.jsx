@@ -150,10 +150,11 @@ export default function StudentDashboard() {
   };
 
   useEffect(() => {
+    setStudents((prev) => prev.filter((s) => s.user_id !== 'me'));
+
     if (!user?.id) {
       setPassport(null);
       setSelectedStudentId((prev) => (prev === 'me' ? '' : prev));
-      setStudents((prev) => prev.filter((s) => s.user_id !== 'me'));
     }
 
     if (user?.id) {

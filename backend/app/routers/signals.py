@@ -93,14 +93,17 @@ async def list_industry_signals(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Retrieve public, approved, active industry intelligence signals."""
-    try:
-        raw_signals = list_industry_signals_repo()
-    except SupabaseRepositoryError as e:
-        logger.exception("[Signals] Failed listing industry signals from Supabase: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database failure listing industry signals.",
-        )
+    if is_explicit_demo_mode(is_demo):
+        raw_signals = get_demo("industry_signals")
+    else:
+        try:
+            raw_signals = list_industry_signals_repo()
+        except SupabaseRepositoryError as e:
+            logger.exception("[Signals] Failed listing industry signals from Supabase: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database failure listing industry signals.",
+            )
     skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))
 
     normalized = [_normalize_signal_output(s, skills_map) for s in raw_signals]
@@ -153,14 +156,17 @@ async def get_industry_signal(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Retrieve detailed metadata for an approved active industry signal."""
-    try:
-        matched = get_industry_signal_repo(signal_id)
-    except SupabaseRepositoryError as e:
-        logger.exception("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database failure fetching industry signal.",
-        )
+    if is_explicit_demo_mode(is_demo):
+        matched = next((s for s in get_demo("industry_signals") if s.get("id") == signal_id), None)
+    else:
+        try:
+            matched = get_industry_signal_repo(signal_id)
+        except SupabaseRepositoryError as e:
+            logger.exception("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database failure fetching industry signal.",
+            )
     if not matched:
         raise HTTPException(status_code=404, detail=f"Industry signal '{signal_id}' not found.")
 
@@ -178,14 +184,17 @@ async def legacy_list_signals(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Legacy backward-compatible endpoint for existing dashboard widgets."""
-    try:
-        raw_signals = list_industry_signals_repo()
-    except SupabaseRepositoryError as e:
-        logger.exception("[Signals] Failed listing signals: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database failure listing signals.",
-        )
+    if is_explicit_demo_mode(is_demo):
+        raw_signals = get_demo("industry_signals")
+    else:
+        try:
+            raw_signals = list_industry_signals_repo()
+        except SupabaseRepositoryError as e:
+            logger.exception("[Signals] Failed listing signals: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database failure listing signals.",
+            )
     skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))
     results = [_normalize_signal_output(s, skills_map) for s in raw_signals if s.get("is_active", True)]
     results.sort(key=lambda x: x.get("published_at", ""), reverse=True)
@@ -198,14 +207,17 @@ async def legacy_get_signal(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """Legacy backward-compatible detail endpoint."""
-    try:
-        matched = get_industry_signal_repo(signal_id)
-    except SupabaseRepositoryError as e:
-        logger.exception("[Signals] Failed fetching signal '%s': %s", signal_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database failure fetching signal.",
-        )
+    if is_explicit_demo_mode(is_demo):
+        matched = next((s for s in get_demo("industry_signals") if s.get("id") == signal_id), None)
+    else:
+        try:
+            matched = get_industry_signal_repo(signal_id)
+        except SupabaseRepositoryError as e:
+            logger.exception("[Signals] Failed fetching signal '%s': %s", signal_id, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database failure fetching signal.",
+            )
     if not matched:
         return {"error": "not found"}
     skills_map = _get_skills_map(is_demo=is_explicit_demo_mode(is_demo))

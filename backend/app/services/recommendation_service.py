@@ -8,7 +8,7 @@ def get_curriculum_recommendations(is_demo: bool | None = None) -> list[dict]:
     from app.core.data_mode import is_explicit_demo_mode
     is_demo_mode = is_explicit_demo_mode(is_demo)
 
-    gaps = compute_gaps(is_demo=is_demo)
+    gaps = compute_gaps(is_demo=is_demo_mode)
     if is_demo_mode:
         forecasts = get_demo("skill_forecasts")
         signals = get_demo("industry_signals")

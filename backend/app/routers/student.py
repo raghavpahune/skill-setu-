@@ -77,7 +77,7 @@ async def my_skill_passport(
     user_email = current_user.get("email")
     try:
         from app.repositories.supabase_repository import list_skills
-        repo_skills = list_skills(limit=1000) or []
+        repo_skills = list_skills(limit=10000) or []
         skills_map = {s["id"]: s for s in repo_skills}
         skills_name_map = {s.get("name", "").lower(): s for s in repo_skills if s.get("name")}
     except Exception:
@@ -221,7 +221,7 @@ async def skill_passport(
         profiles = []
         try:
             from app.repositories.supabase_repository import list_skills
-            repo_skills = list_skills(limit=1000) or []
+            repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills}
             skills_name_map = {s.get("name", "").lower(): s for s in repo_skills if s.get("name")}
         except Exception:
@@ -393,7 +393,7 @@ async def learning_roadmap(
         profiles = []
         try:
             from app.repositories.supabase_repository import list_skills
-            repo_skills = list_skills(limit=1000) or []
+            repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills}
         except Exception:
             skills_map = {}

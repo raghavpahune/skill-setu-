@@ -130,7 +130,7 @@ def _match_student_to_opportunities(opportunities: list[dict], profile: dict) ->
             districts = [districts]
         districts_lower = [d.lower() for d in districts]
 
-        if any("maharashtra" in d or "state-wide" in d or "all" in d for d in districts_lower):
+        if any("maharashtra" in d or "state-wide" in d or d.strip() == "all" or "all districts" in d for d in districts_lower):
             score += 1
             reasons.append("Statewide opportunity (open to all districts)")
         elif student_district and any(student_district in d for d in districts_lower):

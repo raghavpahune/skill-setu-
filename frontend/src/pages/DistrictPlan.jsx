@@ -111,9 +111,10 @@ export default function DistrictPlan() {
 
     api.getDistrictPlan(districtName)
       .then((res) => {
-        if (res && res.district) {
+        if (res && res.district && (res.status === 'success' || res.kpis || res.top_shortages)) {
           setPlan(res);
         } else {
+          setHasError(true);
           setPlan(EMPTY_DISTRICT_PLAN(districtName));
         }
         setLoading(false);
