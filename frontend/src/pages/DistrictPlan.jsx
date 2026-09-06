@@ -201,7 +201,7 @@ export default function DistrictPlan() {
 
       {hasError && (
         <ErrorBanner
-          message={`Live district planning data is temporarily unavailable for ${districtName}. Backend connection was unreachable.`}
+          message={`Live district planning data is temporarily unavailable for ${districtName}.`}
           onRetry={fetchPlan}
         />
       )}
