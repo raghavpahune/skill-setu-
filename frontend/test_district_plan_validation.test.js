@@ -265,3 +265,17 @@ test('null or undefined backend response is rejected by production validator', (
   assert.equal(isValidDistrictPlan(undefined), false);
   assert.equal(isValidDistrictPlan({}), false);
 });
+
+test('courses_needing_review with malformed item is rejected by validator', () => {
+  const planWithEmptyReviewItem = {
+    ...EMPTY_DISTRICT_PLAN('Pune'),
+    courses_needing_review: [{}],
+  };
+  assert.equal(isValidDistrictPlan(planWithEmptyReviewItem), false);
+
+  const planWithValidReviewItem = {
+    ...EMPTY_DISTRICT_PLAN('Pune'),
+    courses_needing_review: [{ course_id: 'c-1', obsolescence_risk: 'HIGH_RISK' }],
+  };
+  assert.equal(isValidDistrictPlan(planWithValidReviewItem), true);
+});

@@ -25,11 +25,11 @@ class Settings(BaseSettings):
 
     @property
     def effective_refresh_interval_minutes(self) -> int:
-        if self.refresh_interval_minutes != 60:
+        if "refresh_interval_minutes" in self.model_fields_set:
             return max(1, self.refresh_interval_minutes)
-        if self.sync_interval_hours != 24:
+        if "sync_interval_hours" in self.model_fields_set:
             return max(1, self.sync_interval_hours * 60)
-        return self.refresh_interval_minutes
+        return max(1, self.refresh_interval_minutes)
 
     @property
     def ai_available(self) -> bool:

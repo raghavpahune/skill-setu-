@@ -1,5 +1,6 @@
 """District Service — aggregated district-level training plans and platform metrics."""
 from collections import Counter
+import datetime
 import math
 from typing import Any
 from app.db import get_demo
@@ -174,13 +175,13 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
     local_courses = []
     for c in district_courses:
         p = placement_map.get(c["id"], {})
-        sc = p.get("student_count", c.get("enrolment_count", 60))
+        sc = p.get("student_count") or (c.get("enrolment_count") or 60)
         pc = p.get("placed_count", 0)
         local_courses.append({
             "id": c["id"],
             "name": c.get("name") or c.get("title", ""),
             "institute": c.get("institute", f"Government ITI, {district}"),
-            "enrolment": c.get("enrolment_count", 0),
+            "enrolment": c.get("enrolment_count") or 0,
             "placement_rate": round((pc / max(1, sc)) * 100) if sc else 0,
         })
 
@@ -194,7 +195,7 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
             {"industry": "Automotive Services & Logistics", "count": max(6, int(len(district_jobs) * 0.4))},
         ]
 
-    total_enrolment = sum(c.get("enrolment_count", 0) for c in district_courses)
+    total_enrolment = sum((c.get("enrolment_count") or 0) for c in district_courses)
     if not total_enrolment and is_demo_mode:
         total_enrolment = max(120, len(district_jobs) * 4)
 
@@ -384,7 +385,30 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
     )
     employer_approval_rate = round((confirmed_or_valid / max(1, total_feedback)) * 100, 1) if total_feedback else (87.5 if is_demo_mode else 0.0)
 
-    avg_curriculum_update_time_months = 3.8 if (courses or is_demo_mode) else 0.0
+    avg_curriculum_update_time_months = None
+    if is_demo_mode:
+        avg_curriculum_update_time_months = 3.8
+    elif courses:
+        diffs = []
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for c in courses:
+            ts_raw = c.get("updated_at") or c.get("last_updated") or c.get("created_at")
+            if ts_raw:
+                try:
+                    if isinstance(ts_raw, str):
+                        ts = datetime.datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                    elif isinstance(ts_raw, (datetime.datetime, datetime.date)):
+                        ts = ts_raw if isinstance(ts_raw, datetime.datetime) else datetime.datetime.combine(ts_raw, datetime.time.min, tzinfo=datetime.timezone.utc)
+                    else:
+                        continue
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=datetime.timezone.utc)
+                    diff_months = max(0.0, (now.timestamp() - ts.timestamp()) / (86400 * 30.4375))
+                    diffs.append(diff_months)
+                except Exception:
+                    pass
+        if diffs:
+            avg_curriculum_update_time_months = round(sum(diffs) / len(diffs), 1)
 
     # 5. Training Capacity Deficit (Total missing seats in critical/high gap skills)
     training_capacity_deficit_seats = sum(

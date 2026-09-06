@@ -1041,7 +1041,7 @@ def list_jobs(
         if opportunity_type:
             query = query.eq("opportunity_type", opportunity_type.lower())
 
-        res = query.range(offset, offset + limit - 1).execute()
+        res = query.order("id").range(offset, offset + limit - 1).execute()
         jobs = getattr(res, "data", []) or []
         return jobs
     except SupabaseRepositoryError:
@@ -1062,6 +1062,8 @@ def upsert_jobs(jobs_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
             clean = {k: v for k, v in j.items() if k in VALID_JOB_COLUMNS}
             if "id" not in clean or not clean["id"]:
                 clean["id"] = str(uuid.uuid4())
+            if not clean.get("external_id"):
+                clean["external_id"] = clean.get("content_hash") or clean["id"]
             clean_jobs.append(clean)
 
         res = client.table("jobs").upsert(clean_jobs, on_conflict="source,external_id").execute()
@@ -1239,7 +1241,7 @@ def list_schemes(
         if status:
             query = query.eq("status", status.lower())
 
-        res = query.range(offset, offset + limit - 1).execute()
+        res = query.order("id").range(offset, offset + limit - 1).execute()
         schemes = getattr(res, "data", []) or []
         return schemes
     except SupabaseRepositoryError:
@@ -1260,6 +1262,8 @@ def upsert_schemes(schemes_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
             clean = {k: v for k, v in s.items() if k in VALID_SCHEME_COLUMNS}
             if "id" not in clean or not clean["id"]:
                 clean["id"] = str(uuid.uuid4())
+            if not clean.get("external_id"):
+                clean["external_id"] = clean.get("content_hash") or clean["id"]
             clean_schemes.append(clean)
 
         res = client.table("schemes").upsert(clean_schemes, on_conflict="source,external_id").execute()
@@ -1278,7 +1282,7 @@ def list_skills(limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
     try:
         client = get_client()
         query = client.table("skills").select("*")
-        res = query.range(offset, offset + limit - 1).execute()
+        res = query.order("id").range(offset, offset + limit - 1).execute()
         return getattr(res, "data", []) or []
     except SupabaseRepositoryError:
         raise

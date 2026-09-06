@@ -116,9 +116,10 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
         district = c.get("district", "Maharashtra")
         enrolment = c.get("enrolment_count", 60)
         p = placements.get(cid, {})
-        student_count = p.get("student_count", enrolment)
-        placed_count = p.get("placed_count", 0)
-        placement_rate = round((placed_count / max(1, student_count)) * 100, 1) if student_count else 0.0
+        has_placement_data = bool(p and ("placed_count" in p or "student_count" in p or "placement_rate" in p))
+        student_count = p.get("student_count", 0) if has_placement_data else 0
+        placed_count = p.get("placed_count", 0) if has_placement_data else 0
+        placement_rate = round((placed_count / max(1, student_count)) * 100, 1) if (has_placement_data and student_count) else 0.0
 
         # Evaluate syllabus coverage
         taught_skills = course_skills_map.get(cid, [])
@@ -165,14 +166,16 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
         modernity_score = max(10, min(100, int(
             (len(rising_skills_in_syllabus) * 22) - (len(obsolete_or_declining_in_syllabus) * 15) + 40
         )))
-        health_score = round((placement_rate * 0.55) + (modernity_score * 0.45), 1)
+        if has_placement_data:
+            health_score = round((placement_rate * 0.55) + (modernity_score * 0.45), 1)
+        else:
+            health_score = round(float(modernity_score), 1)
 
-        # Determine Obsolescence Risk
-        if health_score < 42 or placement_rate < 35:
+        if has_placement_data and (health_score < 42 or placement_rate < 35):
             obsolescence_risk = "CRITICAL_OBSOLETE"
             risk_label = "Critical Obsolescence — Immediate Revision Required"
             risk_color = "rose"
-        elif health_score < 58 or placement_rate < 50:
+        elif (has_placement_data and (health_score < 58 or placement_rate < 50)) or (not has_placement_data and health_score < 42):
             obsolescence_risk = "HIGH_RISK"
             risk_label = "High Risk — Syllabus Lagging Industry"
             risk_color = "amber"
@@ -185,18 +188,19 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
             risk_label = "Healthy — Aligned with Labour Market"
             risk_color = "emerald"
 
-        # Determine Oversupply Status
-        if placement_rate < 40 and student_count >= 80:
+        if has_placement_data and placement_rate < 40 and student_count >= 80:
             oversupply_status = "OVERSUPPLY_CRITICAL"
             oversupply_msg = f"High annual output ({student_count} seats) with only {placement_rate}% placement indicates candidate oversupply."
-        elif placement_rate < 52 and student_count >= 60:
+        elif has_placement_data and placement_rate < 52 and student_count >= 60:
             oversupply_status = "MONITOR_OVERSUPPLY"
             oversupply_msg = f"Placement rate ({placement_rate}%) is softening; recommend shifting seats to high-demand tracks."
-        else:
+        elif has_placement_data:
             oversupply_status = "BALANCED"
             oversupply_msg = f"Intake and hiring demand are in sustainable equilibrium ({placement_rate}% placement)."
+        else:
+            oversupply_status = "BALANCED"
+            oversupply_msg = "Placement records not yet indexed for this course."
 
-        # Equipment & Trainer recommendations
         equip_items = EQUIPMENT_CATALOG.get(category_hint, EQUIPMENT_CATALOG["General Technical"])
         trainer_items = TRAINER_UPGRADE_CATALOG.get(category_hint, TRAINER_UPGRADE_CATALOG["General Technical"])
         total_equip_budget_inr = sum(eq["units"] * eq["unit_cost_inr"] for eq in equip_items)
@@ -211,6 +215,7 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
             "student_count": student_count,
             "placed_count": placed_count,
             "placement_rate": placement_rate,
+            "has_placement_data": has_placement_data,
             "modernity_score": modernity_score,
             "health_score": health_score,
             "obsolescence_risk": obsolescence_risk,

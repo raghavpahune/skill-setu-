@@ -256,7 +256,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
 
   const activeRoleDef = ROLE_DEFINITIONS.find((r) => r.id === role) || ROLE_DEFINITIONS[0];
 
-  const handleSend = async (queryText = question, contextData = recommendationContext) => {
+  const handleSend = async (queryText = question, contextData = null) => {
     const trimmed = queryText.trim();
     if (!trimmed || loading) return;
 

@@ -39,28 +39,38 @@ async def list_courses(
             }
         except Exception as e:
             logger.warning("[Courses] Could not fetch real placements: %s", e)
-            placements = {}
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Placement data is temporarily unavailable.",
+            ) from e
 
     result = []
+    is_demo_mode = is_explicit_demo_mode(is_demo)
     for c in courses:
-        p = placements.get(c.get("id"), {})
-        student_count = c.get("student_count") or p.get("student_count", 0)
-        placed_count = c.get("placed_count") or p.get("placed_count", 0)
-        placement_rate = c.get("placement_rate") or (round(placed_count / student_count * 100) if student_count else 0)
+        cid = c.get("id")
+        has_placement = (cid in placements) or (c.get("placement_rate") is not None) or (c.get("placed_count") is not None)
+        p = placements.get(cid, {})
+        student_count = c.get("student_count") or p.get("student_count")
+        placed_count = c.get("placed_count") or p.get("placed_count")
+        if c.get("placement_rate") is not None:
+            placement_rate = c.get("placement_rate")
+        elif student_count and placed_count is not None:
+            placement_rate = round(placed_count / student_count * 100)
+        else:
+            placement_rate = 0 if is_demo_mode else None
 
-        # Flag status
         status_flag = c.get("status") or "active"
-        if status_flag == "active":
-            if placement_rate < 30 and c.get("enrolment_count", 0) > 100:
+        if status_flag == "active" and has_placement and placement_rate is not None:
+            if placement_rate < 30 and (c.get("enrolment_count") or 0) > 100:
                 status_flag = "review_oversupply"
             elif placement_rate < 50:
                 status_flag = "needs_attention"
 
         result.append({
             **c,
-            "student_count": student_count,
-            "placed_count": placed_count,
-            "placement_rate": placement_rate,
+            "student_count": student_count or 0,
+            "placed_count": placed_count or 0,
+            "placement_rate": placement_rate if placement_rate is not None else 0,
             "status": status_flag,
         })
 

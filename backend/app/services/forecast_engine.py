@@ -29,12 +29,14 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
         stored_forecasts = {f.get("skill_id"): f for f in get_demo("skill_forecasts") if f.get("skill_id")}
     else:
         try:
-            from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills
+            from app.repositories.supabase_repository import list_jobs, list_job_skills, list_skills, SupabaseRepositoryError
             skills = list_skills(limit=10000) or []
             jobs = list_jobs(limit=10000) or []
             job_ids = {j.get("id") for j in jobs if j.get("id")}
             repo_js = list_job_skills(job_ids=list(job_ids)) if job_ids else []
             job_skills = [js for js in (repo_js or []) if js.get("job_id") in job_ids]
+        except SupabaseRepositoryError:
+            raise
         except Exception as e:
             logger.warning("[ForecastEngine] Supabase unavailable for real forecast request: %s", e)
             skills = []
@@ -260,7 +262,7 @@ def persist_computed_forecasts(forecasts: list[dict[str, Any]] | None = None) ->
     records and upserts them through the Supabase repository, ensuring zero duplicate records.
     """
     if forecasts is None:
-        forecasts = compute_multi_horizon_forecasts()
+        forecasts = compute_multi_horizon_forecasts(is_demo=False)
 
     from app.repositories.supabase_repository import create_skill_forecast
 

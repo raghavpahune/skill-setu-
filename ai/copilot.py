@@ -218,7 +218,7 @@ def _build_context(
             "total_jobs": len(jobs),
         }
 
-        if not is_demo and not skills and not jobs:
+        if not is_demo and (not skills or not jobs):
             context["authoritative_data_status"] = "empty_or_unindexed"
 
         if queried_skill_info:

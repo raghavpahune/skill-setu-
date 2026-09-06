@@ -446,9 +446,11 @@ class DataGovConnector(BaseSourceAdapter):
 
         for idx, rec in enumerate(raw_records, start=1):
             doc_id = str(rec.get("document_id") or rec.get("id") or f"naps-{idx}")
-            raw_district = rec.get("district_name") or rec.get("district") or "Pune"
+            raw_district = rec.get("district_name") or rec.get("district") or ""
             fy = rec.get("financial_year") or "2023-24"
-            district_clean = normalize_maharashtra_district(raw_district, default="Pune")
+            district_clean = normalize_maharashtra_district(raw_district, default="")
+            if not district_clean:
+                continue
             title = f"National Apprenticeship Trade Trainee ({district_clean})"
             company = f"NAPS Authorized Establishment ({district_clean})"
             url = "https://www.apprenticeshipindia.gov.in"
@@ -534,9 +536,12 @@ class DataGovConnector(BaseSourceAdapter):
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
         for idx, rec in enumerate(raw_records, start=1):
             doc_id = str(rec.get("document_id") or rec.get("id") or f"pmkvy-{idx}")
-            state_str = str(rec.get("state_ut") or rec.get("state") or rec.get("state_ut_name") or "Maharashtra").strip()
-            raw_district = str(rec.get("district") or rec.get("district_name") or ("Pune" if "maharashtra" in state_str.lower() else "Mumbai City"))
-            district = normalize_maharashtra_district(raw_district, default="Pune")
+            raw_district = str(rec.get("district") or rec.get("district_name") or "").strip()
+            if not raw_district:
+                continue
+            district = normalize_maharashtra_district(raw_district, default="")
+            if not district:
+                continue
             title = "Short-Term Vocational Training & NSQF Certification"
             company = "PMKVY Accredited Training Partner"
             url = "https://www.skillindiadigital.gov.in"

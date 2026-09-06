@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.data_mode import is_explicit_demo_mode, is_demo_scheme_id
 from app.core.security import get_optional_current_user, is_demo_student_id
 from app.db import get_demo
+from app.repositories.supabase_repository import SupabaseRepositoryError
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,14 @@ async def list_schemes(
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
             schemes = list_schemes_repo(scheme_type=scheme_type, status=status, limit=1000) or []
-        except Exception as e:
+        except SupabaseRepositoryError as e:
             logger.warning("[Schemes] Supabase unavailable: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Schemes repository is temporarily unavailable.",
+            ) from e
+        except Exception as e:
+            logger.warning("[Schemes] Unexpected failure listing schemes: %s", e)
             schemes = []
 
     filtered = []
@@ -95,8 +102,14 @@ async def get_scheme_metadata(
         try:
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
             schemes = list_schemes_repo(limit=1000) or []
-        except Exception as e:
+        except SupabaseRepositoryError as e:
             logger.warning("[Schemes] Supabase unavailable for metadata: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Schemes metadata is temporarily unavailable.",
+            ) from e
+        except Exception as e:
+            logger.warning("[Schemes] Unexpected failure fetching metadata: %s", e)
             schemes = []
     categories = set()
     scheme_types = set()
@@ -183,8 +196,14 @@ async def recommended_schemes(
             from app.repositories.supabase_repository import list_schemes as list_schemes_repo
             db_schemes = list_schemes_repo(status="active", limit=100)
             schemes = db_schemes or []
-        except Exception as e:
+        except SupabaseRepositoryError as e:
             logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Schemes repository is temporarily unavailable for recommendations.",
+            ) from e
+        except Exception as e:
+            logger.warning("Failed listing schemes for student '%s': %s", student_id, e)
             schemes = []
         note = "Recommendations based on official government schemes repository. Verify eligibility on official portals before applying."
     scored = []

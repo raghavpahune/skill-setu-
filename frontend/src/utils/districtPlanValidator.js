@@ -34,6 +34,11 @@ export function isValidDistrictPlan(res) {
       return false;
     }
   }
+  for (const item of res.courses_needing_review) {
+    if (!item || typeof item !== 'object' || typeof item.obsolescence_risk !== 'string' || !item.obsolescence_risk.trim()) {
+      return false;
+    }
+  }
   if (!res.expected_impact || typeof res.expected_impact !== 'object') {
     return false;
   }

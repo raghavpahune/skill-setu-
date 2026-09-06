@@ -51,7 +51,9 @@ def test_mcp_tool_registration():
         assert exp in tool_names
 
 
-def test_mcp_refresh_data_source_valid():
+def test_mcp_refresh_data_source_valid(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "admin_api_key", "test-admin-secret-123")
     server = MCPServer()
     req = {
         "jsonrpc": "2.0",
@@ -59,7 +61,7 @@ def test_mcp_refresh_data_source_valid():
         "method": "tools/call",
         "params": {
             "name": "refresh_data_source",
-            "arguments": {"source": "data.gov.in"},
+            "arguments": {"source": "data.gov.in", "admin_key": "test-admin-secret-123"},
         },
     }
     resp = server.handle_request(req)
@@ -76,7 +78,9 @@ def test_mcp_refresh_data_source_valid():
         assert keyword not in content_raw.lower()
 
 
-def test_mcp_refresh_data_source_invalid():
+def test_mcp_refresh_data_source_invalid(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "admin_api_key", "test-admin-secret-123")
     server = MCPServer()
     req = {
         "jsonrpc": "2.0",
@@ -84,7 +88,7 @@ def test_mcp_refresh_data_source_invalid():
         "method": "tools/call",
         "params": {
             "name": "refresh_data_source",
-            "arguments": {"source": "https://malicious.com/exploit"},
+            "arguments": {"source": "https://malicious.com/exploit", "admin_key": "test-admin-secret-123"},
         },
     }
     resp = server.handle_request(req)

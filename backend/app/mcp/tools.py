@@ -3,6 +3,7 @@ import asyncio
 import json
 from typing import Any
 
+import secrets
 from app.config import settings
 from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
@@ -137,7 +138,7 @@ def tool_refresh_data_source(args: dict[str, Any]) -> dict[str, Any]:
             "status": "error",
             "error": "Unauthorized: non-admin callers cannot trigger data refresh",
         }
-    if configured_key and admin_key != configured_key:
+    if not configured_key or not admin_key or not secrets.compare_digest(admin_key, configured_key):
         return {
             "status": "error",
             "error": "Unauthorized: valid admin API key required to trigger data refresh",

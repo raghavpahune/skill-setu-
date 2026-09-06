@@ -28,6 +28,7 @@ from app.ingestion.industry_intelligence import industry_ingestor, calculate_fre
 
 from app.core.data_mode import is_explicit_demo_mode
 from app.core.security import verify_admin_access, is_demo_student_id
+from app.repositories.supabase_repository import SupabaseRepositoryError
 
 router = APIRouter()
 
@@ -282,6 +283,12 @@ async def list_admin_employer_demands(
         try:
             from app.repositories.supabase_repository import list_employer_demands
             all_demands = list_employer_demands() or []
+        except SupabaseRepositoryError as e:
+            logger.exception("[AdminDemands] Repository failure loading demands: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database query failed for administrative listing.",
+            ) from e
         except Exception as e:
             logger.warning("[AdminDemands] Failed loading demands from repository: %s", e)
             all_demands = []
@@ -468,6 +475,12 @@ async def list_admin_gov_opportunities(
         try:
             from app.repositories.supabase_repository import list_gov_opportunities
             all_records = list_gov_opportunities(limit=1000) or []
+        except SupabaseRepositoryError as e:
+            logger.exception("[AdminGovOpportunities] Repository failure loading opportunities: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database query failed for administrative listing.",
+            ) from e
         except Exception as e:
             logger.warning("[AdminGovOpportunities] Failed loading opportunities: %s", e)
             all_records = []

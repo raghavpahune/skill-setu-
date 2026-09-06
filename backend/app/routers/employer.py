@@ -94,6 +94,11 @@ async def list_validations(
             from app.repositories.supabase_repository import list_skills
             repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except SupabaseRepositoryError as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Skills repository is temporarily unavailable.",
+            ) from e
         except Exception:
             skills_map = {}
         try:
@@ -101,10 +106,14 @@ async def list_validations(
             client = get_client()
             res = client.table("employers").select("*").execute()
             employers_map = {e["id"]: e for e in (res.data or []) if "id" in e}
-        except Exception:
-            employers_map = {}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Employer repository is temporarily unavailable.",
+            ) from e
 
     results = []
+    is_demo_active = is_explicit_demo_mode(is_demo)
     for f in feedback:
         skill_info = skills_map.get(f.get("skill_id"), {})
         has_employer = f.get("employer_id") in employers_map
@@ -115,17 +124,19 @@ async def list_validations(
             "skill_name": skill_info.get("name", "Unknown Skill"),
             "skill_category": skill_info.get("category", "General"),
             "nsqf_level": skill_info.get("nsqf_level", 5),
-            "employer_name": employer_info.get("name", "Industry Partner"),
-            "industry": employer_info.get("industry", "General Industry"),
-            "district": employer_info.get("district", "Maharashtra"),
+            "employer_name": employer_info.get("name") if has_employer else ("Industry Partner" if is_demo_active else None),
+            "industry": employer_info.get("industry") if has_employer else ("General Industry" if is_demo_active else None),
+            "district": employer_info.get("district") if has_employer else ("Maharashtra" if is_demo_active else None),
         }
 
         if status and status != "all" and item.get("status", "").lower() != status.lower():
             continue
-        if district and district != "all" and item.get("district", "").lower() != district.lower():
-            continue
-        if industry and industry != "all" and item.get("industry", "").lower() != industry.lower():
-            continue
+        if district and district != "all":
+            if not item.get("district") or item.get("district", "").lower() != district.lower():
+                continue
+        if industry and industry != "all":
+            if not item.get("industry") or item.get("industry", "").lower() != industry.lower():
+                continue
         if demand_level and demand_level != "all" and item.get("demand_level", "").lower() != demand_level.lower():
             continue
 
@@ -563,7 +574,6 @@ async def list_difficult_skills(
             ]
         return difficult
 
-    # Real mode: calculate from real gap engine
     from app.services.gap_engine import compute_gaps
     try:
         from app.repositories.supabase_repository import list_skills
@@ -578,12 +588,12 @@ async def list_difficult_skills(
             "skill_id": g.get("skill_id"),
             "skill_name": skills_map.get(g.get("skill_id"), g.get("skill_name", "Critical Skill")),
             "deficit_score": int(g.get("gap_pct", 0)),
-            "avg_days_to_fill": 45,
-            "top_districts": [g.get("district", "Maharashtra").capitalize()],
-            "industries": ["Technology", "Manufacturing"],
-            "shortage_reason": "High industry demand outpacing current academic pass-outs.",
-            "hiring_challenge": "Candidate skills do not match modern production specifications.",
-            "suggested_intervention": "Upgrade laboratory syllabus and sponsor faculty development programs.",
+            "avg_days_to_fill": None,
+            "top_districts": [g.get("district").capitalize()] if g.get("district") else [],
+            "industries": [g.get("category")] if g.get("category") else [],
+            "shortage_reason": f"Elevated industry demand ({g.get('demand_pct', 0)}%) exceeding academic coverage ({g.get('coverage_pct', 0)}%)." if g.get("demand_pct") is not None else None,
+            "hiring_challenge": None,
+            "suggested_intervention": None,
         }
         for g in shortages[:6] if g.get("gap_pct", 0) > 0
     ]

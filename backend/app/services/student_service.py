@@ -109,7 +109,7 @@ def get_personalized_industry_alerts(
 ) -> dict[str, Any]:
     """Retrieve personalized technology and labour-market signals for a domain."""
     from app.core.data_mode import is_explicit_demo_mode
-    is_demo_req = is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id))
+    is_demo_req = False if is_demo is False else (is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id)))
 
     if is_demo_req:
         signals_all = {s["id"]: s for s in get_demo("industry_signals")}
@@ -349,7 +349,7 @@ def get_skill_explainability(
 ) -> dict[str, Any]:
     """Provide a transparent, 5-point evidence-based explainability breakdown for a skill."""
     from app.core.data_mode import is_explicit_demo_mode
-    is_demo_req = is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id))
+    is_demo_req = False if is_demo is False else (is_explicit_demo_mode(is_demo) or (student_id is not None and is_demo_student_id(student_id)))
     if is_demo_req:
         skills_list = get_demo("skills")
         skills_map = {s["id"]: s for s in skills_list}

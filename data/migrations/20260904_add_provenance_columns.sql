@@ -170,7 +170,6 @@ ALTER TABLE gov_opportunities ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
 UPDATE gov_opportunities
    SET is_demo = COALESCE(is_demo, CASE
            WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN TRUE
-           WHEN source IN ('VERIFIED_SNAPSHOT', 'ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN FALSE
-           ELSE NULL
+           ELSE FALSE
        END)
  WHERE is_demo IS NULL;
