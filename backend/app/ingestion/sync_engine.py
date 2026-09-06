@@ -15,10 +15,13 @@ import time
 import uuid
 from typing import Any
 
+from app.config import settings
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import (
     get_demo,
     set_demo,
     save_sync_log,
+    is_supabase_connected,
     persist_schemes_to_supabase,
     persist_jobs_to_supabase,
 )
@@ -35,7 +38,6 @@ logger = logging.getLogger("skillsetu.ingestion.sync_engine")
 
 
 class SyncEngine:
-    """Orchestrates data fetching, deduplication, and sync logging."""
 
     def __init__(
         self,
@@ -44,11 +46,9 @@ class SyncEngine:
     ):
         self.datagov_connector = datagov_connector or DataGovConnector()
         self.adzuna_connector = adzuna_connector or AdzunaConnector()
-        # Keep self.connector alias for backwards compatibility
         self.connector = self.datagov_connector
 
     def run_sync(self, source_name: str = "all") -> dict[str, Any]:
-        """Execute full automated ingestion and log the results into sync_logs."""
         sync_id = str(uuid.uuid4())
         started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         start_perf = time.perf_counter()
@@ -75,7 +75,19 @@ class SyncEngine:
             total_updated = 0
             total_skipped = 0
             src_norm = (source_name or "all").lower().strip()
-            valid_sources = {"all", "data.gov.in", "schemes", "ogd", "adzuna", "jobs"}
+            valid_sources = {
+                "all",
+                "data.gov.in",
+                "schemes",
+                "ogd",
+                "adzuna",
+                "jobs",
+                "industry_signals",
+                "industry",
+                "skill_forecasts",
+                "forecasts",
+                "forecast",
+            }
             if src_norm not in valid_sources:
                 raise ValueError(f"Unsupported sync source selector '{source_name}'. Supported selectors: {sorted(valid_sources)}")
 
@@ -136,14 +148,24 @@ class SyncEngine:
                 total_added += added_j
                 total_updated += updated_j
 
-                # Ingest job-skill linkages
                 self._upsert_job_skills(adzuna_jobs)
 
-            # Compute execution timing
+            if src_norm in ("all", "industry_signals", "industry"):
+                from app.ingestion.industry_intelligence import industry_ingestor
+                ind_res = industry_ingestor.ingest_from_feeds()
+                total_fetched += ind_res.get("fetched", 0)
+                total_added += ind_res.get("added", 0)
+                total_updated += ind_res.get("updated", 0)
+                total_skipped += ind_res.get("skipped", 0)
+
+            if src_norm in ("all", "skill_forecasts", "forecasts", "forecast"):
+                from app.services.forecast_engine import persist_computed_forecasts
+                fc_res = persist_computed_forecasts()
+                total_added += len(fc_res)
+
             duration_ms = int((time.perf_counter() - start_perf) * 1000)
             completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-            # Update log entry
             log_entry.update({
                 "status": "success",
                 "records_fetched": total_fetched,
@@ -177,19 +199,29 @@ class SyncEngine:
             return log_entry
 
     def _upsert_schemes(self, incoming_schemes: list[dict[str, Any]]) -> tuple[int, int]:
-        """Deduplicate and upsert schemes by content_hash and (source, external_id)."""
-        current_schemes = list(get_demo("schemes"))
+        is_demo = is_explicit_demo_mode()
+        supabase_ready = is_supabase_connected()
 
-        # Build index by content_hash and by (source, external_id)
-        hash_index = {
-            s.get("content_hash"): idx
-            for idx, s in enumerate(current_schemes)
-            if s.get("content_hash")
-        }
+        if is_demo:
+            persisted_schemes = list(get_demo("schemes"))
+        elif supabase_ready:
+            from app.repositories.supabase_repository import list_schemes
+            persisted_schemes = list_schemes(limit=5000) or []
+        elif not settings.use_demo_data:
+            from app.repositories.supabase_repository import SupabaseConnectionError
+            raise SupabaseConnectionError("Supabase connection required for real-mode sync")
+        else:
+            persisted_schemes = list(get_demo("schemes"))
+
         source_id_index = {
-            (s.get("source"), s.get("external_id")): idx
-            for idx, s in enumerate(current_schemes)
+            (s.get("source"), s.get("external_id")): s
+            for s in persisted_schemes
             if s.get("source") and s.get("external_id")
+        }
+        hash_index = {
+            s.get("content_hash"): s
+            for s in persisted_schemes
+            if s.get("content_hash")
         }
 
         added = 0
@@ -197,64 +229,68 @@ class SyncEngine:
         now_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
         for s in incoming_schemes:
-            c_hash = s.get("content_hash")
             source = s.get("source")
             ext_id = s.get("external_id")
-            has_stable_key = bool(source and ext_id)
-            s_key = (source, ext_id)
+            c_hash = s.get("content_hash")
 
-            target_idx = None
-            # Stable key match is authoritative. Only fall back to hash if record has no stable key.
-            if has_stable_key:
-                if s_key in source_id_index:
-                    target_idx = source_id_index[s_key]
-            elif c_hash and c_hash in hash_index:
-                target_idx = hash_index[c_hash]
+            target_record = None
+            if source and ext_id:
+                target_record = source_id_index.get((source, ext_id))
+            elif c_hash:
+                target_record = hash_index.get(c_hash)
 
-            if target_idx is not None:
-                # Existing record: update last_seen_at and last_synced_at without inserting duplicate
+            if target_record is not None:
+                s["id"] = target_record.get("id") or s.get("id") or str(uuid.uuid4())
                 s["last_synced_at"] = now_ts
                 s["last_seen_at"] = now_ts
-                current_schemes[target_idx].update(s)
+                target_record.update(s)
                 updated += 1
             else:
-                # New record
+                s["id"] = s.get("id") or str(uuid.uuid4())
                 s["last_synced_at"] = now_ts
                 s["last_seen_at"] = now_ts
-                current_schemes.append(s)
-                new_idx = len(current_schemes) - 1
+                persisted_schemes.append(s)
+                if source and ext_id:
+                    source_id_index[(source, ext_id)] = s
                 if c_hash:
-                    hash_index[c_hash] = new_idx
-                source_id_index[s_key] = new_idx
+                    hash_index[c_hash] = s
                 added += 1
 
-        try:
-            from app.repositories.supabase_repository import upsert_schemes
+        if supabase_ready and not is_demo:
+            from app.repositories.supabase_repository import upsert_schemes, list_schemes
             upsert_schemes(incoming_schemes)
-        except Exception as e:
-            try:
+            set_demo("schemes", list_schemes(limit=5000) or persisted_schemes)
+        elif is_demo or not supabase_ready:
+            set_demo("schemes", persisted_schemes)
+            if supabase_ready:
                 persist_schemes_to_supabase(incoming_schemes)
-            except Exception:
-                logger.error("[SyncEngine] Supabase scheme persistence failed: %s", e)
-                raise
 
-        set_demo("schemes", current_schemes)
         return added, updated
 
     def _upsert_jobs(self, incoming_jobs: list[dict[str, Any]]) -> tuple[int, int]:
-        """Deduplicate and upsert jobs/opportunities by content_hash and (source, external_id)."""
-        current_jobs = list(get_demo("jobs"))
+        is_demo = is_explicit_demo_mode()
+        supabase_ready = is_supabase_connected()
 
-        # Build index by content_hash and (source, external_id)
-        hash_index = {
-            j.get("content_hash"): idx
-            for idx, j in enumerate(current_jobs)
-            if j.get("content_hash")
-        }
+        if is_demo:
+            persisted_jobs = list(get_demo("jobs"))
+        elif supabase_ready:
+            from app.repositories.supabase_repository import list_jobs
+            persisted_jobs = list_jobs(limit=5000) or []
+        elif not settings.use_demo_data:
+            from app.repositories.supabase_repository import SupabaseConnectionError
+            raise SupabaseConnectionError("Supabase connection required for real-mode sync")
+        else:
+            persisted_jobs = list(get_demo("jobs"))
+
         source_id_index = {
-            (j.get("source"), j.get("external_id")): idx
-            for idx, j in enumerate(current_jobs)
-            if j.get("source") and j.get("external_id")
+            (j.get("source"), (j.get("external_id") or j.get("ext_id"))): j
+            for j in persisted_jobs
+            if j.get("source") and (j.get("external_id") or j.get("ext_id"))
+        }
+        hash_index = {
+            j.get("content_hash"): j
+            for j in persisted_jobs
+            if j.get("content_hash")
         }
 
         added = 0
@@ -267,54 +303,61 @@ class SyncEngine:
             ext_id = job.get("external_id") or job.get("ext_id")
             if ext_id and not job.get("external_id"):
                 job["external_id"] = ext_id
-            has_stable_key = bool(source and ext_id)
-            j_key = (source, ext_id)
 
-            target_idx = None
-            # Stable key match is authoritative. Only fall back to hash if record has no stable key.
-            if has_stable_key:
-                if j_key in source_id_index:
-                    target_idx = source_id_index[j_key]
-            elif c_hash and c_hash in hash_index:
-                target_idx = hash_index[c_hash]
+            target_record = None
+            if source and ext_id:
+                target_record = source_id_index.get((source, ext_id))
+            elif c_hash:
+                target_record = hash_index.get(c_hash)
 
-            if target_idx is not None:
-                # Update existing job timestamps
+            if target_record is not None:
+                job["id"] = target_record.get("id") or job.get("id") or str(uuid.uuid4())
                 job["last_synced_at"] = now_ts
                 job["last_seen_at"] = now_ts
-                current_jobs[target_idx].update(job)
+                target_record.update(job)
                 updated += 1
             else:
-                # Add new job
+                job["id"] = job.get("id") or str(uuid.uuid4())
                 job["last_synced_at"] = now_ts
                 job["last_seen_at"] = now_ts
-                current_jobs.append(job)
-                new_idx = len(current_jobs) - 1
+                persisted_jobs.append(job)
+                if source and ext_id:
+                    source_id_index[(source, ext_id)] = job
                 if c_hash:
-                    hash_index[c_hash] = new_idx
-                source_id_index[j_key] = new_idx
+                    hash_index[c_hash] = job
                 added += 1
 
-        try:
-            from app.repositories.supabase_repository import upsert_jobs
+        if supabase_ready and not is_demo:
+            from app.repositories.supabase_repository import upsert_jobs, list_jobs
             upsert_jobs(incoming_jobs)
-        except Exception as e:
-            try:
+            set_demo("jobs", list_jobs(limit=5000) or persisted_jobs)
+        elif is_demo or not supabase_ready:
+            set_demo("jobs", persisted_jobs)
+            if supabase_ready:
                 persist_jobs_to_supabase(incoming_jobs)
-            except Exception:
-                logger.error("[SyncEngine] Supabase job persistence failed: %s", e)
-                raise
 
-        set_demo("jobs", current_jobs)
         return added, updated
 
-    # Alias for backwards compatibility
     _upsert_opportunities = _upsert_jobs
 
     def _upsert_job_skills(self, jobs: list[dict[str, Any]]) -> int:
-        """Extract and persist many-to-many job-skill mappings."""
-        current_js = list(get_demo("job_skills"))
-        existing_keys = {(js.get("job_id"), js.get("skill_id")) for js in current_js}
+        is_demo = is_explicit_demo_mode()
+        supabase_ready = is_supabase_connected()
+        incoming_job_ids = [j.get("id") for j in jobs if j.get("id")]
+
+        if is_demo:
+            current_js = list(get_demo("job_skills"))
+            existing_keys = {(js.get("job_id"), js.get("skill_id")) for js in current_js}
+        elif supabase_ready:
+            from app.repositories.supabase_repository import list_job_skills
+            current_js = list_job_skills(job_ids=incoming_job_ids) or []
+            existing_keys = {(js.get("job_id"), js.get("skill_id")) for js in current_js}
+        elif not settings.use_demo_data:
+            from app.repositories.supabase_repository import SupabaseConnectionError
+            raise SupabaseConnectionError("Supabase connection required for real-mode sync")
+        else:
+            current_js = list(get_demo("job_skills"))
+            existing_keys = {(js.get("job_id"), js.get("skill_id")) for js in current_js}
 
         new_links = []
         for job in jobs:
@@ -328,17 +371,20 @@ class SyncEngine:
                         "skill_id": sid,
                         "proficiency_required": "intermediate",
                     }
-                    current_js.append(link)
                     existing_keys.add((jid, sid))
                     new_links.append(link)
 
         if new_links:
-            try:
-                from app.repositories.supabase_repository import batch_create_job_skills
+            if supabase_ready and not is_demo:
+                from app.repositories.supabase_repository import batch_create_job_skills, list_job_skills
                 batch_create_job_skills(new_links)
-            except Exception as e:
-                logger.error("[SyncEngine] Supabase batch_create_job_skills failed: %s", e)
-                raise
-            set_demo("job_skills", current_js)
+                set_demo("job_skills", list_job_skills() or current_js)
+            elif is_demo or not supabase_ready:
+                if supabase_ready:
+                    from app.repositories.supabase_repository import batch_create_job_skills
+                    batch_create_job_skills(new_links)
+                demo_js = list(get_demo("job_skills"))
+                demo_js.extend(new_links)
+                set_demo("job_skills", demo_js)
 
         return len(new_links)

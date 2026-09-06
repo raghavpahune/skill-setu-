@@ -15,11 +15,21 @@ class Settings(BaseSettings):
     use_demo_data: bool = True
     auto_sync_enabled: bool = True
     sync_interval_hours: int = 24
+    refresh_interval_minutes: int = 60
+    sync_sources: str = "all"
     sync_on_startup: bool = False
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     demo_auth_enabled: bool = True
+
+    @property
+    def effective_refresh_interval_minutes(self) -> int:
+        if self.refresh_interval_minutes != 60:
+            return max(1, self.refresh_interval_minutes)
+        if self.sync_interval_hours != 24:
+            return max(1, self.sync_interval_hours * 60)
+        return self.refresh_interval_minutes
 
     @property
     def ai_available(self) -> bool:

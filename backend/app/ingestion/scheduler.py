@@ -1,15 +1,11 @@
-"""Automatic background scheduler for SkillSetu data synchronization.
-
-Runs periodic, non-blocking synchronization from official open data sources (data.gov.in)
-using asyncio, with concurrency protection (asyncio.Lock), graceful shutdown,
-and full audit logging in sync_logs.
-"""
 import asyncio
 import datetime
 import logging
+import time
 from typing import Any
 
 from app.config import settings
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.ingestion.sync_engine import SyncEngine
 
@@ -17,7 +13,6 @@ logger = logging.getLogger("skillsetu.ingestion.scheduler")
 
 
 class IngestionScheduler:
-    """Manages periodic asynchronous data ingestion runs."""
 
     def __init__(self, engine: SyncEngine | None = None):
         self.engine = engine or SyncEngine()
@@ -26,6 +21,10 @@ class IngestionScheduler:
         self._stop_event: asyncio.Event | None = None
         self._is_sync_running = False
         self._last_run_timestamp: str | None = None
+        self._last_attempted_run_timestamp: str | None = None
+        self._last_successful_run_timestamp: str | None = None
+        self._last_run_duration_ms: int = 0
+        self._last_error: str | None = None
 
     def _get_lock(self) -> asyncio.Lock:
         if self._lock is None:
@@ -39,16 +38,13 @@ class IngestionScheduler:
 
     @property
     def is_active(self) -> bool:
-        """Return True if background scheduler loop is running."""
         return self._task is not None and not self._task.done()
 
     @property
     def is_sync_running(self) -> bool:
-        """Return True if an actual sync operation is actively in progress."""
         return self._is_sync_running
 
     def start(self):
-        """Start the background scheduler loop if auto-sync is enabled."""
         if not settings.auto_sync_enabled:
             logger.info("Auto-sync is disabled via configuration (AUTO_SYNC_ENABLED=False).")
             return
@@ -67,15 +63,14 @@ class IngestionScheduler:
             self._lock = asyncio.Lock()
             self._task = loop.create_task(self._worker_loop(), name="SkillSetu-SyncScheduler")
             logger.info(
-                "IngestionScheduler started (interval=%d hours, sync_on_startup=%s).",
-                settings.sync_interval_hours,
+                "IngestionScheduler started (interval=%d minutes, sync_on_startup=%s).",
+                settings.effective_refresh_interval_minutes,
                 settings.sync_on_startup,
             )
         else:
             logger.info("No active event loop found during scheduler.start(); skipping task creation.")
 
     async def stop(self):
-        """Stop the background scheduler loop gracefully."""
         if not self.is_active:
             return
 
@@ -91,14 +86,28 @@ class IngestionScheduler:
             self._task = None
         logger.info("IngestionScheduler stopped.")
 
-    async def execute_sync(self, source: str = "data.gov.in") -> dict[str, Any]:
-        """Execute a synchronization run with strict concurrency/overlap protection.
+    def _check_active_distributed_sync(self, lease_seconds: int = 900) -> bool:
+        try:
+            if is_explicit_demo_mode():
+                logs = list(get_demo("sync_logs"))
+            else:
+                from app.repositories.supabase_repository import list_sync_logs
+                logs = list_sync_logs(limit=10)
+            now_dt = datetime.datetime.now(datetime.timezone.utc)
+            for log in logs:
+                if log.get("status") == "running":
+                    started_str = log.get("started_at")
+                    if started_str:
+                        started_dt = datetime.datetime.fromisoformat(started_str)
+                        if (now_dt - started_dt).total_seconds() < lease_seconds:
+                            return True
+        except Exception:
+            pass
+        return False
 
-        Can be invoked by both the background timer and manual API triggers.
-        Guarantees that only ONE sync can execute at any time.
-        """
+    async def execute_sync(self, source: str = "data.gov.in") -> dict[str, Any]:
         lock = self._get_lock()
-        if lock.locked() or self._is_sync_running:
+        if lock.locked() or self._is_sync_running or self._check_active_distributed_sync():
             logger.warning("Synchronization requested while another sync is actively running. Skipping.")
             return {
                 "status": "skipped",
@@ -107,53 +116,78 @@ class IngestionScheduler:
 
         async with lock:
             self._is_sync_running = True
+            attempt_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            start_perf = time.perf_counter()
+            self._last_attempted_run_timestamp = attempt_time
+            self._last_run_timestamp = attempt_time
             try:
-                # Run the sync engine (in thread executor to prevent blocking async event loop)
                 loop = asyncio.get_running_loop()
-                if source in ("industry_signals", "industry", "all"):
+
+                if source in ("industry_signals", "industry"):
                     from app.ingestion.industry_intelligence import industry_ingestor
                     ind_res = await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
-                    if source != "all":
-                        self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                        return {"status": "success", "source": source, "industry_sync": ind_res}
+                    now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    self._last_successful_run_timestamp = now_str
+                    self._last_error = None
+                    self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
+                    return {"status": "success", "source": source, "industry_sync": ind_res, "duration_ms": self._last_run_duration_ms}
 
                 if source in ("skill_forecasts", "forecasts", "forecast"):
                     from app.services.forecast_engine import persist_computed_forecasts
                     fc_res = await loop.run_in_executor(None, persist_computed_forecasts)
-                    self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                    return {"status": "success", "source": source, "forecasts_persisted": len(fc_res)}
+                    now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    self._last_successful_run_timestamp = now_str
+                    self._last_error = None
+                    self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
+                    return {"status": "success", "source": source, "forecasts_persisted": len(fc_res), "duration_ms": self._last_run_duration_ms}
 
                 result = await loop.run_in_executor(None, self.engine.run_sync, source)
                 if source == "all":
                     from app.services.forecast_engine import persist_computed_forecasts
                     await loop.run_in_executor(None, persist_computed_forecasts)
-                self._last_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                return result
 
+                if "source" not in result:
+                    result["source"] = source
+
+                self._last_run_duration_ms = result.get("duration_ms", int((time.perf_counter() - start_perf) * 1000))
+                if result.get("status") == "success":
+                    self._last_successful_run_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    self._last_error = None
+                else:
+                    self._last_error = result.get("error_message") or "Sync run failed"
+                return result
+            except Exception as exc:
+                self._last_error = str(exc)
+                logger.exception("Error executing sync: %s", exc)
+                return {
+                    "status": "failed",
+                    "source": source,
+                    "error_message": str(exc),
+                    "started_at": attempt_time,
+                    "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                }
             finally:
                 self._is_sync_running = False
 
     async def _worker_loop(self):
-        """Background loop that periodically executes synchronization."""
         try:
-            # 1. Startup check: sync if configured or if no previous sync exists
             if settings.sync_on_startup or self._should_catchup_sync():
                 logger.info("Performing initial/catch-up data synchronization on startup...")
-                await self.execute_sync()
+                await self.execute_sync(source=settings.sync_sources or "all")
 
-            # 2. Main periodic loop
-            interval_seconds = max(settings.sync_interval_hours * 3600, 60)
+            interval_seconds = max(settings.effective_refresh_interval_minutes * 60, 60)
             stop_event = self._get_stop_event()
 
             while not stop_event.is_set():
                 try:
-                    # Wait for the interval or until stop event is signaled
                     await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
-                    break  # Stop event was set
+                    break
                 except asyncio.TimeoutError:
-                    # Interval elapsed — trigger scheduled synchronization
                     logger.info("Scheduled sync interval elapsed. Triggering automated ingestion...")
-                    await self.execute_sync()
+                    try:
+                        await self.execute_sync(source=settings.sync_sources or "all")
+                    except Exception as exc:
+                        logger.exception("Error during scheduled automated ingestion: %s", exc)
 
         except asyncio.CancelledError:
             logger.info("Scheduler worker loop cancelled.")
@@ -161,8 +195,15 @@ class IngestionScheduler:
             logger.exception("Unexpected error in scheduler worker loop: %s", exc)
 
     def _should_catchup_sync(self) -> bool:
-        """Check whether sufficient time has elapsed since the last recorded sync."""
-        logs = list(get_demo("sync_logs"))
+        if is_explicit_demo_mode():
+            logs = list(get_demo("sync_logs"))
+        else:
+            try:
+                from app.repositories.supabase_repository import list_sync_logs
+                logs = list_sync_logs(limit=10)
+            except Exception:
+                logs = list(get_demo("sync_logs"))
+
         if not logs:
             return True
 
@@ -175,21 +216,25 @@ class IngestionScheduler:
         try:
             last_dt = datetime.datetime.fromisoformat(started_str)
             now_dt = datetime.datetime.now(datetime.timezone.utc)
-            hours_elapsed = (now_dt - last_dt).total_seconds() / 3600
-            return hours_elapsed >= settings.sync_interval_hours
+            minutes_elapsed = (now_dt - last_dt).total_seconds() / 60
+            return minutes_elapsed >= settings.effective_refresh_interval_minutes
         except Exception:
             return False
 
     def get_status(self) -> dict[str, Any]:
-        """Return operational state of the scheduler."""
         return {
             "auto_sync_enabled": settings.auto_sync_enabled,
             "scheduler_active": self.is_active,
             "is_sync_running": self._is_sync_running,
             "interval_hours": settings.sync_interval_hours,
+            "refresh_interval_minutes": settings.effective_refresh_interval_minutes,
+            "interval_minutes": settings.effective_refresh_interval_minutes,
             "last_run_timestamp": self._last_run_timestamp,
+            "last_attempted_run_timestamp": self._last_attempted_run_timestamp,
+            "last_successful_run_timestamp": self._last_successful_run_timestamp,
+            "last_run_duration_ms": self._last_run_duration_ms,
+            "last_error": self._last_error,
         }
 
 
-# Global singleton instance
 scheduler = IngestionScheduler()

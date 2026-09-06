@@ -18,6 +18,8 @@ from app.ingestion.sync_engine import SyncEngine
 def isolate_sync_step4b_cache():
     from copy import deepcopy
     snapshot = deepcopy(_cache)
+    _cache["schemes"] = [s for s in _cache.get("schemes", []) if s.get("source") != "OGD_DATAGOV_IN"]
+    _cache["sync_logs"] = [l for l in _cache.get("sync_logs", []) if l.get("source_name") != "data.gov.in"]
     yield
     _cache.clear()
     _cache.update(snapshot)
