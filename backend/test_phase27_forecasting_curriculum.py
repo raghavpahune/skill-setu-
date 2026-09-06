@@ -167,3 +167,31 @@ def test_api_curriculum_endpoints(client):
     # Nonexistent course 404
     res_404 = client.get("/api/curriculum/recommendations/cr-nonexistent")
     assert res_404.status_code == 404
+
+
+def test_curriculum_hardening_audit_and_validation(client):
+    res_demo = client.get("/api/curriculum/audit?is_demo=true")
+    assert res_demo.status_code == 200
+    assert res_demo.json()["status"] == "success"
+
+    res_summary_demo = client.get("/api/curriculum/summary?is_demo=true")
+    assert res_summary_demo.status_code == 200
+    assert res_summary_demo.json()["total_courses"] >= 5
+
+    res_bp_demo = client.get("/api/curriculum/recommendations/cr-001?is_demo=true")
+    assert res_bp_demo.status_code == 200
+    assert res_bp_demo.json()["course_id"] == "cr-001"
+
+    long_id = "a" * 105
+    res_invalid_long = client.get(f"/api/curriculum/recommendations/{long_id}")
+    assert res_invalid_long.status_code == 400
+
+    res_whitespace = client.get("/api/curriculum/recommendations/%20%20")
+    assert res_whitespace.status_code == 400
+
+
+def test_placement_rate_no_synthetic_fallback():
+    courses = audit_all_courses(is_demo=True)
+    assert len(courses) > 0
+    for c in courses:
+        assert isinstance(c["placement_rate"], (int, float))

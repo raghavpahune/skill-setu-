@@ -117,8 +117,8 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
         enrolment = c.get("enrolment_count", 60)
         p = placements.get(cid, {})
         student_count = p.get("student_count", enrolment)
-        placed_count = p.get("placed_count", int(student_count * 0.6))
-        placement_rate = round((placed_count / max(1, student_count)) * 100, 1)
+        placed_count = p.get("placed_count", 0)
+        placement_rate = round((placed_count / max(1, student_count)) * 100, 1) if student_count else 0.0
 
         # Evaluate syllabus coverage
         taught_skills = course_skills_map.get(cid, [])
