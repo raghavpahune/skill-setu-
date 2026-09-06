@@ -267,7 +267,6 @@ VALID_EMPLOYER_DEMAND_COLUMNS = {
 VALID_STUDENT_PROFILE_COLUMNS = {
     "user_id",
     "full_name",
-    "name",
     "institution",
     "degree",
     "education_level",
@@ -278,8 +277,6 @@ VALID_STUDENT_PROFILE_COLUMNS = {
     "preferred_location",
     "career_interests",
     "skills",
-    "required_skills",
-    "roadmap",
     "projects",
     "certifications",
     "courses",
@@ -293,7 +290,6 @@ VALID_STUDENT_PROFILE_COLUMNS = {
 VALID_EMPLOYEE_PROFILE_COLUMNS = {
     "user_id",
     "full_name",
-    "name",
     "current_role",
     "years_of_experience",
     "industry",

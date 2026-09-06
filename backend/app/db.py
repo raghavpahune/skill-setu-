@@ -240,8 +240,8 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
-    # 4. Ensure baseline demo users exist for local testing and demonstration
-    init_demo_users()
+    if settings.use_demo_data:
+        init_demo_users()
 
 
 def get_data_governance_summary() -> dict[str, Any]:
@@ -847,7 +847,8 @@ def get_skill_forecast_by_id(forecast_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def init_demo_users():
-    """Ensure baseline demo accounts exist for each role with bcrypt hashed passwords."""
+    if not settings.use_demo_data:
+        return
     users = _cache.setdefault("users", [])
     existing_emails = {u.get("email", "").lower() for u in users if isinstance(u, dict)}
 

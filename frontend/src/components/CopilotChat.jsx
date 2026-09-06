@@ -35,6 +35,13 @@ const ROLE_DEFINITIONS = [
     placeholder: 'Ask about district labour deficits, ITI seat allocations, or scheme budgets (e.g., What are the biggest skill gaps in Pune?)...',
   },
   {
+    id: 'employee',
+    label: 'Employees',
+    badge: 'Career Transition & Reskilling',
+    icon: '⚡',
+    placeholder: 'Ask about career transitions, upskilling paths, or transferable competencies (e.g., How do I transition to an Automation Specialist?)...',
+  },
+  {
     id: 'admin',
     label: 'Admin',
     badge: 'Governance & Provenance',
@@ -51,6 +58,12 @@ const CONTEXTUAL_PROMPTS = {
     'What step-by-step learning roadmap should I follow to bridge my skill gaps?',
     'Which skills should I learn for an AI Engineer role?',
     'What is the requirement for EV Battery Technician in Pune?',
+  ],
+  employee: [
+    'How can I transition from my current role to an advanced technology role in Maharashtra?',
+    'Which skills from my experience are transferable to Electric Vehicle manufacturing?',
+    'What certified upskilling courses are available for working professionals in Pune?',
+    'Which high-growth industries in Maharashtra value my existing skill background?',
   ],
   employer: [
     'Which technical competencies are currently reporting the highest hiring bottlenecks?',
@@ -91,12 +104,14 @@ export default function CopilotChat({
   const hasAutoSentRef = useRef(false);
 
   const effectiveDefaultRole = useMemo(() => {
+    if (defaultRole === 'employee') return 'employee';
     if (!isAuthenticated) return defaultRole;
     if (authRole === 'STUDENT') return 'student';
+    if (authRole === 'EMPLOYEE') return 'employee';
     if (authRole === 'EMPLOYER') return 'employer';
     if (authRole === 'INSTITUTE') return 'institute';
     if (authRole === 'GOVERNMENT') return 'government';
-    if (authRole === 'ADMIN') return 'admin';
+    if (authRole === 'ADMIN') return defaultRole || 'admin';
     return defaultRole;
   }, [authRole, isAuthenticated, defaultRole]);
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { formatEmployeeProfilePayload, validateEmployeeProfile } from '../utils/profileValidator';
 
 const PROFICIENCY_LEVELS = [
   { id: 'beginner', label: 'Beginner', badge: 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800' },
@@ -143,30 +144,17 @@ export default function EmployeeProfile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.current_role.trim()) {
-      setApiError('Current role is required for employee profiles.');
+    setApiError(null);
+    setSuccessMsg(null);
+
+    const payload = formatEmployeeProfilePayload(form);
+    const validation = validateEmployeeProfile(payload);
+    if (!validation.isValid) {
+      setApiError(validation.errors.join(', '));
       return;
     }
 
     setSaving(true);
-    setApiError(null);
-    setSuccessMsg(null);
-
-    const payload = {
-      current_role: form.current_role.trim(),
-      years_of_experience: form.years_of_experience ? parseFloat(form.years_of_experience) : 0,
-      industry: form.industry || null,
-      education: form.education.trim() || null,
-      target_role: form.target_role.trim() || null,
-      preferred_location: form.preferred_location.trim() || null,
-      skills: form.skills.map((s) => ({
-        skill_name: s.skill_name || s.name,
-        proficiency: (s.proficiency || 'intermediate').toLowerCase(),
-        skill_id: s.skill_id || null,
-      })),
-      certifications: form.certifications,
-    };
-
     try {
       let saved;
       if (isNewProfile) {

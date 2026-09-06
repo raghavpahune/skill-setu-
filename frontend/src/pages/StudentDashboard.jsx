@@ -453,13 +453,15 @@ export default function StudentDashboard() {
                 );
               })}
             </div>
-            <Link
-              to="/student/profile"
-              className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <span>⚙️</span>
-              <span>Edit Skill Passport</span>
-            </Link>
+            {user?.role === 'STUDENT' && selectedStudentId === 'me' && (
+              <Link
+                to="/student/profile"
+                className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <span>⚙️</span>
+                <span>Edit Skill Passport</span>
+              </Link>
+            )}
           </div>
         )}
       </div>

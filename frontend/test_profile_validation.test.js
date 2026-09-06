@@ -142,8 +142,10 @@ test('validateStudentProfile rejects out-of-range graduation years', () => {
   assert.equal(validateStudentProfile(null).isValid, false);
 });
 
-test('validateEmployeeProfile enforces required role and non-negative experience', () => {
+test('validateEmployeeProfile enforces required role and valid experience bounds', () => {
   assert.equal(validateEmployeeProfile({ current_role: 'DevOps Lead', years_of_experience: 5 }).isValid, true);
+  assert.equal(validateEmployeeProfile({ current_role: 'DevOps Lead', years_of_experience: 70 }).isValid, true);
+  assert.equal(validateEmployeeProfile({ current_role: 'DevOps Lead', years_of_experience: 71 }).isValid, false);
   assert.equal(validateEmployeeProfile({ current_role: '', years_of_experience: 5 }).isValid, false);
   assert.equal(validateEmployeeProfile({ current_role: 'DevOps Lead', years_of_experience: -2 }).isValid, false);
   assert.equal(validateEmployeeProfile(null).isValid, false);

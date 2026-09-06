@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { formatStudentProfilePayload, validateStudentProfile } from '../utils/profileValidator';
 
 const PROFICIENCY_LEVELS = [
   { id: 'beginner', label: 'Beginner', badge: 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800' },
@@ -231,30 +232,17 @@ export default function StudentProfile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true);
     setApiError(null);
     setSuccessMsg(null);
 
-    const payload = {
-      institution: form.institution.trim() || null,
-      degree: form.degree.trim() || null,
-      education_level: form.education_level || null,
-      academic_year: form.academic_year || null,
-      graduation_year: form.graduation_year ? parseInt(form.graduation_year, 10) : null,
-      desired_role: form.desired_role.trim() || null,
-      target_role: form.desired_role.trim() || null,
-      preferred_location: form.preferred_location.trim() || null,
-      career_interests: form.career_interests,
-      skills: form.skills.map((s) => ({
-        skill_name: s.skill_name || s.name,
-        proficiency: (s.proficiency || 'intermediate').toLowerCase(),
-        skill_id: s.skill_id || null,
-      })),
-      projects: form.projects,
-      certifications: form.certifications,
-      courses: form.courses,
-    };
+    const payload = formatStudentProfilePayload(form);
+    const validation = validateStudentProfile(payload);
+    if (!validation.isValid) {
+      setApiError(validation.errors.join(', '));
+      return;
+    }
 
+    setSaving(true);
     try {
       let saved;
       if (isNewProfile) {

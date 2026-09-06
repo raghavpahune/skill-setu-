@@ -168,20 +168,16 @@ class EmployeeProfilePatchPayload(BaseModel):
 
 
 def resolve_taxonomy_skill_ids(skills: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    tax_skills = []
-    try:
-        tax_skills = supabase_repository.list_skills(limit=2000) or []
-    except Exception:
-        pass
+    tax_skills = supabase_repository.list_skills(limit=2000) or []
     name_map = {}
     for s in tax_skills:
         sname = s.get("name")
         sid = s.get("id")
         if sname and sid:
-            name_map[sname.strip().lower()] = sid
+            name_map[sname.strip().lower()] = str(sid)
             for syn in s.get("synonyms", []):
                 if syn and isinstance(syn, str):
-                    name_map[syn.strip().lower()] = sid
+                    name_map[syn.strip().lower()] = str(sid)
 
     resolved = []
     for sk in skills:
@@ -190,7 +186,7 @@ def resolve_taxonomy_skill_ids(skills: list[dict[str, Any]]) -> list[dict[str, A
         sid = sk.get("skill_id") or name_map.get(clean_key)
         resolved.append({
             **sk,
-            "skill_id": sid,
+            "skill_id": str(sid) if sid is not None else None,
         })
     return resolved
 
@@ -241,34 +237,33 @@ async def create_student_profile(
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
-    resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
     target = payload.target_role or payload.desired_role or ""
     desired = payload.desired_role or payload.target_role or ""
 
-    profile_dict = {
-        "user_id": user_id,
-        "full_name": payload.full_name or current_user.get("full_name") or "",
-        "institution": payload.institution,
-        "degree": payload.degree,
-        "education_level": payload.education_level,
-        "academic_year": payload.academic_year,
-        "graduation_year": payload.graduation_year,
-        "target_role": target,
-        "desired_role": desired,
-        "preferred_location": payload.preferred_location,
-        "career_interests": payload.career_interests,
-        "skills": resolved_skills,
-        "projects": [p.model_dump() for p in payload.projects],
-        "certifications": [c.model_dump() for c in payload.certifications],
-        "courses": [co.model_dump() for co in payload.courses],
-        "skill_match_pct": 0,
-        "source": "USER_SUBMITTED",
-        "is_demo": False,
-        "created_at": now_iso,
-        "updated_at": now_iso,
-    }
-
     try:
+        resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
+        profile_dict = {
+            "user_id": user_id,
+            "full_name": payload.full_name or current_user.get("full_name") or "",
+            "institution": payload.institution,
+            "degree": payload.degree,
+            "education_level": payload.education_level,
+            "academic_year": payload.academic_year,
+            "graduation_year": payload.graduation_year,
+            "target_role": target,
+            "desired_role": desired,
+            "preferred_location": payload.preferred_location,
+            "career_interests": payload.career_interests,
+            "skills": resolved_skills,
+            "projects": [p.model_dump() for p in payload.projects],
+            "certifications": [c.model_dump() for c in payload.certifications],
+            "courses": [co.model_dump() for co in payload.courses],
+            "skill_match_pct": 0,
+            "source": "USER_SUBMITTED",
+            "is_demo": False,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        }
         saved = supabase_repository.upsert_student_profile(profile_dict)
     except SupabaseRepositoryError as e:
         logger.exception("[Profile] Database failure creating student profile %s: %s", user_id, e)
@@ -299,32 +294,31 @@ async def update_student_profile(
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
-    resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
     target = payload.target_role or payload.desired_role or ""
     desired = payload.desired_role or payload.target_role or ""
 
-    profile_dict = {
-        "user_id": user_id,
-        "full_name": payload.full_name or current_user.get("full_name") or "",
-        "institution": payload.institution,
-        "degree": payload.degree,
-        "education_level": payload.education_level,
-        "academic_year": payload.academic_year,
-        "graduation_year": payload.graduation_year,
-        "target_role": target,
-        "desired_role": desired,
-        "preferred_location": payload.preferred_location,
-        "career_interests": payload.career_interests,
-        "skills": resolved_skills,
-        "projects": [p.model_dump() for p in payload.projects],
-        "certifications": [c.model_dump() for c in payload.certifications],
-        "courses": [co.model_dump() for co in payload.courses],
-        "source": "USER_SUBMITTED",
-        "is_demo": False,
-        "updated_at": now_iso,
-    }
-
     try:
+        resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
+        profile_dict = {
+            "user_id": user_id,
+            "full_name": payload.full_name or current_user.get("full_name") or "",
+            "institution": payload.institution,
+            "degree": payload.degree,
+            "education_level": payload.education_level,
+            "academic_year": payload.academic_year,
+            "graduation_year": payload.graduation_year,
+            "target_role": target,
+            "desired_role": desired,
+            "preferred_location": payload.preferred_location,
+            "career_interests": payload.career_interests,
+            "skills": resolved_skills,
+            "projects": [p.model_dump() for p in payload.projects],
+            "certifications": [c.model_dump() for c in payload.certifications],
+            "courses": [co.model_dump() for co in payload.courses],
+            "source": "USER_SUBMITTED",
+            "is_demo": False,
+            "updated_at": now_iso,
+        }
         saved = supabase_repository.upsert_student_profile(profile_dict)
     except SupabaseRepositoryError as e:
         logger.exception("[Profile] Database failure updating student profile %s: %s", user_id, e)
@@ -367,24 +361,24 @@ async def patch_student_profile(
             detail=f"Student profile not found for user '{user_id}'.",
         )
 
-    patch_data = payload.model_dump(exclude_unset=True)
-    if "skills" in patch_data and patch_data["skills"] is not None:
-        raw_skills = [s.model_dump() if hasattr(s, "model_dump") else s for s in payload.skills or []]
-        patch_data["skills"] = resolve_taxonomy_skill_ids(deduplicate_skills(raw_skills))
-    if "projects" in patch_data and patch_data["projects"] is not None:
-        patch_data["projects"] = [p.model_dump() if hasattr(p, "model_dump") else p for p in payload.projects or []]
-    if "certifications" in patch_data and patch_data["certifications"] is not None:
-        patch_data["certifications"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in payload.certifications or []]
-    if "courses" in patch_data and patch_data["courses"] is not None:
-        patch_data["courses"] = [co.model_dump() if hasattr(co, "model_dump") else co for co in payload.courses or []]
-
-    if "desired_role" in patch_data and "target_role" not in patch_data:
-        patch_data["target_role"] = patch_data["desired_role"]
-    elif "target_role" in patch_data and "desired_role" not in patch_data:
-        patch_data["desired_role"] = patch_data["target_role"]
-
-    merged = {**existing, **patch_data, "updated_at": datetime.now(timezone.utc).isoformat()}
     try:
+        patch_data = payload.model_dump(exclude_unset=True)
+        if "skills" in patch_data and patch_data["skills"] is not None:
+            raw_skills = [s.model_dump() if hasattr(s, "model_dump") else s for s in payload.skills or []]
+            patch_data["skills"] = resolve_taxonomy_skill_ids(deduplicate_skills(raw_skills))
+        if "projects" in patch_data and patch_data["projects"] is not None:
+            patch_data["projects"] = [p.model_dump() if hasattr(p, "model_dump") else p for p in payload.projects or []]
+        if "certifications" in patch_data and patch_data["certifications"] is not None:
+            patch_data["certifications"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in payload.certifications or []]
+        if "courses" in patch_data and patch_data["courses"] is not None:
+            patch_data["courses"] = [co.model_dump() if hasattr(co, "model_dump") else co for co in payload.courses or []]
+
+        if "desired_role" in patch_data and "target_role" not in patch_data:
+            patch_data["target_role"] = patch_data["desired_role"]
+        elif "target_role" in patch_data and "desired_role" not in patch_data:
+            patch_data["desired_role"] = patch_data["target_role"]
+
+        merged = {**existing, **patch_data, "updated_at": datetime.now(timezone.utc).isoformat()}
         saved = supabase_repository.upsert_student_profile(merged)
     except SupabaseRepositoryError as e:
         logger.exception("[Profile] Database upsert failure on patch %s: %s", user_id, e)
@@ -417,7 +411,9 @@ async def update_student_skills(
         )
     user_id = current_user["id"]
     try:
-        existing = supabase_repository.get_student_profile(user_id) or {"user_id": user_id}
+        existing = supabase_repository.get_student_profile(user_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found.")
         raw_skills = [s.model_dump() for s in payload.skills]
         deduped = resolve_taxonomy_skill_ids(deduplicate_skills(raw_skills))
         updated = {**existing, "skills": deduped, "updated_at": datetime.now(timezone.utc).isoformat()}
@@ -447,7 +443,9 @@ async def add_student_skill(
         )
     user_id = current_user["id"]
     try:
-        existing = supabase_repository.get_student_profile(user_id) or {"user_id": user_id}
+        existing = supabase_repository.get_student_profile(user_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found.")
         curr_skills = list(existing.get("skills") or [])
         curr_skills.append(skill.model_dump())
         deduped = resolve_taxonomy_skill_ids(deduplicate_skills(curr_skills))
@@ -485,7 +483,7 @@ async def delete_student_skill(
         curr_skills = [
             s for s in (existing.get("skills") or [])
             if (s.get("skill_name") or s.get("name") or "").strip().lower() != clean_target
-            and (s.get("skill_id") or "").strip().lower() != clean_target
+            and str(s.get("skill_id") or "").strip().lower() != clean_target
         ]
         updated = {**existing, "skills": curr_skills, "updated_at": datetime.now(timezone.utc).isoformat()}
         saved = supabase_repository.upsert_student_profile(updated)
@@ -518,7 +516,9 @@ async def update_student_projects(
         )
     user_id = current_user["id"]
     try:
-        existing = supabase_repository.get_student_profile(user_id) or {"user_id": user_id}
+        existing = supabase_repository.get_student_profile(user_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found.")
         updated = {
             **existing,
             "projects": [p.model_dump() for p in payload.projects],
@@ -554,7 +554,9 @@ async def update_student_certifications(
         )
     user_id = current_user["id"]
     try:
-        existing = supabase_repository.get_student_profile(user_id) or {"user_id": user_id}
+        existing = supabase_repository.get_student_profile(user_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found.")
         updated = {
             **existing,
             "certifications": [c.model_dump() for c in payload.certifications],
@@ -590,7 +592,9 @@ async def update_student_courses(
         )
     user_id = current_user["id"]
     try:
-        existing = supabase_repository.get_student_profile(user_id) or {"user_id": user_id}
+        existing = supabase_repository.get_student_profile(user_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found.")
         updated = {
             **existing,
             "courses": [co.model_dump() for co in payload.courses],
@@ -655,26 +659,25 @@ async def create_employee_profile(
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
-    resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
-
-    profile_dict = {
-        "user_id": user_id,
-        "full_name": payload.full_name or current_user.get("full_name") or "",
-        "current_role": payload.current_role,
-        "years_of_experience": payload.years_of_experience,
-        "industry": payload.industry,
-        "education": payload.education,
-        "target_role": payload.target_role,
-        "preferred_location": payload.preferred_location,
-        "skills": resolved_skills,
-        "certifications": [c.model_dump() for c in payload.certifications],
-        "source": "USER_SUBMITTED",
-        "is_demo": False,
-        "created_at": now_iso,
-        "updated_at": now_iso,
-    }
 
     try:
+        resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
+        profile_dict = {
+            "user_id": user_id,
+            "full_name": payload.full_name or current_user.get("full_name") or "",
+            "current_role": payload.current_role,
+            "years_of_experience": payload.years_of_experience,
+            "industry": payload.industry,
+            "education": payload.education,
+            "target_role": payload.target_role,
+            "preferred_location": payload.preferred_location,
+            "skills": resolved_skills,
+            "certifications": [c.model_dump() for c in payload.certifications],
+            "source": "USER_SUBMITTED",
+            "is_demo": False,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        }
         saved = supabase_repository.upsert_employee_profile(profile_dict)
     except SupabaseRepositoryError as e:
         logger.exception("[Profile] Database failure creating employee profile %s: %s", user_id, e)
@@ -705,25 +708,24 @@ async def update_employee_profile(
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
-    resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
-
-    profile_dict = {
-        "user_id": user_id,
-        "full_name": payload.full_name or current_user.get("full_name") or "",
-        "current_role": payload.current_role,
-        "years_of_experience": payload.years_of_experience,
-        "industry": payload.industry,
-        "education": payload.education,
-        "target_role": payload.target_role,
-        "preferred_location": payload.preferred_location,
-        "skills": resolved_skills,
-        "certifications": [c.model_dump() for c in payload.certifications],
-        "source": "USER_SUBMITTED",
-        "is_demo": False,
-        "updated_at": now_iso,
-    }
 
     try:
+        resolved_skills = resolve_taxonomy_skill_ids(deduped_skills)
+        profile_dict = {
+            "user_id": user_id,
+            "full_name": payload.full_name or current_user.get("full_name") or "",
+            "current_role": payload.current_role,
+            "years_of_experience": payload.years_of_experience,
+            "industry": payload.industry,
+            "education": payload.education,
+            "target_role": payload.target_role,
+            "preferred_location": payload.preferred_location,
+            "skills": resolved_skills,
+            "certifications": [c.model_dump() for c in payload.certifications],
+            "source": "USER_SUBMITTED",
+            "is_demo": False,
+            "updated_at": now_iso,
+        }
         saved = supabase_repository.upsert_employee_profile(profile_dict)
     except SupabaseRepositoryError as e:
         logger.exception("[Profile] Database failure updating employee profile %s: %s", user_id, e)
@@ -766,15 +768,15 @@ async def patch_employee_profile(
             detail=f"Employee profile not found for user '{user_id}'.",
         )
 
-    patch_data = payload.model_dump(exclude_unset=True)
-    if "skills" in patch_data and patch_data["skills"] is not None:
-        raw_skills = [s.model_dump() if hasattr(s, "model_dump") else s for s in payload.skills or []]
-        patch_data["skills"] = resolve_taxonomy_skill_ids(deduplicate_skills(raw_skills))
-    if "certifications" in patch_data and patch_data["certifications"] is not None:
-        patch_data["certifications"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in payload.certifications or []]
-
-    merged = {**existing, **patch_data, "updated_at": datetime.now(timezone.utc).isoformat()}
     try:
+        patch_data = payload.model_dump(exclude_unset=True)
+        if "skills" in patch_data and patch_data["skills"] is not None:
+            raw_skills = [s.model_dump() if hasattr(s, "model_dump") else s for s in payload.skills or []]
+            patch_data["skills"] = resolve_taxonomy_skill_ids(deduplicate_skills(raw_skills))
+        if "certifications" in patch_data and patch_data["certifications"] is not None:
+            patch_data["certifications"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in payload.certifications or []]
+
+        merged = {**existing, **patch_data, "updated_at": datetime.now(timezone.utc).isoformat()}
         saved = supabase_repository.upsert_employee_profile(merged)
     except SupabaseRepositoryError as e:
         logger.exception("[Profile] Database upsert failure on employee patch %s: %s", user_id, e)
@@ -875,7 +877,7 @@ async def delete_employee_skill(
         curr_skills = [
             s for s in (existing.get("skills") or [])
             if (s.get("skill_name") or s.get("name") or "").strip().lower() != clean_target
-            and (s.get("skill_id") or "").strip().lower() != clean_target
+            and str(s.get("skill_id") or "").strip().lower() != clean_target
         ]
         updated = {**existing, "skills": curr_skills, "updated_at": datetime.now(timezone.utc).isoformat()}
         saved = supabase_repository.upsert_employee_profile(updated)

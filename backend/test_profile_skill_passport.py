@@ -269,3 +269,64 @@ def test_employee_registration_and_login(client):
     res_get = client.get("/api/employee/profile", headers=headers)
     assert res_get.status_code == 404
 
+
+def test_subresource_update_404_when_no_profile(client, monkeypatch):
+    monkeypatch.setattr(supabase_repository, "get_student_profile", lambda uid: None)
+    res_skills = client.put(
+        "/api/student/profile/skills",
+        json={"skills": [{"skill_name": "Python", "proficiency": "expert"}]},
+        headers=STUDENT_HEADERS,
+    )
+    assert res_skills.status_code == 404
+
+    res_add_skill = client.post(
+        "/api/student/profile/skills",
+        json={"skill_name": "Python", "proficiency": "expert"},
+        headers=STUDENT_HEADERS,
+    )
+    assert res_add_skill.status_code == 404
+
+    res_proj = client.put(
+        "/api/student/profile/projects",
+        json={"projects": [{"name": "AI Drone"}]},
+        headers=STUDENT_HEADERS,
+    )
+    assert res_proj.status_code == 404
+
+    res_certs = client.put(
+        "/api/student/profile/certifications",
+        json={"certifications": [{"name": "Cloud Practitioner", "issuer": "AWS"}]},
+        headers=STUDENT_HEADERS,
+    )
+    assert res_certs.status_code == 404
+
+    res_courses = client.put(
+        "/api/student/profile/courses",
+        json={"courses": [{"course_name": "Deep Learning"}]},
+        headers=STUDENT_HEADERS,
+    )
+    assert res_courses.status_code == 404
+
+
+def test_taxonomy_resolution_failure_propagates_500(client, monkeypatch):
+    def failing_list_skills(*args, **kwargs):
+        raise SupabaseRepositoryError("Taxonomy unavailable")
+
+    monkeypatch.setattr(supabase_repository, "list_skills", failing_list_skills)
+    payload = {
+        "target_role": "AI Engineer",
+        "skills": [{"skill_name": "PyTorch", "proficiency": "expert"}],
+    }
+    res = client.post("/api/student/profile", json=payload, headers=STUDENT_HEADERS)
+    assert res.status_code == 500
+    assert "Database persistence failed" in res.json()["detail"]
+
+
+def test_employee_experience_upper_bound_validation(client):
+    payload = {
+        "current_role": "Senior Engineer",
+        "years_of_experience": 75.0,
+    }
+    res = client.post("/api/employee/profile", json=payload, headers=EMPLOYEE_HEADERS)
+    assert res.status_code == 422
+

@@ -9,13 +9,13 @@ export default function CopilotPage({ roleOverride }) {
   const location = useLocation();
   const { role: authRole, isAuthenticated } = useAuth();
   const urlRole = searchParams.get('role');
-  const validRoles = ['government', 'institute', 'student', 'employer', 'admin'];
+  const validRoles = ['government', 'institute', 'student', 'employer', 'admin', 'employee'];
 
   let initialRole = 'student';
-  if (roleOverride && validRoles.includes(roleOverride.toLowerCase())) {
-    initialRole = roleOverride.toLowerCase();
-  } else if (urlRole && validRoles.includes(urlRole.toLowerCase())) {
+  if (urlRole && validRoles.includes(urlRole.toLowerCase())) {
     initialRole = urlRole.toLowerCase();
+  } else if (roleOverride && validRoles.includes(roleOverride.toLowerCase())) {
+    initialRole = roleOverride.toLowerCase();
   } else if (isAuthenticated && authRole && validRoles.includes(authRole.toLowerCase())) {
     initialRole = authRole.toLowerCase();
   }
