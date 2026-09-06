@@ -316,13 +316,15 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
                 for cs in cs_links:
                     cid = cs.get("course_id")
                     sid = cs.get("skill_id")
-                    sname = skill_name_map.get(sid, sid)
+                    sname = cs.get("skill_name") or skill_name_map.get(sid, sid)
                     if cid and sname:
                         skills_by_course.setdefault(cid, []).append(sname)
                 for c in all_courses:
                     cid = c.get("id")
-                    if cid and cid in skills_by_course and not c.get("skills"):
-                        c["skills"] = skills_by_course[cid]
+                    if cid and cid in skills_by_course:
+                        existing = list(c.get("skills") or c.get("skills_taught") or [])
+                        linked = skills_by_course[cid]
+                        c["skills"] = list(dict.fromkeys(existing + linked))
         except Exception:
             all_courses = []
         course_source_default = "INSTITUTE_SUBMITTED"
