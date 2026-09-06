@@ -20,6 +20,11 @@ load_demo_data()
 client = TestClient(app)
 
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
+
+
 def test_gemini_provider_models_configuration():
     """Verify Gemini 3.6 Flash is the primary model and retired models are excluded."""
     assert "gemini-3.6-flash" in MODELS

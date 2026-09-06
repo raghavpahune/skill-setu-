@@ -83,23 +83,45 @@ def test_assessment_submission_and_me_resolution():
 
 
 def test_unassessed_student_schemes_and_opps():
-    # Register a new student who has no assessment
-    res = client.post("/api/auth/register", json={
-        "email": "brand_new_student@skillsetu.gov.in",
-        "password": "Password@123",
-        "full_name": "New Student",
-        "role": "STUDENT",
-    })
-    assert res.status_code == 201
-    token = res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    import uuid
+    email = f"brand_new_student_{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
+    user_id = None
+    try:
+        # Register a new student who has no assessment
+        res = client.post("/api/auth/register", json={
+            "email": email,
+            "password": "Password@123",
+            "full_name": "New Student",
+            "role": "STUDENT",
+        })
+        assert res.status_code == 201
+        data = res.json()
+        user_id = data.get("user", {}).get("id")
+        token = data["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
 
-    # Verify unassessed schemes returns 200 with status: unassessed
-    res_schemes = client.get("/api/schemes/recommended/me", headers=headers)
-    assert res_schemes.status_code == 200
-    assert res_schemes.json().get("status") == "unassessed"
+        # Verify unassessed schemes returns 200 with status: unassessed
+        res_schemes = client.get("/api/schemes/recommended/me", headers=headers)
+        assert res_schemes.status_code == 200
+        assert res_schemes.json().get("status") == "unassessed"
 
-    # Verify unassessed opportunities returns 200 with status: unassessed
-    res_opps = client.get("/api/gov/opportunities/recommended/me", headers=headers)
-    assert res_opps.status_code == 200
-    assert res_opps.json().get("status") == "unassessed"
+        # Verify unassessed opportunities returns 200 with status: unassessed
+        res_opps = client.get("/api/gov/opportunities/recommended/me", headers=headers)
+        assert res_opps.status_code == 200
+        assert res_opps.json().get("status") == "unassessed"
+    finally:
+        # Isolated storage / teardown cleanup so this user cannot persist and affect later tests
+        from app.db import _cache, _flush_real_table
+        if "users" in _cache:
+            _cache["users"] = [
+                u for u in _cache["users"]
+                if u.get("email") != email and (not user_id or u.get("id") != user_id)
+            ]
+            _flush_real_table("users")
+        try:
+            from app.repositories.supabase_repository import get_client, SupabaseConnectionError
+            sb = get_client()
+            if hasattr(sb, "table"):
+                sb.table("users").delete().eq("email", email).execute()
+        except (SupabaseConnectionError, ImportError):
+            pass  # ponytail: Supabase not configured — expected in test environments

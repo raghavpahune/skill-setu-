@@ -1,10 +1,12 @@
 """Employer Validation & Industry Demand API — confirm/correct/reject skill demand, submit requirements, and track talent deficits."""
 import datetime
+import logging
 import uuid
 from collections import Counter
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from app.core.security import get_current_user, get_optional_current_user, require_roles
 from pydantic import BaseModel, Field, model_validator
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.services.employer_verification import verify_employer_credentials, validate_gstin
 from app.repositories.supabase_repository import (
@@ -21,6 +23,7 @@ from app.repositories.supabase_repository import (
     SupabaseRepositoryError,
 )
 
+logger = logging.getLogger("skillsetu.employer")
 router = APIRouter()
 
 
@@ -78,15 +81,42 @@ async def list_validations(
     district: str | None = None,
     industry: str | None = None,
     demand_level: str | None = None,
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List skill demand summaries for employer validation with enriched metadata and filtering."""
-    feedback = list_employer_feedback(status=status, demand_level=demand_level)
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    employers_map = {e["id"]: e for e in get_demo("employers")}
+    if is_explicit_demo_mode(is_demo):
+        feedback = get_demo("employer_feedback")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        employers_map = {e["id"]: e for e in get_demo("employers")}
+    else:
+        feedback = list_employer_feedback(status=status, demand_level=demand_level)
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except SupabaseRepositoryError as e:
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Skills repository is temporarily unavailable.",
+            ) from e
+        except Exception:
+            skills_map = {}
+        try:
+            from app.repositories.supabase_repository import get_client
+            client = get_client()
+            res = client.table("employers").select("*").execute()
+            employers_map = {e["id"]: e for e in (res.data or []) if "id" in e}
+        except Exception as e:
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Employer repository is temporarily unavailable.",
+            ) from e
 
     results = []
+    is_demo_active = is_explicit_demo_mode(is_demo)
     for f in feedback:
         skill_info = skills_map.get(f.get("skill_id"), {})
+        has_employer = f.get("employer_id") in employers_map
         employer_info = employers_map.get(f.get("employer_id"), {})
 
         item = {
@@ -94,18 +124,19 @@ async def list_validations(
             "skill_name": skill_info.get("name", "Unknown Skill"),
             "skill_category": skill_info.get("category", "General"),
             "nsqf_level": skill_info.get("nsqf_level", 5),
-            "employer_name": employer_info.get("name", "Industry Partner"),
-            "industry": employer_info.get("industry", "General Industry"),
-            "district": employer_info.get("district", "Maharashtra"),
+            "employer_name": employer_info.get("name") if has_employer else ("Industry Partner" if is_demo_active else None),
+            "industry": employer_info.get("industry") if has_employer else ("General Industry" if is_demo_active else None),
+            "district": employer_info.get("district") if has_employer else ("Maharashtra" if is_demo_active else None),
         }
 
-        # Apply filters
         if status and status != "all" and item.get("status", "").lower() != status.lower():
             continue
-        if district and district != "all" and item.get("district", "").lower() != district.lower():
-            continue
-        if industry and industry != "all" and item.get("industry", "").lower() != industry.lower():
-            continue
+        if district and district != "all":
+            if not item.get("district") or item.get("district", "").lower() != district.lower():
+                continue
+        if industry and industry != "all":
+            if not item.get("industry") or item.get("industry", "").lower() != industry.lower():
+                continue
         if demand_level and demand_level != "all" and item.get("demand_level", "").lower() != demand_level.lower():
             continue
 
@@ -123,17 +154,18 @@ async def submit_feedback(
     user_role = (current_user.get("role") or "").upper()
     if user_role not in ("EMPLOYER", "ADMIN"):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Forbidden: Insufficient role permissions. Required one of: ['EMPLOYER', 'ADMIN']",
         )
 
     try:
         matched = get_employer_feedback(submission.feedback_id)
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database query error for feedback '%s': %s", submission.feedback_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query error: {e}",
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database query error.",
+        ) from e
 
     if not matched:
         return {"error": "feedback not found"}
@@ -154,7 +186,7 @@ async def submit_feedback(
         )
         if not is_authorized:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: You do not have permission to modify another employer's feedback.",
             )
 
@@ -179,10 +211,11 @@ async def submit_feedback(
     except FeedbackNotFoundError:
         return {"error": "feedback not found"}
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database update failed for feedback '%s': %s", submission.feedback_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database update failed: {e}",
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database update failed.",
+        ) from e
 
     return {"status": "updated", "feedback": updated}
 
@@ -221,7 +254,7 @@ async def submit_demand(
         auth_employer_id = user_org or f"emp-{user_id}"
         if submission.employer_id and user_org and submission.employer_id.strip().lower() != user_org.strip().lower():
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: Cannot submit hiring demand on behalf of another organization.",
             )
         company = (submission.company_name or submission.employer_name or user_org or current_user.get("full_name") or "").strip()
@@ -294,10 +327,11 @@ async def submit_demand(
     try:
         saved = create_employer_demand(demand_record)
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database insertion failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database insertion failed: {e}",
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database insertion failed.",
+        ) from e
 
     return {
         "status": "created",
@@ -342,7 +376,8 @@ async def list_my_demands(current_user: dict = Depends(require_roles(["EMPLOYER"
     try:
         all_demands = list_employer_demands()
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for my demands: %s", e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
 
     user_id = current_user.get("id")
     org_id = current_user.get("organization_id")
@@ -373,7 +408,8 @@ async def update_my_demand(
     try:
         matched = get_employer_demand(demand_id)
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for demand '%s': %s", demand_id, e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
 
     if not matched:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
@@ -387,7 +423,7 @@ async def update_my_demand(
 
     if user_role != "ADMIN" and not is_owner:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Forbidden: You do not have permission to modify another employer's demand record.",
         )
 
@@ -401,10 +437,11 @@ async def update_my_demand(
     except DemandNotFoundError:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database update failed for demand '%s': %s", demand_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database update failed: {e}",
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database update failed.",
+        ) from e
 
     return {"status": "success", "message": "Employer demand updated.", "demand": updated}
 
@@ -418,7 +455,8 @@ async def delete_my_demand(
     try:
         matched = get_employer_demand(demand_id)
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for demand '%s': %s", demand_id, e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
 
     if not matched:
         raise HTTPException(status_code=404, detail=f"Employer demand '{demand_id}' not found.")
@@ -432,17 +470,18 @@ async def delete_my_demand(
 
     if user_role != "ADMIN" and not is_owner:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail="Forbidden: You do not have permission to delete another employer's demand record.",
         )
 
     try:
         delete_employer_demand_repo(demand_id)
     except SupabaseRepositoryError as e:
+        logger.exception("[Employer] Database deletion failed for demand '%s': %s", demand_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database deletion failed: {e}",
-        )
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database deletion failed.",
+        ) from e
 
     return {"status": "success", "message": f"Employer demand '{demand_id}' deleted."}
 
@@ -500,7 +539,8 @@ async def get_demand_detail(demand_id: str):
     try:
         d = get_employer_demand(demand_id)
     except SupabaseRepositoryError as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {e}")
+        logger.exception("[Employer] Database query error for demand '%s': %s", demand_id, e)
+        raise HTTPException(status_code=500, detail="Database query error.") from e
     if d:
         return {"status": "success", "demand": d}
 
@@ -508,28 +548,55 @@ async def get_demand_detail(demand_id: str):
 
 
 @router.get("/employer/difficult-skills")
-async def list_difficult_skills():
+async def list_difficult_skills(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Retrieve hard-to-hire skills telemetry, shortage indices, and intervention recommendations."""
-    difficult = get_demo("difficult_skills")
-    if not difficult:
-        # Fallback dynamic calculation from gaps if table not loaded
-        gaps = get_demo("skill_gaps")
-        skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
-        difficult = [
-            {
-                "skill_id": g.get("skill_id", "sk-001"),
-                "skill_name": skills_map.get(g.get("skill_id"), "Advanced Technology"),
-                "deficit_score": int(g.get("gap_pct", 75)),
-                "avg_days_to_fill": 45,
-                "top_districts": ["Pune", "Mumbai"],
-                "industries": ["Technology", "Manufacturing"],
-                "shortage_reason": "High industry demand outpacing current academic pass-outs.",
-                "hiring_challenge": "Candidate skills do not match modern production specifications.",
-                "suggested_intervention": "Upgrade laboratory syllabus and sponsor faculty development programs.",
-            }
-            for g in gaps[:6]
-        ]
-    return difficult
+    if is_explicit_demo_mode(is_demo):
+        difficult = get_demo("difficult_skills")
+        if not difficult:
+            # Fallback dynamic calculation from gaps if table not loaded
+            gaps = get_demo("skill_gaps")
+            skills_map = {s["id"]: s["name"] for s in get_demo("skills")}
+            difficult = [
+                {
+                    "skill_id": g.get("skill_id", "sk-001"),
+                    "skill_name": skills_map.get(g.get("skill_id"), "Advanced Technology"),
+                    "deficit_score": int(g.get("gap_pct", 75)),
+                    "avg_days_to_fill": 45,
+                    "top_districts": ["Pune", "Mumbai"],
+                    "industries": ["Technology", "Manufacturing"],
+                    "shortage_reason": "High industry demand outpacing current academic pass-outs.",
+                    "hiring_challenge": "Candidate skills do not match modern production specifications.",
+                    "suggested_intervention": "Upgrade laboratory syllabus and sponsor faculty development programs.",
+                }
+                for g in gaps[:6]
+            ]
+        return difficult
+
+    from app.services.gap_engine import compute_gaps
+    try:
+        from app.repositories.supabase_repository import list_skills
+        repo_skills = list_skills(limit=10000) or []
+        skills_map = {s["id"]: s.get("name", s["id"]) for s in repo_skills if "id" in s}
+    except Exception:
+        skills_map = {}
+    gaps = compute_gaps(is_demo=False)
+    shortages = sorted(gaps, key=lambda g: g.get("gap_pct", 0), reverse=True)
+    return [
+        {
+            "skill_id": g.get("skill_id"),
+            "skill_name": skills_map.get(g.get("skill_id"), g.get("skill_name", "Critical Skill")),
+            "deficit_score": int(g.get("gap_pct", 0)),
+            "avg_days_to_fill": None,
+            "top_districts": [g.get("district").capitalize()] if g.get("district") else [],
+            "industries": [g.get("category")] if g.get("category") else [],
+            "shortage_reason": f"Elevated industry demand ({g.get('demand_pct', 0)}%) exceeding academic coverage ({g.get('coverage_pct', 0)}%)." if g.get("demand_pct") is not None else None,
+            "hiring_challenge": None,
+            "suggested_intervention": None,
+        }
+        for g in shortages[:6] if g.get("gap_pct", 0) > 0
+    ]
 
 
 @router.get("/employer/summary")

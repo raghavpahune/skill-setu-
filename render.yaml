@@ -15,7 +15,7 @@ services:
       - key: AUTO_SYNC_ENABLED
         value: "true"
       - key: CORS_ORIGINS
-        value: "https://skill-setu-raghavpahune-8496.vercel.app"
+        value: "https://skill-setu-rust.vercel.app"
       - key: ADMIN_API_KEY
         sync: false
       - key: JWT_SECRET_KEY

@@ -1,8 +1,10 @@
 """Schemes API — student welfare and government schemes."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.core.security import get_optional_current_user
+from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from app.core.data_mode import is_explicit_demo_mode, is_demo_scheme_id
+from app.core.security import get_optional_current_user, is_demo_student_id
 from app.db import get_demo
+from app.repositories.supabase_repository import SupabaseRepositoryError
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,24 @@ async def list_schemes(
     q: str | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     """List available student welfare, scholarship, and government schemes with optional filters."""
-    schemes = get_demo("schemes")
+    if is_explicit_demo_mode(is_demo):
+        schemes = get_demo("schemes")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            schemes = list_schemes_repo(scheme_type=scheme_type, status=status, limit=1000) or []
+        except SupabaseRepositoryError as e:
+            logger.warning("[Schemes] Supabase unavailable: %s", e)
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Schemes repository is temporarily unavailable.",
+            ) from e
+        except Exception as e:
+            logger.warning("[Schemes] Unexpected failure listing schemes: %s", e)
+            schemes = []
 
     filtered = []
     for s in schemes:
@@ -75,9 +92,25 @@ async def list_schemes(
 
 
 @router.get("/schemes/categories")
-async def get_scheme_metadata():
+async def get_scheme_metadata(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
     """Return distinct categories, scheme types, and course types for UI filtering."""
-    schemes = get_demo("schemes")
+    if is_explicit_demo_mode(is_demo):
+        schemes = get_demo("schemes")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            schemes = list_schemes_repo(limit=1000) or []
+        except SupabaseRepositoryError as e:
+            logger.warning("[Schemes] Supabase unavailable for metadata: %s", e)
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Schemes metadata is temporarily unavailable.",
+            ) from e
+        except Exception as e:
+            logger.warning("[Schemes] Unexpected failure fetching metadata: %s", e)
+            schemes = []
     categories = set()
     scheme_types = set()
     course_types = set()
@@ -115,13 +148,13 @@ async def recommended_schemes(
         from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
         profile = get_student_profile(resolved_id) or get_student_assessment(resolved_id) or get_student_assessment_by_user(resolved_id)
     except Exception as e:
-        logger.error("[RecommendedSchemes] Supabase error for %s: %s", resolved_id, e)
+        logger.exception("[RecommendedSchemes] Supabase error for %s: %s", resolved_id, e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed fetching student profile for recommendations: {e}",
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database query failed fetching student profile for recommendations.",
         ) from e
 
-    if not profile and resolved_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not profile and is_demo_student_id(resolved_id):
         profiles = get_demo("student_profiles")
         for p in profiles:
             if p.get("user_id") == resolved_id or p.get("id") == resolved_id:
@@ -155,7 +188,24 @@ async def recommended_schemes(
     student_district = (profile.get("district") or "").lower()
     student_education = (profile.get("education") or "").lower()
 
-    schemes = get_demo("schemes")
+    if is_demo_student_id(resolved_id) or profile.get("is_demo") or profile.get("source") == "DEMO_SYNTHETIC":
+        schemes = get_demo("schemes")
+        note = "Recommendations based on skill/education/district overlap with demo dataset. Verify eligibility on official portals before applying."
+    else:
+        try:
+            from app.repositories.supabase_repository import list_schemes as list_schemes_repo
+            db_schemes = list_schemes_repo(status="active", limit=100)
+            schemes = db_schemes or []
+        except SupabaseRepositoryError as e:
+            logger.warning("Failed listing authoritative schemes for student '%s': %s", student_id, e)
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Schemes repository is temporarily unavailable for recommendations.",
+            ) from e
+        except Exception as e:
+            logger.warning("Failed listing schemes for student '%s': %s", student_id, e)
+            schemes = []
+        note = "Recommendations based on official government schemes repository. Verify eligibility on official portals before applying."
     scored = []
     for s in schemes:
         if s.get("status", "active").lower() != "active":
@@ -207,17 +257,38 @@ async def recommended_schemes(
         "student_id": student_id,
         "total_matches": len(scored),
         "schemes": scored[:limit],
-        "provenance_note": "Recommendations based on skill/education/district overlap with demo dataset. Verify eligibility on official portals before applying.",
+        "provenance_note": note,
     }
 
 
 @router.get("/schemes/{scheme_id}")
-async def get_scheme(scheme_id: str):
+async def get_scheme(scheme_id: str, is_demo: bool | None = None):
     """Get single scheme details by ID or scheme code."""
-    schemes = get_demo("schemes")
-    for s in schemes:
-        if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():
-            return s
+    # 1. Explicit demo requested or demo ID prefix
+    if is_demo is not False and (is_explicit_demo_mode(is_demo) or is_demo_scheme_id(scheme_id)):
+        schemes = get_demo("schemes")
+        for s in schemes:
+            if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():
+                return s
+        raise HTTPException(status_code=404, detail="Scheme not found")
+
+    # 2. Query authoritative repository
+    try:
+        from app.repositories.supabase_repository import get_scheme as get_scheme_repo
+        record = get_scheme_repo(scheme_id)
+        if record:
+            return record
+    except Exception as e:
+        logger.warning("Repository error fetching scheme '%s': %s", scheme_id, e)
+        if is_demo is False:
+            raise HTTPException(status_code=503, detail="Authoritative scheme database unavailable")
+
+    # 3. Fallback to demo fixtures when is_demo was not explicitly False
+    if is_demo is None:
+        schemes = get_demo("schemes")
+        for s in schemes:
+            if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():
+                return s
 
     raise HTTPException(status_code=404, detail="Scheme not found")
 

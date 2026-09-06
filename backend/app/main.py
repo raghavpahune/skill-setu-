@@ -102,6 +102,7 @@ async def root():
     }
 
 
+@app.get("/health")
 @app.get("/api/health")
 async def health():
     import os

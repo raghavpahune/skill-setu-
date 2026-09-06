@@ -3,13 +3,33 @@
 ponytail: At MVP this just returns stored demo data.
 Upgrade path: plug in a real ML model (time series / trend analysis) here.
 """
+import logging
 from app.db import get_demo
-from app.repositories.supabase_repository import list_skill_forecasts
+from app.repositories import supabase_repository
+from app.repositories.supabase_repository import SupabaseRepositoryError
+
+logger = logging.getLogger(__name__)
 
 
-def get_forecasts(skill_id: str | None = None) -> list[dict]:
-    forecasts = list_skill_forecasts(skill_id=skill_id)
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+def get_forecasts(skill_id: str | None = None, is_demo: bool | None = None) -> list[dict]:
+    from app.core.data_mode import is_explicit_demo_mode
+    if is_explicit_demo_mode(is_demo):
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        forecasts = get_demo("skill_forecasts")
+        if skill_id:
+            forecasts = [f for f in forecasts if f.get("skill_id") == skill_id]
+    else:
+        try:
+            forecasts = supabase_repository.list_skill_forecasts(skill_id=skill_id) or []
+        except SupabaseRepositoryError as e:
+            logger.warning("[ForecastService] list_skill_forecasts failed: %s", e)
+            forecasts = []
+        try:
+            repo_skills = supabase_repository.list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except SupabaseRepositoryError as e:
+            logger.warning("[ForecastService] list_skills failed: %s", e)
+            skills_map = {}
 
     return [
         {**f, "skill_name": skills_map.get(f.get("skill_id"), {}).get("name", "")}

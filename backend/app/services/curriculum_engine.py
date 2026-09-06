@@ -6,9 +6,12 @@ Evaluates institutional vocational & technical courses across Maharashtra:
 3. Generates transparent syllabus revision blueprints with modules to add/prune.
 4. Estimates required equipment upgrades, budgets, and trainer certifications.
 """
+import logging
 from typing import Any
 from app.db import get_demo
 from app.services.forecast_engine import compute_multi_horizon_forecasts
+
+logger = logging.getLogger(__name__)
 
 
 # Equipment & Trainer catalog grounded in Maharashtra ITI / Polytechnic standards
@@ -60,17 +63,41 @@ TRAINER_UPGRADE_CATALOG = {
 }
 
 
-def audit_all_courses() -> list[dict[str, Any]]:
+def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
     """Execute deep health, obsolescence, and oversupply audit across all institutional courses."""
-    try:
-        from app.repositories.supabase_repository import list_courses
-        courses = list_courses()
-    except Exception:
+    from app.core.data_mode import is_explicit_demo_mode
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
         courses = get_demo("courses")
-    course_skills_raw = get_demo("course_skills")
-    placements = {p["course_id"]: p for p in get_demo("placements")}
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts()}
+        course_skills_raw = get_demo("course_skills")
+        placements = {
+            p["course_id"]: p
+            for p in sorted(get_demo("placements"), key=lambda r: r.get("year") or 0)
+            if p.get("course_id")
+        }
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=True)}
+    else:
+        try:
+            from app.repositories.supabase_repository import list_courses, list_course_skills, list_skills, list_placements
+            courses = list_courses() or []
+            if not courses:
+                return []
+            c_ids = [c["id"] for c in courses if c.get("id")]
+            course_skills_raw = list_course_skills(course_ids=c_ids) if c_ids else []
+            p_rows = list_placements(course_ids=c_ids) if c_ids else []
+            placements = {
+                p["course_id"]: p
+                for p in sorted(p_rows, key=lambda r: r.get("year") or 0)
+                if p.get("course_id")
+            }
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills if "id" in s}
+        except Exception as e:
+            logger.warning("[CurriculumEngine] Authoritative audit inputs unavailable: %s", e)
+            return []
+        forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=False)}
 
     # Group skills taught by course
     course_skills_map: dict[str, list[dict]] = {}
@@ -84,14 +111,15 @@ def audit_all_courses() -> list[dict[str, Any]]:
 
     for c in courses:
         cid = c["id"]
-        c_name = c["name"]
+        c_name = c.get("name") or c.get("title", "Technical Course")
         institute = c.get("institute", "Government Technical Institute")
         district = c.get("district", "Maharashtra")
         enrolment = c.get("enrolment_count", 60)
         p = placements.get(cid, {})
-        student_count = p.get("student_count", enrolment)
-        placed_count = p.get("placed_count", int(student_count * 0.6))
-        placement_rate = round((placed_count / max(1, student_count)) * 100, 1)
+        has_placement_data = bool(p and ("placed_count" in p or "student_count" in p or "placement_rate" in p))
+        student_count = p.get("student_count", 0) if has_placement_data else 0
+        placed_count = p.get("placed_count", 0) if has_placement_data else 0
+        placement_rate = round((placed_count / max(1, student_count)) * 100, 1) if (has_placement_data and student_count) else 0.0
 
         # Evaluate syllabus coverage
         taught_skills = course_skills_map.get(cid, [])
@@ -138,14 +166,16 @@ def audit_all_courses() -> list[dict[str, Any]]:
         modernity_score = max(10, min(100, int(
             (len(rising_skills_in_syllabus) * 22) - (len(obsolete_or_declining_in_syllabus) * 15) + 40
         )))
-        health_score = round((placement_rate * 0.55) + (modernity_score * 0.45), 1)
+        if has_placement_data:
+            health_score = round((placement_rate * 0.55) + (modernity_score * 0.45), 1)
+        else:
+            health_score = round(float(modernity_score), 1)
 
-        # Determine Obsolescence Risk
-        if health_score < 42 or placement_rate < 35:
+        if has_placement_data and (health_score < 42 or placement_rate < 35):
             obsolescence_risk = "CRITICAL_OBSOLETE"
             risk_label = "Critical Obsolescence — Immediate Revision Required"
             risk_color = "rose"
-        elif health_score < 58 or placement_rate < 50:
+        elif (has_placement_data and (health_score < 58 or placement_rate < 50)) or (not has_placement_data and health_score < 42):
             obsolescence_risk = "HIGH_RISK"
             risk_label = "High Risk — Syllabus Lagging Industry"
             risk_color = "amber"
@@ -158,18 +188,19 @@ def audit_all_courses() -> list[dict[str, Any]]:
             risk_label = "Healthy — Aligned with Labour Market"
             risk_color = "emerald"
 
-        # Determine Oversupply Status
-        if placement_rate < 40 and student_count >= 80:
+        if has_placement_data and placement_rate < 40 and student_count >= 80:
             oversupply_status = "OVERSUPPLY_CRITICAL"
             oversupply_msg = f"High annual output ({student_count} seats) with only {placement_rate}% placement indicates candidate oversupply."
-        elif placement_rate < 52 and student_count >= 60:
+        elif has_placement_data and placement_rate < 52 and student_count >= 60:
             oversupply_status = "MONITOR_OVERSUPPLY"
             oversupply_msg = f"Placement rate ({placement_rate}%) is softening; recommend shifting seats to high-demand tracks."
-        else:
+        elif has_placement_data:
             oversupply_status = "BALANCED"
             oversupply_msg = f"Intake and hiring demand are in sustainable equilibrium ({placement_rate}% placement)."
+        else:
+            oversupply_status = "BALANCED"
+            oversupply_msg = "Placement records not yet indexed for this course."
 
-        # Equipment & Trainer recommendations
         equip_items = EQUIPMENT_CATALOG.get(category_hint, EQUIPMENT_CATALOG["General Technical"])
         trainer_items = TRAINER_UPGRADE_CATALOG.get(category_hint, TRAINER_UPGRADE_CATALOG["General Technical"])
         total_equip_budget_inr = sum(eq["units"] * eq["unit_cost_inr"] for eq in equip_items)
@@ -184,6 +215,7 @@ def audit_all_courses() -> list[dict[str, Any]]:
             "student_count": student_count,
             "placed_count": placed_count,
             "placement_rate": placement_rate,
+            "has_placement_data": has_placement_data,
             "modernity_score": modernity_score,
             "health_score": health_score,
             "obsolescence_risk": obsolescence_risk,
@@ -204,9 +236,9 @@ def audit_all_courses() -> list[dict[str, Any]]:
     return audited_courses
 
 
-def get_course_modernization_blueprint(course_id: str) -> dict[str, Any] | None:
+def get_course_modernization_blueprint(course_id: str, is_demo: bool | None = None) -> dict[str, Any] | None:
     """Generate a detailed 5-point modernization blueprint for a specific institutional course."""
-    audited = audit_all_courses()
+    audited = audit_all_courses(is_demo=is_demo)
     course = next((c for c in audited if c["course_id"] == course_id), None)
     if not course:
         return None

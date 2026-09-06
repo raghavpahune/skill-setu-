@@ -83,8 +83,12 @@ export default function CopilotChat({
   initialPrompt = '',
   initialDistrict = '',
   initialStudentId = '',
+  initialTopic = '',
+  recommendationContext = null,
+  autoSend = false,
 }) {
   const { role: authRole, isAuthenticated } = useAuth();
+  const hasAutoSentRef = useRef(false);
 
   const effectiveDefaultRole = useMemo(() => {
     if (!isAuthenticated) return defaultRole;
@@ -118,7 +122,7 @@ export default function CopilotChat({
   const [errorState, setErrorState] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [lastQuery, setLastQuery] = useState('');
-  const [systemHealth, setSystemHealth] = useState({ ai_available: false, demo_mode: true });
+  const [systemHealth, setSystemHealth] = useState({ ai_available: false, demo_mode: false });
 
   const [messages, setMessages] = useState([
     {
@@ -128,10 +132,10 @@ export default function CopilotChat({
 
 I am your official **Maharashtra Labour-Market Intelligence & Evidence-Based Decision Assistant**, directly grounded in verified state datasets:
 
-* **560+ Active Job Postings** across 10 key Maharashtra industrial districts.
-* **55+ NSQF-Aligned Competencies** spanning AI/ML, Cloud, EV Tech, Advanced Manufacturing, and Healthcare.
-* **27 Accredited Training Courses** across government ITIs, polytechnics, and engineering universities.
-* **Quarterly Employer Feedback & Ingestion Feeds** (NAPS apprenticeships, PMKVY certifications, and MahaDBT schemes).
+* **Authoritative Job Postings** across key Maharashtra industrial districts.
+* **NSQF-Aligned Competencies** spanning AI/ML, Cloud, EV Tech, Advanced Manufacturing, and Healthcare.
+* **Accredited Training Courses** across government ITIs, polytechnics, and engineering universities.
+* **Active Ingestion Feeds & Telemetry** (NAPS apprenticeships, PMKVY certifications, and MahaDBT schemes).
 
 Select your stakeholder role above or explore one of the verified inquiries below to begin.`,
       isGrounded: true,
@@ -206,6 +210,34 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     }
   }, [initialPrompt]);
 
+  // Context-aware auto-submission from Career Recommendations (Phase 18)
+  useEffect(() => {
+    const topic = recommendationContext?.topic || initialTopic;
+    if (!topic || hasAutoSentRef.current) return;
+
+    // contextualQuery must NOT overwrite an explicit initialPrompt
+    if (initialPrompt && initialPrompt.trim()) {
+      return;
+    }
+
+    const targetRole =
+      recommendationContext?.target_role ||
+      (students.find((s) => s.user_id === (initialStudentId || studentId))?.target_role) ||
+      'AI Engineer';
+
+    const contextualQuery = `Explain why I should learn ${topic} based on my SkillSetu profile and current Maharashtra labour-market intelligence. My target role is ${targetRole}. Show the relevant demand signals, required competencies, my missing prerequisites, relevant SkillSetu courses/training, and a practical learning path.`;
+
+    setQuestion(contextualQuery);
+
+    if (autoSend || recommendationContext) {
+      hasAutoSentRef.current = true;
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        window.history.replaceState({}, document.title);
+      }
+      handleSend(contextualQuery, recommendationContext);
+    }
+  }, [initialTopic, recommendationContext, autoSend, students, initialStudentId, studentId, initialPrompt]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -224,7 +256,7 @@ Select your stakeholder role above or explore one of the verified inquiries belo
 
   const activeRoleDef = ROLE_DEFINITIONS.find((r) => r.id === role) || ROLE_DEFINITIONS[0];
 
-  const handleSend = async (queryText = question) => {
+  const handleSend = async (queryText = question, contextData = null) => {
     const trimmed = queryText.trim();
     if (!trimmed || loading) return;
 
@@ -248,7 +280,13 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     setLoading(true);
 
     try {
-      const res = await api.askCopilot(trimmed, role, district || undefined, (role === 'student' ? studentId : undefined) || undefined);
+      const res = await api.askCopilot(
+        trimmed,
+        role,
+        district || undefined,
+        (role === 'student' ? (studentId || initialStudentId) : undefined) || undefined,
+        contextData || undefined
+      );
       setErrorState(null);
       setMessages((prev) => [
         ...prev,
@@ -264,25 +302,48 @@ Select your stakeholder role above or explore one of the verified inquiries belo
         },
       ]);
     } catch (err) {
-      console.warn('[Copilot] Live API call failed, generating grounded client fallback:', err);
-      setErrorState(null); // Clear blocking red banner since we provide grounded offline fallback
-      
-      const fallback = generateClientFallback(trimmed, role, district || undefined);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `cop-${Date.now()}`,
-          sender: 'copilot',
-          text: fallback.answer,
-          isGrounded: false,
-          isFallback: true,
-          demoMode: true,
-          model: fallback.model || 'Offline Intelligence (Static Fallback)',
-          provenanceLabel: '⚠️ Offline Static Fallback (Backend Unavailable)',
-          notice: fallback.notice,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      console.warn('[Copilot] Live API call failed:', err);
+      if (systemHealth.demo_mode) {
+        setErrorState(null); // Clear blocking red banner in explicit demo mode since fallback is available
+        const fallback = generateClientFallback(trimmed, role, district || undefined);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `cop-${Date.now()}`,
+            sender: 'copilot',
+            text: fallback.answer,
+            isGrounded: false,
+            isFallback: true,
+            demoMode: true,
+            model: fallback.model || 'Offline Intelligence (Static Fallback)',
+            provenanceLabel: '⚠️ Offline Static Fallback (Demo Mode)',
+            notice: fallback.notice,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      } else {
+        const errMsg = err?.message || 'Service unreachable';
+        setErrorState({
+          message: `Copilot service temporarily unavailable (${errMsg})`,
+          query: trimmed,
+          contextData: contextData || null,
+        });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `cop-${Date.now()}`,
+            sender: 'copilot',
+            text: `⚠️ **Service Unavailable**: Unable to reach the SkillSetu AI Copilot service (${errMsg}). In Real Data mode, synthetic factual fallbacks are disabled to prevent inaccurate labour market intelligence.`,
+            isGrounded: false,
+            isFallback: false,
+            isError: true,
+            demoMode: false,
+            model: 'Real Data Service (Offline)',
+            provenanceLabel: '⚠️ Service Offline',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -430,6 +491,34 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
         </div>
       )}
 
+      {/* Active Career Recommendation Handoff Context Banner (Phase 18) */}
+      {recommendationContext && (
+        <div className="bg-teal-50 dark:bg-teal-950/70 px-4 py-2 border-b border-teal-200 dark:border-teal-800/80 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse shrink-0"></span>
+            <span className="font-bold text-teal-900 dark:text-teal-200">
+              Active Recommendation Context:
+            </span>
+            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-700 text-teal-800 dark:text-teal-300 font-mono text-[11px] font-bold">
+              {recommendationContext.topic}
+            </span>
+            {recommendationContext.target_role && (
+              <span className="text-slate-600 dark:text-slate-300 text-[11px]">
+                • Target: <strong className="text-slate-800 dark:text-white">{recommendationContext.target_role}</strong>
+              </span>
+            )}
+            {recommendationContext.missing_prerequisites?.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                Prerequisite Gap
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-mono text-teal-700 dark:text-teal-400">
+            <span>🛡️ Grounded in Maharashtra Intelligence</span>
+          </div>
+        </div>
+      )}
+
       {/* Role Context & Suggested Inquiries Bar */}
       <div className="bg-slate-50 dark:bg-slate-950/80 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden text-xs shrink-0">
         <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0 text-[11px] uppercase tracking-wider flex items-center gap-1">
@@ -465,7 +554,7 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
             <span>{errorState.message}</span>
           </div>
           <button
-            onClick={() => handleSend(errorState.query)}
+            onClick={() => handleSend(errorState.query, errorState.contextData)}
             disabled={loading}
             className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold shadow-xs cursor-pointer disabled:opacity-50"
           >
@@ -599,12 +688,17 @@ Ready for a new inquiry. You are currently consulting as **${activeRoleDef.label
                 </div>
               )}
 
-              {/* Copilot Verification & Model Metadata Footer */}
-              {m.sender === 'copilot' && (
+              {m.sender === 'copilot' && !m.isError && (
                 <div className="mt-3.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
-                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                    <span>✓</span> Verified against Maharashtra Labour Dataset
-                  </span>
+                  {m.isGrounded !== false ? (
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <span>✓</span> Verified against Maharashtra Labour Dataset
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
+                      <span>⚠️</span> Not verified against Maharashtra Labour Dataset
+                    </span>
+                  )}
                   <div className="flex items-center gap-2">
                     {m.demoMode ? (
                       <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded font-mono font-bold">

@@ -7,6 +7,13 @@ from app.services.career_recommendation_engine import compute_career_recommendat
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def enable_demo_mode_for_phase17(monkeypatch):
+    from ai.demo_provider import DemoProvider
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+    monkeypatch.setattr("ai.copilot._get_provider", lambda *args, **kwargs: DemoProvider())
+
+
 def test_copilot_ask_with_student_id_context():
     """Verify copilot grounds response in student recommendation when student_id is provided."""
     res = client.post(

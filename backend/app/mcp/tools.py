@@ -3,18 +3,32 @@ import asyncio
 import json
 from typing import Any
 
+import secrets
+from app.config import settings
+from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.routers.schemes import list_schemes
 from app.routers.opportunities import list_opportunities
 from app.services.gap_engine import compute_gaps
 
+ALLOWED_MCP_SOURCES = {
+    "all",
+    "data.gov.in",
+    "schemes",
+    "ogd",
+    "adzuna",
+    "jobs",
+    "industry_signals",
+    "industry",
+    "skill_forecasts",
+    "forecasts",
+}
+
 
 def _run_async(coro):
-    """Run an async coroutine synchronously."""
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            # In an already running loop, create a task
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 return pool.submit(asyncio.run, coro).result()
@@ -24,7 +38,6 @@ def _run_async(coro):
 
 
 def tool_get_schemes(args: dict[str, Any]) -> dict[str, Any]:
-    """Retrieve matching government welfare schemes, scholarships, and training grants."""
     category = args.get("category")
     scheme_type = args.get("scheme_type")
     course_type = args.get("course_type")
@@ -48,7 +61,6 @@ def tool_get_schemes(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def tool_get_opportunities(args: dict[str, Any]) -> dict[str, Any]:
-    """Retrieve jobs, internships, apprenticeships, and vocational training postings."""
     opportunity_type = args.get("opportunity_type")
     district = args.get("district")
     industry = args.get("industry")
@@ -72,31 +84,124 @@ def tool_get_opportunities(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def tool_get_skill_gaps(args: dict[str, Any]) -> dict[str, Any]:
-    """Calculate labour-market skill demand vs. supply gaps across industries and districts."""
     limit = min(int(args.get("limit", 10)), 25)
     gaps = compute_gaps()
     return {"total_gaps_calculated": len(gaps), "top_gaps": gaps[:limit]}
 
 
 def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
-    """Retrieve the audit status, last sync timestamp, and freshness of external datasets."""
-    logs = list(get_demo("sync_logs"))
+    requested_source = args.get("source")
+    failed_to_fetch = False
+    if is_explicit_demo_mode():
+        logs = list(get_demo("sync_logs"))
+        if requested_source:
+            logs = [log for log in logs if log.get("source_name") == requested_source]
+    else:
+        try:
+            from app.repositories.supabase_repository import list_sync_logs
+            logs = list_sync_logs(limit=50, source_name=requested_source)
+        except Exception:
+            logs = []
+            failed_to_fetch = True
+
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_log = logs[0] if logs else None
+    last_success = next((log for log in logs if log.get("status") == "success"), None)
 
-    # Safe summary with zero secrets exposed
+    if failed_to_fetch and not logs:
+        status = "unavailable"
+    elif last_log and last_log.get("status") == "success":
+        status = "healthy"
+    elif last_log and last_log.get("status") == "failed":
+        status = "failed"
+    else:
+        status = "idle"
+
     return {
-        "status": "healthy" if last_log and last_log.get("status") == "success" else "idle",
+        "status": status,
         "total_sync_runs": len(logs),
         "last_sync_timestamp": last_log.get("completed_at") if last_log else None,
+        "last_successful_sync_timestamp": last_success.get("completed_at") if last_success else None,
         "last_records_fetched": last_log.get("records_fetched", 0) if last_log else 0,
         "last_records_added": last_log.get("records_added", 0) if last_log else 0,
         "last_records_updated": last_log.get("records_updated", 0) if last_log else 0,
-        "active_sources": ["data.gov.in"],
+        "active_sources": ["data.gov.in", "adzuna", "industry_signals", "skill_forecasts"],
     }
 
 
-# Tool Registry with MCP-compliant JSON Schemas
+def tool_refresh_data_source(args: dict[str, Any]) -> dict[str, Any]:
+    configured_key = (getattr(settings, "admin_api_key", None) or "").strip()
+    admin_key = str(args.get("admin_key") or args.get("admin_api_key") or "").strip()
+    caller_role = str(args.get("role") or args.get("caller_role") or "").strip().upper()
+    if caller_role and caller_role != "ADMIN":
+        return {
+            "status": "error",
+            "error": "Unauthorized: non-admin callers cannot trigger data refresh",
+        }
+    if not configured_key or not admin_key or not secrets.compare_digest(admin_key, configured_key):
+        return {
+            "status": "error",
+            "error": "Unauthorized: valid admin API key required to trigger data refresh",
+        }
+
+    source = str(args.get("source", "all")).lower().strip()
+    if source not in ALLOWED_MCP_SOURCES:
+        return {
+            "status": "error",
+            "error": f"Invalid source '{source}'. Allowed sources: {sorted(ALLOWED_MCP_SOURCES)}",
+        }
+
+    from app.ingestion.scheduler import scheduler
+    result = _run_async(scheduler.execute_sync(source=source))
+    safe_result = {
+        "status": result.get("status", "unknown"),
+        "source": source,
+        "records_fetched": result.get("records_fetched", 0),
+        "records_added": result.get("records_added", 0),
+        "records_updated": result.get("records_updated", 0),
+        "records_skipped": result.get("records_skipped", 0),
+        "duration_ms": result.get("duration_ms", 0),
+        "completed_at": result.get("completed_at"),
+    }
+    if result.get("error_message"):
+        safe_result["error_message"] = str(result.get("error_message"))
+    if result.get("message"):
+        safe_result["message"] = str(result.get("message"))
+    return safe_result
+
+
+def tool_get_sync_logs(args: dict[str, Any]) -> dict[str, Any]:
+    limit = min(max(int(args.get("limit", 10)), 1), 50)
+    source = args.get("source")
+    if is_explicit_demo_mode():
+        logs = list(get_demo("sync_logs"))
+        if source:
+            logs = [log for log in logs if log.get("source_name") == source]
+    else:
+        try:
+            from app.repositories.supabase_repository import list_sync_logs
+            logs = list_sync_logs(limit=limit, source_name=source)
+        except Exception:
+            logs = []
+
+    logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
+    safe_logs = []
+    for log in logs[:limit]:
+        safe_logs.append({
+            "id": log.get("id"),
+            "source_name": log.get("source_name"),
+            "status": log.get("status"),
+            "records_fetched": log.get("records_fetched", 0),
+            "records_added": log.get("records_added", 0),
+            "records_updated": log.get("records_updated", 0),
+            "started_at": log.get("started_at"),
+            "completed_at": log.get("completed_at"),
+            "duration_ms": log.get("duration_ms", 0),
+            "error_message": log.get("error_message"),
+        })
+    return {"total_logs": len(safe_logs), "logs": safe_logs}
+
+
 TOOLS = {
     "get_schemes": {
         "name": "get_schemes",
@@ -206,5 +311,41 @@ TOOLS = {
             },
         },
         "handler": tool_get_sync_freshness,
+    },
+    "refresh_data_source": {
+        "name": "refresh_data_source",
+        "description": "Trigger automated real-data ingestion and synchronization for an approved external data source.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Source to refresh (all, data.gov.in, adzuna, jobs, schemes, industry_signals, skill_forecasts)",
+                },
+                "admin_key": {
+                    "type": "string",
+                    "description": "Optional admin API key for authentication",
+                },
+            },
+        },
+        "handler": tool_refresh_data_source,
+    },
+    "get_sync_logs": {
+        "name": "get_sync_logs",
+        "description": "Retrieve recent synchronization audit logs showing record counts, duration, and execution statuses.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum log entries to return (default 10, max 50)",
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Filter by source name (optional)",
+                },
+            },
+        },
+        "handler": tool_get_sync_logs,
     },
 }

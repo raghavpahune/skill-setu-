@@ -365,7 +365,7 @@ export default function EmployerDashboard() {
       name: d.skill_name.length > 20 ? d.skill_name.slice(0, 18) + '…' : d.skill_name,
       fullName: d.skill_name,
       deficit: d.deficit_score,
-      daysToFill: d.avg_days_to_fill,
+      daysToFill: d.avg_days_to_fill ?? null,
       category: d.category,
     }));
   }, [difficultSkills]);
@@ -1424,7 +1424,7 @@ export default function EmployerDashboard() {
                             <div className="bg-slate-900 text-white p-3 rounded-lg text-xs shadow-lg border border-slate-700">
                               <p className="font-bold">{data.fullName}</p>
                               <p className="text-teal-300 font-mono mt-1">Shortage Deficit: {data.deficit}%</p>
-                              <p className="text-amber-300 font-mono">Avg Time to Fill: {data.daysToFill} days</p>
+                              <p className="text-amber-300 font-mono">Avg Time to Fill: {data.daysToFill != null ? `${data.daysToFill} days` : 'Unavailable'}</p>
                             </div>
                           );
                         }
@@ -1563,7 +1563,7 @@ export default function EmployerDashboard() {
                           💡 Recommended Academic Intervention:
                         </span>
                         <p className="text-teal-800 dark:text-teal-200 text-[11px] leading-relaxed">
-                          {sk.suggested_intervention}
+                          {sk.suggested_intervention || 'Intervention details unavailable'}
                         </p>
                       </div>
                     </div>
@@ -1571,9 +1571,9 @@ export default function EmployerDashboard() {
 
                   <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
                     <span>
-                      Impacted Districts: <strong className="text-slate-800 dark:text-slate-200">{sk.top_districts?.join(', ')}</strong>
+                      Impacted Districts: <strong className="text-slate-800 dark:text-slate-200">{sk.top_districts?.length ? sk.top_districts.join(', ') : 'Statewide'}</strong>
                     </span>
-                    <span className="font-mono font-bold text-amber-600">{sk.avg_days_to_fill}d avg fill time</span>
+                    <span className="font-mono font-bold text-amber-600">{sk.avg_days_to_fill != null ? `${sk.avg_days_to_fill}d avg fill time` : 'Fill time unavailable'}</span>
                   </div>
                 </div>
               ))}

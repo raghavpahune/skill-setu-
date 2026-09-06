@@ -64,6 +64,47 @@ To track ${label} demand systematically, submit candidate skill feedback via the
     }
   }
 
+  // 1b. Check for Generative AI recommendation queries in fallback
+  if (q.includes('generative ai') || q.includes('gen ai')) {
+    return {
+      answer: `### Career Recommendation Intelligence: Why Learn Generative AI? (Offline Static Fallback)
+
+> ⚠️ **Notice:** The live SkillSetu backend service is temporarily reconnecting. This response is an offline static fallback for demonstration purposes.
+
+#### 🎯 A. Why This Skill Matters
+**Generative AI** is a primary technical competency for modern **AI Engineer** roles, driving autonomous agents, retrieval-augmented generation (RAG), and enterprise workflow automation.
+
+#### 📊 B. Maharashtra Labour-Market Intelligence
+* **Hiring Demand:** High concentration of active openings across technology corridors (Pune and Mumbai).
+* **Industrial Focus:** IT/ITES, BFSI analytics, and digital transformation centers.
+
+#### 👤 C. Candidate Pathway Alignment
+* **Target Role:** AI Engineer (NSQF Level 7-8).
+* **Prerequisites:** Python programming, linear algebra, vector embeddings, and API integration.
+
+#### 🏫 D. Accredited SkillSetu Courses
+* **Generative AI & LLM Applications** (COEP Technological University, Pune)
+* **Advanced AI & Machine Learning** (COEP Technological University, Pune)
+
+#### 🚀 E. Practical Learning Path
+1. **Prerequisites Baseline:** Python & Data Engineering foundations
+2. **Core Concepts:** Transformers, LLM architectures & Prompt Engineering
+3. **Tooling:** LangChain, LlamaIndex, Vector Databases
+4. **Capstone Project:** Production RAG pipeline on state datasets
+5. **Advanced Competency:** Fine-tuning, evaluation, and LLMOps
+6. **Credential Alignment:** NSQF-aligned competency certification
+7. **Target Employment Role:** AI Engineer hiring tracks
+
+#### ⚡ F. Next Action
+Connect to the live SkillSetu backend to load your verified real-time district demand metrics and personalized candidate gap analysis.`,
+      data_grounded: false,
+      demo_mode: true,
+      is_fallback: true,
+      model: 'Rule-Based Offline Intelligence (Static Fallback)',
+      notice: 'Live backend unavailable. Response is static fallback intelligence.',
+    };
+  }
+
   // 2. Check for Python queries
   if (q.includes('python')) {
     const isPune = q.includes('pune') || dLower === 'pune';

@@ -2,7 +2,8 @@ import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Query, HTTPException, Depends, status
 from pydantic import BaseModel, Field
-from app.core.security import get_current_user, get_optional_current_user
+from app.core.data_mode import is_explicit_demo_mode
+from app.core.security import get_current_user, get_optional_current_user, is_demo_student_id
 from app.db import get_demo, save_student_assessment, _cache
 
 logger = logging.getLogger("skillsetu.student")
@@ -74,8 +75,14 @@ async def my_skill_passport(
     """Retrieve the authenticated student's personalized Skill Passport from their real assessment."""
     user_id = current_user.get("id")
     user_email = current_user.get("email")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    skills_name_map = {s["name"].lower(): s for s in get_demo("skills")}
+    try:
+        from app.repositories.supabase_repository import list_skills
+        repo_skills = list_skills(limit=10000) or []
+        skills_map = {s["id"]: s for s in repo_skills}
+        skills_name_map = {s.get("name", "").lower(): s for s in repo_skills if s.get("name")}
+    except Exception:
+        skills_map = {}
+        skills_name_map = {}
 
     # 1. Check for real student assessment submission via Supabase repository
     matched_assessment = None
@@ -83,10 +90,10 @@ async def my_skill_passport(
         from app.repositories.supabase_repository import get_student_assessment_by_user
         matched_assessment = get_student_assessment_by_user(user_id=user_id, user_email=user_email)
     except Exception as e:
-        logger.error("[StudentPassport] Supabase error fetching assessment for %s: %s", user_id, e)
+        logger.exception("[StudentPassport] Supabase error fetching assessment for %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for candidate passport: {e}",
+            detail=f"Database query failed for student user '{user_id}'.",
         ) from e
 
     if matched_assessment:
@@ -141,10 +148,10 @@ async def my_skill_passport(
         from app.repositories.supabase_repository import get_student_profile
         matched_profile = get_student_profile(user_id)
     except Exception as e:
-        logger.error("[StudentPassport] Supabase error fetching profile for %s: %s", user_id, e)
+        logger.exception("[StudentPassport] Supabase error fetching profile for %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for candidate passport: {e}",
+            detail=f"Database query failed for student profile '{user_id}'.",
         ) from e
 
     if matched_profile:
@@ -206,9 +213,20 @@ async def skill_passport(
     if student_id == "me" and current_user:
         return await my_skill_passport(current_user=current_user)
 
-    profiles = get_demo("student_profiles")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
-    skills_name_map = {s["name"].lower(): s for s in get_demo("skills")}
+    if is_demo_student_id(student_id):
+        profiles = get_demo("student_profiles")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+        skills_name_map = {s["name"].lower(): s for s in get_demo("skills")}
+    else:
+        profiles = []
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills}
+            skills_name_map = {s.get("name", "").lower(): s for s in repo_skills if s.get("name")}
+        except Exception:
+            skills_map = {}
+            skills_name_map = {}
 
     # First check student_assessments in Supabase
     a = None
@@ -216,13 +234,13 @@ async def skill_passport(
         from app.repositories.supabase_repository import get_student_assessment, get_student_assessment_by_user
         a = get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
     except Exception as e:
-        logger.error("[StudentPassport] Supabase error for %s: %s", student_id, e)
+        logger.exception("[StudentPassport] Supabase error for %s: %s", student_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for student assessment '{student_id}': {e}",
+            detail=f"Database query failed for student assessment '{student_id}'.",
         ) from e
 
-    if not a and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not a and is_demo_student_id(student_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == student_id or item.get("user_id") == student_id:
@@ -302,13 +320,13 @@ async def skill_passport(
         from app.repositories.supabase_repository import get_student_profile
         p = get_student_profile(student_id)
     except Exception as e:
-        logger.error("[StudentPassport] Supabase error for profile %s: %s", student_id, e)
+        logger.exception("[StudentPassport] Supabase error for profile %s: %s", student_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for student profile '{student_id}': {e}",
+            detail=f"Database query failed for student profile '{student_id}'.",
         ) from e
 
-    if not p and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not p and is_demo_student_id(student_id):
         for item in profiles:
             if item.get("user_id") == student_id or item.get("id") == student_id:
                 p = item
@@ -368,16 +386,25 @@ async def learning_roadmap(
 ):
     if student_id == "me" and current_user:
         student_id = current_user.get("id")
-    profiles = get_demo("student_profiles")
-    skills_map = {s["id"]: s for s in get_demo("skills")}
+    if is_demo_student_id(student_id):
+        profiles = get_demo("student_profiles")
+        skills_map = {s["id"]: s for s in get_demo("skills")}
+    else:
+        profiles = []
+        try:
+            from app.repositories.supabase_repository import list_skills
+            repo_skills = list_skills(limit=10000) or []
+            skills_map = {s["id"]: s for s in repo_skills}
+        except Exception:
+            skills_map = {}
     try:
         from app.repositories.supabase_repository import list_skill_forecasts
         forecasts = list_skill_forecasts()
     except Exception as e:
-        logger.error("[LearningRoadmap] Supabase error for forecasts: %s", e)
+        logger.exception("[LearningRoadmap] Supabase error for forecasts: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for skill forecasts: {e}",
+            detail="Database query failed for skill forecasts.",
         ) from e
 
     forecast_map = {}
@@ -391,13 +418,13 @@ async def learning_roadmap(
         from app.repositories.supabase_repository import get_student_assessment, get_student_assessment_by_user
         a = get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
     except Exception as e:
-        logger.error("[LearningRoadmap] Supabase error for %s: %s", student_id, e)
+        logger.exception("[LearningRoadmap] Supabase error for %s: %s", student_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for student roadmap: {e}",
+            detail="Database query failed for student roadmap.",
         ) from e
 
-    if not a and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not a and is_demo_student_id(student_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == student_id or item.get("user_id") == student_id:
@@ -440,13 +467,13 @@ async def learning_roadmap(
         from app.repositories.supabase_repository import get_student_profile
         p = get_student_profile(student_id)
     except Exception as e:
-        logger.error("[LearningRoadmap] Supabase error for profile %s: %s", student_id, e)
+        logger.exception("[LearningRoadmap] Supabase error for profile %s: %s", student_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for student profile: {e}",
+            detail="Database query failed for student profile.",
         ) from e
 
-    if not p and student_id.startswith(("stu-", "ast-demo-", "demo-")):
+    if not p and is_demo_student_id(student_id):
         for item in profiles:
             if item.get("user_id") == student_id or item.get("id") == student_id:
                 p = item
@@ -489,20 +516,22 @@ async def learning_roadmap(
 
 
 @router.get("/students")
-async def list_students():
-    """List all demo students + user submitted assessments (for role selector)."""
-    try:
-        from app.repositories.supabase_repository import list_student_profiles, list_student_assessments
-        profiles = list_student_profiles()
-        assessments = list_student_assessments()
-    except Exception as e:
-        logger.error("[ListStudents] Supabase error: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed listing students: {e}",
-        ) from e
-    if not profiles:
+async def list_students(
+    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+):
+    """List all students (real profiles + user submitted assessments, or demo students in explicit demo mode)."""
+    if is_explicit_demo_mode(is_demo):
         profiles = get_demo("student_profiles")
+        assessments = get_demo("student_assessments")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_student_profiles, list_student_assessments
+            profiles = list_student_profiles() or []
+            assessments = list_student_assessments() or []
+        except Exception as e:
+            logger.warning("[ListStudents] Supabase query failed: %s", e)
+            profiles = []
+            assessments = []
     results = [
         {"user_id": p.get("user_id") or p.get("id"), "name": p.get("name", "Student"), "target_role": p.get("target_role", "Target Career"),
          "skill_match_pct": p.get("skill_match_pct", 50), "source": p.get("source", "DEMO_SYNTHETIC")}
@@ -555,6 +584,9 @@ async def submit_student_assessment(
         "quiz_answers": submission.quiz_answers,
     }
 
+    if current_user:
+        submission_data["user_id"] = current_user.get("id")
+
     # Evaluate against grounded SkillSetu labour-market data
     assessment_record = evaluate_student_assessment(submission_data)
 
@@ -566,18 +598,26 @@ async def submit_student_assessment(
     now_iso = datetime.now(timezone.utc).isoformat()
     assessment_record.setdefault("created_at", now_iso)
     assessment_record["updated_at"] = now_iso
-    assessment_record.setdefault("source", "USER_SUBMITTED")
-    assessment_record["is_demo"] = False
+    uid = current_user.get("id") if current_user else None
+    is_demo = is_demo_student_id(uid) if uid else assessment_record.get("is_demo", False)
+    assessment_record["is_demo"] = is_demo
+    if is_demo:
+        assessment_record["source"] = "DEMO_SYNTHETIC"
+        assessment_record["source_label"] = "Demo Assessment Simulation"
+        assessment_record["data_provenance"] = "DEMO_SYNTHETIC"
+    else:
+        assessment_record.setdefault("source", "USER_SUBMITTED")
+        assessment_record.setdefault("data_provenance", "SELF_REPORTED_ASSESSMENT")
 
     # Authoritatively persist to Supabase repository
     try:
         from app.repositories.supabase_repository import create_student_assessment
         saved_record = create_student_assessment(assessment_record)
     except Exception as e:
-        logger.error("[StudentRouter] Supabase persistence failed for assessment: %s", e)
+        logger.exception("[StudentRouter] Supabase persistence failed for assessment: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database insertion failed for student assessment: {e}",
+            detail="Database insertion failed for student assessment.",
         ) from e
 
     # Keep in-memory cache synchronized and write-through legacy audit files
@@ -607,10 +647,10 @@ async def list_student_assessments(
         from app.repositories.supabase_repository import list_student_assessments as repo_list_assessments
         assessments = repo_list_assessments(source=source, limit=limit)
     except Exception as e:
-        logger.error("[StudentAssessments] Supabase query failed: %s", e)
+        logger.exception("[StudentAssessments] Supabase query failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed listing student assessments: {e}",
+            detail="Database query failed listing student assessments.",
         ) from e
 
     return {
@@ -638,13 +678,13 @@ async def get_student_assessment(
         from app.repositories.supabase_repository import get_student_assessment as repo_get_assessment
         a = repo_get_assessment(assessment_id)
     except Exception as e:
-        logger.error("[StudentAssessment] Supabase query failed for %s: %s", assessment_id, e)
+        logger.exception("[StudentAssessment] Supabase query failed for %s: %s", assessment_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for student assessment '{assessment_id}': {e}",
+            detail=f"Database query failed for student assessment '{assessment_id}'.",
         ) from e
 
-    if not a and assessment_id.startswith(("ast-demo-", "demo-")):
+    if not a and is_demo_student_id(assessment_id):
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == assessment_id:
@@ -687,24 +727,50 @@ class ExplainAiQuery(BaseModel):
 
 
 def _verify_student_recommendations_access(target_id: str, current_user: dict | None) -> None:
-    """Ensure that access to private registered student recommendations requires ownership or admin role."""
+    """Ensure that access to private registered student recommendations requires ownership or admin role.
+
+    No authorization decision is made solely based on ID prefix.
+    """
     a = None
     try:
-        from app.repositories.supabase_repository import get_student_assessment, get_student_assessment_by_user
-        a = get_student_assessment(target_id) or get_student_assessment_by_user(target_id)
+        from app.repositories.supabase_repository import (
+            get_student_assessment,
+            get_student_assessment_by_user,
+            get_student_profile,
+        )
+        a = get_student_assessment(target_id) or get_student_assessment_by_user(target_id) or get_student_profile(target_id)
     except Exception as e:
-        logger.error("[VerifyAccess] Supabase query failed for %s: %s", target_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed verifying candidate permissions: {e}",
-        ) from e
-
-    if not a and target_id.startswith(("ast-demo-", "demo-")):
+        logger.exception("[VerifyAccess] Supabase query failed for %s: %s", target_id, e)
+        if not is_demo_student_id(target_id):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database query failed verifying candidate permissions.",
+            ) from e
+        # Degrade gracefully to demo data if available for explicit demo fixtures
         assessments = get_demo("student_assessments")
         for item in assessments:
             if item.get("id") == target_id or item.get("user_id") == target_id:
                 a = item
                 break
+        if not a:
+            profiles = get_demo("student_profiles")
+            for item in profiles:
+                if item.get("id") == target_id or item.get("user_id") == target_id:
+                    a = item
+                    break
+
+    if not a and is_demo_student_id(target_id):
+        assessments = get_demo("student_assessments")
+        for item in assessments:
+            if item.get("id") == target_id or item.get("user_id") == target_id:
+                a = item
+                break
+        if not a:
+            profiles = get_demo("student_profiles")
+            for item in profiles:
+                if item.get("id") == target_id or item.get("user_id") == target_id:
+                    a = item
+                    break
 
     if a and _is_private_user_record(a):
         if not current_user:
@@ -756,7 +822,8 @@ async def get_student_recommendations(
             }
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Recommendation engine error: {e}")
+        logger.exception("[Recommendations] Failed for student %s: %s", resolved_id, e)
+        raise HTTPException(status_code=500, detail="Recommendation engine error processing request.")
 
 
 @router.post("/student/recommendations/{student_id}/explain-ai")
@@ -780,7 +847,8 @@ async def explain_student_recommendations_ai(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI explanation error: {e}")
+        logger.exception("[AiExplanation] Failed for student %s: %s", resolved_id, e)
+        raise HTTPException(status_code=500, detail="AI explanation error processing request.")
 
 
 

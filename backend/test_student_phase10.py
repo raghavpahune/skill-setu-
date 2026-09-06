@@ -6,6 +6,9 @@ from app.main import app
 client = TestClient(app)
 
 
+pytestmark = pytest.mark.usefixtures("enable_demo_mode")
+
+
 def test_alert_domains_endpoint():
     """GET /api/student/alert-domains returns all 7 spec-mandated domains."""
     res = client.get("/api/student/alert-domains")

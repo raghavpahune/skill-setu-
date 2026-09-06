@@ -6,13 +6,31 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(backend_dir))
 
+import pytest
 from starlette.testclient import TestClient
 from app.main import app
-from app.db import load_demo_data, get_demo
+from app.db import _cache, load_demo_data, get_demo
 from app.ingestion.datagov_connector import DataGovConnector
 from app.ingestion.sync_engine import SyncEngine
 
-# Load demo baseline
+
+@pytest.fixture(scope="module", autouse=True)
+def isolate_sync_step4b_cache():
+    from copy import deepcopy
+    snapshot = deepcopy(_cache)
+    old_mode = os.environ.get("SKILLSETU_DATA_MODE")
+    os.environ["SKILLSETU_DATA_MODE"] = "demo"
+    _cache["schemes"] = [s for s in _cache.get("schemes", []) if s.get("source") != "OGD_DATAGOV_IN"]
+    _cache["sync_logs"] = [l for l in _cache.get("sync_logs", []) if l.get("source_name") != "data.gov.in"]
+    yield
+    _cache.clear()
+    _cache.update(snapshot)
+    if old_mode is None:
+        os.environ.pop("SKILLSETU_DATA_MODE", None)
+    else:
+        os.environ["SKILLSETU_DATA_MODE"] = old_mode
+
+
 load_demo_data()
 client = TestClient(app)
 
@@ -51,6 +69,7 @@ def test_connector_and_transformers():
 
 def test_sync_engine_and_deduplication():
     print("Testing SyncEngine & Deduplication...")
+    load_demo_data()
     engine = SyncEngine()
 
     # Initial Run: Should add new records

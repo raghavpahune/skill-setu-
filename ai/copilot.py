@@ -3,8 +3,10 @@ import os
 import sys
 import re
 import logging
+from typing import Any
 from collections import Counter
 from pathlib import Path
+from fastapi import HTTPException
 
 logger = logging.getLogger("skillsetu.ai.copilot")
 
@@ -16,6 +18,8 @@ if str(_backend_dir) not in sys.path:
 from ai.provider import LLMProvider
 from ai.gemini_provider import GeminiProvider
 from ai.demo_provider import DemoProvider
+from app.core.data_mode import is_explicit_demo_mode
+from app.core.security import is_demo_student_id
 
 KNOWN_EXTERNAL_TECHS = {
     "go": "Go / Golang",
@@ -47,7 +51,7 @@ KNOWN_EXTERNAL_TECHS = {
 }
 
 
-def _get_provider() -> LLMProvider:
+def _get_provider(is_demo: bool | None = None) -> LLMProvider | None:
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         try:
@@ -64,6 +68,8 @@ def _get_provider() -> LLMProvider:
         except Exception as e:
             logger.error(f"[Copilot] GeminiProvider initialization failed: {e}")
 
+    if is_demo is False:
+        return None
     return DemoProvider()
 
 
@@ -126,18 +132,66 @@ def _build_context(
     question: str = "",
     district: str | None = None,
     student_id: str | None = None,
-) -> dict:
+    context_data: dict | None = None,
+    current_user: dict | None = None,
+    is_demo: bool = False,
+) -> dict[str, Any]:
     """Fetch relevant structured data to ground the response accurately without polluting query context."""
     try:
-        from app.db import get_demo
         from app.services.gap_engine import compute_gaps
         from app.services.district_service import get_all_districts, get_district_plan
 
-        skills = get_demo("skills")
-        jobs = get_demo("jobs")
-        job_skills = get_demo("job_skills")
-        courses = get_demo("courses")
-        course_skills = get_demo("course_skills")
+        if is_demo:
+            from app.db import get_demo
+            skills = get_demo("skills")
+            jobs = get_demo("jobs")
+            job_skills = get_demo("job_skills")
+            courses = get_demo("courses")
+            course_skills = get_demo("course_skills")
+            skills_ok = True
+            jobs_ok = True
+            job_skills_ok = True
+            courses_ok = True
+            course_skills_ok = True
+        else:
+            from app.repositories import supabase_repository
+            skills_ok = False
+            jobs_ok = False
+            job_skills_ok = False
+            courses_ok = False
+            course_skills_ok = False
+            try:
+                skills = supabase_repository.list_skills() or []
+                skills_ok = True
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch skills: {e}")
+                skills = []
+            try:
+                jobs = supabase_repository.list_jobs(limit=500) or []
+                jobs_ok = True
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch jobs: {e}")
+                jobs = []
+            job_ids = [j.get("id") for j in jobs if j.get("id")]
+            try:
+                job_skills = supabase_repository.list_job_skills(job_ids=job_ids) if job_ids else []
+                job_skills_ok = True
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch job_skills: {e}")
+                job_skills = []
+            try:
+                courses = supabase_repository.list_courses(limit=500) or []
+                courses_ok = True
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch courses: {e}")
+                courses = []
+            course_ids = [c.get("id") for c in courses if c.get("id")]
+            try:
+                course_skills = supabase_repository.list_course_skills(course_ids=course_ids) if course_ids else []
+                course_skills_ok = True
+            except Exception as e:
+                logger.warning(f"[Copilot] Failed to fetch course_skills: {e}")
+                course_skills = []
 
         # Check for district mentions or explicit district parameter
         q_lower = question.lower() if question else ""
@@ -147,14 +201,14 @@ def _build_context(
         if district and district.strip():
             target_district_name = district.strip()
         elif question:
-            for d in get_all_districts():
+            for d in get_all_districts(is_demo=is_demo):
                 dname = d.get("name", "")
                 if dname and dname.lower() in q_lower:
                     target_district_name = dname
                     break
 
         if target_district_name:
-            plan = get_district_plan(target_district_name)
+            plan = get_district_plan(target_district_name, is_demo=is_demo)
             focused_district = {
                 "district": target_district_name,
                 "total_jobs": plan.get("total_jobs", 0),
@@ -167,16 +221,30 @@ def _build_context(
                 "industry_demand": plan.get("industry_demand", [])[:4],
             }
 
-        # Check if query targets a specific skill
+        # Check if query targets a specific skill (from question or context_data)
         queried_skill_info = extract_queried_skill(question, skills)
+        if not queried_skill_info and context_data and context_data.get("topic"):
+            queried_skill_info = extract_queried_skill(str(context_data["topic"]), skills)
+
+        context: dict[str, Any] = {
+            "query_type": "general_overview",
+            "top_skill_gaps": compute_gaps(is_demo=is_demo)[:10],
+            "total_skills_tracked": len(skills),
+            "total_jobs": len(jobs),
+        }
+
+        authoritative_ready = is_demo or (
+            skills_ok and jobs_ok and job_skills_ok and course_skills_ok and bool(skills) and bool(jobs)
+        )
+        if not is_demo and not authoritative_ready:
+            context["authoritative_data_status"] = "empty_or_unindexed"
 
         if queried_skill_info:
-            if queried_skill_info["type"] == "indexed":
+            if queried_skill_info["type"] == "indexed" and (is_demo or (skills_ok and jobs_ok and job_skills_ok and course_skills_ok)):
                 skill_obj = queried_skill_info["skill"]
                 sid = skill_obj["id"]
                 sname = skill_obj["name"]
 
-                # Filter matching jobs for this specific skill
                 matching_js = [js for js in job_skills if js["skill_id"] == sid]
                 matching_job_ids = {js["job_id"] for js in matching_js}
                 matching_jobs = [j for j in jobs if j["id"] in matching_job_ids]
@@ -185,87 +253,124 @@ def _build_context(
                 demand_count = len(matching_jobs)
                 demand_pct = round((demand_count / total_jobs_count) * 100) if total_jobs_count else 0
 
-                # District distribution for this skill
                 district_counts = dict(Counter(j.get("district", "Unknown") for j in matching_jobs).most_common(5))
 
-                # Gap engine metrics for this skill
-                all_gaps = compute_gaps(focused_district.get("district") if focused_district else None)
+                all_gaps = compute_gaps(focused_district.get("district") if focused_district else None, is_demo=is_demo)
                 gap_entry = next((g for g in all_gaps if g["skill_id"] == sid), None)
 
-                # Teaching courses for this skill
                 teaching_course_ids = {cs["course_id"] for cs in course_skills if cs["skill_id"] == sid}
                 teaching_courses = [
-                    {"id": c["id"], "name": c.get("name", ""), "institute": c.get("institute", "")}
+                    {
+                        "id": c["id"],
+                        "name": c.get("name", ""),
+                        "institute": c.get("institute", ""),
+                        "district": c.get("district", ""),
+                    }
                     for c in courses if c["id"] in teaching_course_ids
                 ][:5]
 
-                context = {
-                    "query_type": "skill_specific",
-                    "data_available_for_skill": True,
-                    "queried_skill": {
-                        "id": sid,
-                        "name": sname,
-                        "category": skill_obj.get("category", "General"),
-                        "nsqf_level": skill_obj.get("nsqf_level"),
-                        "found_in_dataset": True,
-                        "demand_count": demand_count,
-                        "total_jobs_tracked": total_jobs_count,
-                        "demand_pct": demand_pct,
-                        "coverage_pct": gap_entry["coverage_pct"] if gap_entry else 0,
-                        "gap_pct": gap_entry["gap_pct"] if gap_entry else 0,
-                        "priority": gap_entry["priority"] if gap_entry else "LOW",
-                        "district_distribution": district_counts,
-                        "sample_courses": teaching_courses,
-                    },
+                context["query_type"] = "skill_specific"
+                context["data_available_for_skill"] = True
+                context["queried_skill"] = {
+                    "id": sid,
+                    "name": sname,
+                    "category": skill_obj.get("category", "General"),
+                    "nsqf_level": skill_obj.get("nsqf_level"),
+                    "found_in_dataset": True,
+                    "demand_count": demand_count,
+                    "total_jobs_tracked": total_jobs_count,
+                    "demand_pct": demand_pct,
+                    "coverage_pct": gap_entry["coverage_pct"] if gap_entry else 0,
+                    "gap_pct": gap_entry["gap_pct"] if gap_entry else 0,
+                    "priority": gap_entry["priority"] if gap_entry else "LOW",
+                    "district_distribution": district_counts,
+                    "sample_courses": teaching_courses,
                 }
-                if focused_district:
-                    context["focused_district"] = focused_district
-                return context
-
             else:
-                # Skill is unindexed / unsupported in current dataset (e.g. Go/Golang, Rust, etc.)
-                tech_name = queried_skill_info["name"]
-                context = {
-                    "query_type": "skill_specific",
-                    "data_available_for_skill": False,
-                    "queried_skill": {
-                        "name": tech_name,
-                        "found_in_dataset": False,
-                        "verified_job_count": 0,
-                        "verified_course_count": 0,
-                        "message": f"No verified job postings or accredited state courses for '{tech_name}' exist in the current Maharashtra 10-district dataset.",
-                    },
+                tech_name = queried_skill_info["skill"]["name"] if queried_skill_info.get("skill") else queried_skill_info.get("name", "")
+                context["query_type"] = "skill_specific"
+                context["data_available_for_skill"] = False
+                dataset_label = "Maharashtra 10-district demo dataset" if is_demo else "authoritative database"
+                if queried_skill_info.get("type") == "indexed" and not (skills_ok and jobs_ok and job_skills_ok and course_skills_ok):
+                    msg = f"Authoritative metrics for '{tech_name}' are currently unavailable due to an upstream query failure."
+                else:
+                    msg = f"No verified job postings or accredited state courses for '{tech_name}' exist in the {dataset_label}."
+                context["queried_skill"] = {
+                    "name": tech_name,
+                    "found_in_dataset": False,
+                    "verified_job_count": 0,
+                    "verified_course_count": 0,
+                    "message": msg,
                 }
-                if focused_district:
-                    context["focused_district"] = focused_district
-                return context
 
-        # General / District / Role Context when no specific skill is queried
-        context = {
-            "query_type": "general_overview",
-            "top_skill_gaps": compute_gaps()[:10],
-            "total_skills_tracked": len(skills),
-            "total_jobs": len(jobs),
-        }
+        # Attach Recommendation Handoff data if supplied from frontend modal
+        if context_data and isinstance(context_data, dict):
+            context["recommendation_handoff"] = {
+                "topic": context_data.get("topic"),
+                "recommendation_title": context_data.get("recommendation_title"),
+                "target_role": context_data.get("target_role"),
+                "student_name": context_data.get("student_name"),
+                "student_id": context_data.get("student_id") or student_id,
+                "missing_prerequisites": context_data.get("missing_prerequisites", []),
+                "demand_signals": context_data.get("demand_signals"),
+                "future_forecast": context_data.get("future_forecast"),
+                "employer_consensus": context_data.get("employer_consensus"),
+                "relevant_courses": context_data.get("relevant_courses", []),
+                "source": context_data.get("source", "SkillSetu Grounded Labour Intelligence"),
+            }
+            if context.get("queried_skill"):
+                context["query_type"] = "skill_recommendation"
 
-        # Phase 17: Grounded Student Recommendation Context
-        if student_id:
+        # Phase 17 & 18: Grounded Student Recommendation Context
+        effective_student_id = student_id or (context_data.get("student_id") if context_data and isinstance(context_data, dict) else None)
+        if effective_student_id:
+            # SECURITY CRITICAL: Authorize effective student ID before compute_career_recommendations()
+            from app.routers.student import _verify_student_recommendations_access
+            _verify_student_recommendations_access(effective_student_id, current_user)
             try:
                 from app.services.career_recommendation_engine import compute_career_recommendations
-                student_rec = compute_career_recommendations(student_id)
+                student_rec = compute_career_recommendations(effective_student_id, is_demo=is_demo)
+                top_role = student_rec.get("top_recommendation", {}).get("role_name", "")
+                missing_skills = student_rec.get("top_recommendation", {}).get("missing_skills", [])
+                matching_skills = student_rec.get("top_recommendation", {}).get("matching_skills", [])
+
+                queried_name = context.get("queried_skill", {}).get("name", "")
+                is_missing = False
+                is_acquired = False
+                if queried_name:
+                    is_missing = any(m.lower() == queried_name.lower() for m in missing_skills)
+                    is_acquired = any(m.lower() == queried_name.lower() for m in matching_skills)
+                    if not is_acquired and not is_missing:
+                        # Check if required in roadmap or target role benchmark
+                        roadmap_skills = [
+                            st.get("skill_name", "").lower()
+                            for st in student_rec.get("personalized_roadmap", [])
+                            if st.get("skill_name")
+                        ]
+                        role_missing = []
+                        target_goal = student_rec.get("target_career_goal") or top_role
+                        for r_def in student_rec.get("recommended_careers", []):
+                            if r_def.get("role_name", "").lower() in (top_role.lower(), target_goal.lower()):
+                                role_missing.extend([s.lower() for s in r_def.get("missing_skills", [])])
+                        is_missing = any(queried_name.lower() == r for r in roadmap_skills) or any(
+                            queried_name.lower() == rm for rm in role_missing
+                        )
+
                 context["student_recommendation_context"] = {
-                    "student_id": student_id,
+                    "student_id": effective_student_id,
                     "candidate_name": student_rec.get("candidate_name"),
                     "district": student_rec.get("district"),
-                    "target_career_goal": student_rec.get("target_career_goal"),
+                    "target_career_goal": student_rec.get("target_career_goal") or top_role,
                     "readiness_score": student_rec.get("overall_readiness", {}).get("score"),
                     "readiness_level": student_rec.get("overall_readiness", {}).get("level"),
                     "readiness_headline": student_rec.get("overall_readiness", {}).get("headline"),
                     "current_skills": [s.get("skill_name") for s in student_rec.get("current_skill_profile", [])],
-                    "top_recommended_role": student_rec.get("top_recommendation", {}).get("role_name"),
+                    "top_recommended_role": top_role,
                     "top_role_match_pct": student_rec.get("top_recommendation", {}).get("match_pct"),
-                    "matching_skills": student_rec.get("top_recommendation", {}).get("matching_skills", []),
-                    "missing_skills": student_rec.get("top_recommendation", {}).get("missing_skills", []),
+                    "matching_skills": matching_skills,
+                    "missing_skills": missing_skills,
+                    "is_queried_skill_missing": is_missing,
+                    "is_queried_skill_acquired": is_acquired,
                     "validated_openings_count": student_rec.get("top_recommendation", {}).get("validated_openings_count", 0),
                     "validated_employer_signals": student_rec.get("top_recommendation", {}).get("validated_employer_signals", [])[:3],
                     "matched_government_opportunities": student_rec.get("top_recommendation", {}).get("matched_government_opportunities", [])[:3],
@@ -275,32 +380,64 @@ def _build_context(
                         for st in student_rec.get("personalized_roadmap", [])[:4]
                     ],
                 }
+                if context.get("queried_skill"):
+                    context["query_type"] = "skill_recommendation"
             except Exception as rec_err:
                 logger.warning(f"[Copilot] Failed to attach student recommendation context: {rec_err}")
 
         if role == "student":
-            context["student_profiles"] = [
-                {"name": p["name"], "target_role": p["target_role"], "match": p["skill_match_pct"]}
-                for p in get_demo("student_profiles")
-            ]
+            if is_demo:
+                from app.db import get_demo
+                context["student_profiles"] = [
+                    {"name": p["name"], "target_role": p["target_role"], "match": p["skill_match_pct"]}
+                    for p in get_demo("student_profiles")
+                ]
+            else:
+                caller_id = (current_user and current_user.get("id")) or student_id
+                if caller_id:
+                    from app.repositories import supabase_repository
+                    try:
+                        p = supabase_repository.get_student_profile(caller_id)
+                        if p:
+                            context["student_profiles"] = [
+                                {"name": p.get("name", ""), "target_role": p.get("target_role", ""), "match": p.get("skill_match_pct", 0)}
+                            ]
+                        else:
+                            context["student_profiles"] = []
+                    except Exception:
+                        context["student_profiles"] = []
+                else:
+                    context["student_profiles"] = []
         elif role == "government":
             from app.services.district_service import get_all_districts
-            context["districts"] = get_all_districts()
+            context["districts"] = get_all_districts(is_demo=is_demo)
         elif role == "institute":
             context["institutes_summary"] = {
                 "total_courses": len(courses),
                 "sample_institutes": sorted(list(set(c.get("institute", "") for c in courses if c.get("institute"))))[:6],
             }
         elif role == "employer":
-            feedback = get_demo("employer_feedback")
-            context["pending_validations"] = len([f for f in feedback if f["status"] == "pending"])
-            context["confirmed"] = len([f for f in feedback if f["status"] == "confirmed"])
+            if is_demo:
+                from app.db import get_demo
+                feedback = get_demo("employer_feedback")
+                context["pending_validations"] = len([f for f in feedback if f.get("status") == "pending"])
+                context["confirmed"] = len([f for f in feedback if f.get("status") == "confirmed"])
+            else:
+                from app.repositories import supabase_repository
+                try:
+                    feedback = supabase_repository.list_employer_feedback() or []
+                    context["pending_validations"] = len([f for f in feedback if f.get("status") == "pending"])
+                    context["confirmed"] = len([f for f in feedback if f.get("status") == "confirmed"])
+                except Exception:
+                    context["pending_validations"] = 0
+                    context["confirmed"] = 0
 
         if focused_district:
             context["focused_district"] = focused_district
 
         if question:
-            for p in get_demo("student_profiles"):
+            student_profiles_list = get_demo("student_profiles") if is_demo else []
+            for p in student_profiles_list:
                 target = p.get("target_role", "")
                 if target and target.lower() in q_lower:
                     skills_map = {s["id"]: s.get("name", "") for s in skills}
@@ -312,6 +449,8 @@ def _build_context(
                     break
 
         return context
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"[Copilot] Failed to build context: {e}")
         return {}
@@ -322,15 +461,43 @@ async def handle_question(
     role: str = "student",
     district: str | None = None,
     student_id: str | None = None,
-) -> dict:
-    """Handle a copilot question end-to-end with live inference and resilient offline fallback."""
-    provider = _get_provider()
-    context = _build_context(role, question, district, student_id)
+    context_data: dict | None = None,
+    current_user: dict | None = None,
+    is_demo: bool | None = None,
+) -> dict[str, Any]:
+    if is_demo is False:
+        is_demo_mode = False
+    elif is_demo is True or is_explicit_demo_mode(is_demo):
+        is_demo_mode = True
+    else:
+        is_demo_mode = student_id is not None and is_demo_student_id(student_id)
+    provider = _get_provider(is_demo=is_demo_mode)
+    context = _build_context(role, question, district, student_id, context_data, current_user, is_demo=is_demo_mode)
     is_live_ai = isinstance(provider, GeminiProvider)
 
-    logger.info(f"[Copilot] Query: '{question}' (student_id={student_id}, district={district}, provider={provider.__class__.__name__}, is_live={is_live_ai}, role={role})")
+    logger.info(f"[Copilot] Request role={role}, district={district}, provider={provider.__class__.__name__ if provider else 'None'}, is_live={is_live_ai}, is_demo={is_demo_mode}")
 
-    if is_live_ai:
+    if not is_demo_mode:
+        if context.get("authoritative_data_status") == "empty_or_unindexed" and not context.get("student_profiles") and not context.get("student_recommendation_context"):
+            return {
+                "answer": "Authoritative labour market intelligence is currently unavailable or unindexed in Real Data mode. Live AI generation without verified data is restricted to prevent inaccurate guidance.",
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": False,
+                "model": "Real Data Service (No Data)",
+                "provenance_label": "⚠️ No Authoritative Data",
+            }
+        if not is_live_ai or provider is None:
+            return {
+                "answer": "AI Copilot live inference is temporarily unavailable because the Gemini AI service is not configured or reachable. In Real Data mode, synthetic factual fallbacks are disabled to prevent inaccurate labour market intelligence.",
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "model": "Real Data Service (Offline)",
+                "provenance_label": "⚠️ Service Offline",
+            }
         try:
             answer = await provider.generate(question, context)
             return {
@@ -340,39 +507,39 @@ async def handle_question(
                 "demo_mode": False,
                 "data_grounded": bool(context),
                 "model": getattr(provider, "model", "gemini-3.6-flash"),
-                "provenance_label": "✨ Generated by Gemini AI (Grounded in SkillSetu Data)",
+                "provenance_label": "✨ Generated by Gemini AI (Grounded in Authoritative Data)",
             }
         except Exception as e:
             err_msg = str(e)
-            logger.error(f"[Copilot] Live generation error, switching to rule-based offline fallback: {err_msg}")
-            # Fallback to DemoProvider rule-based intelligence so application never crashes
-            try:
-                demo_prov = DemoProvider()
-                fallback_answer = await demo_prov.generate(question, context)
-                return {
-                    "answer": fallback_answer,
-                    "role": role,
-                    "student_id": student_id,
-                    "demo_mode": True,
-                    "data_grounded": bool(context),
-                    "model": "Rule-Based Offline Intelligence",
-                    "provenance_label": "🛡️ Grounded Deterministic Intelligence (Offline Fallback)",
-                    "notice": "AI service temporarily unavailable. Switched to grounded deterministic intelligence.",
-                }
-            except Exception:
-                return {
-                    "answer": f"[Gemini API Error] {err_msg}\n\nPlease check your Google AI Studio quota / API key permissions on Render.",
-                    "role": role,
-                    "student_id": student_id,
-                    "demo_mode": True,
-                    "data_grounded": bool(context),
-                    "error_details": err_msg,
-                    "model": "Rule-Based Offline Intelligence",
-                    "provenance_label": "🛡️ Error Diagnostic Output",
-                }
+            logger.error(f"[Copilot] Live generation error in real mode: {err_msg}")
+            return {
+                "answer": "AI Copilot live inference encountered an error. In Real Data mode, synthetic factual fallbacks are disabled.",
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "model": "Real Data Service (Error)",
+                "provenance_label": "⚠️ Service Error",
+            }
 
-    # Demo mode provider
-    answer = await provider.generate(question, context)
+    # EXPLICIT DEMO MODE
+    if is_live_ai and provider is not None:
+        try:
+            answer = await provider.generate(question, context)
+            return {
+                "answer": answer,
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": bool(context),
+                "model": getattr(provider, "model", "gemini-3.6-flash"),
+                "provenance_label": "✨ Generated by Gemini AI",
+            }
+        except Exception as e:
+            logger.warning(f"[Copilot] Live generation failed in demo mode, falling back to DemoProvider: {e}")
+
+    demo_prov = DemoProvider()
+    answer = await demo_prov.generate(question, context)
     return {
         "answer": answer,
         "role": role,

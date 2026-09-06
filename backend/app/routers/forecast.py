@@ -19,15 +19,16 @@ async def list_forecasts(
     horizon: Optional[str] = Query(None, description="Forecast horizon: 6m, 12m, 24m"),
     trend: Optional[str] = Query(None, description="Filter by trend: RISING, EMERGING, STABLE, DECLINING"),
     category: Optional[str] = Query(None, description="Filter by category"),
+    is_demo: Optional[bool] = Query(None, description="Filter by demo/authoritative data source"),
 ):
     """List skill forecasts with multi-horizon projections (backward compatible + extended)."""
     try:
-        forecasts = compute_multi_horizon_forecasts()
+        forecasts = compute_multi_horizon_forecasts(is_demo=is_demo)
     except (SupabaseRepositoryError, Exception) as e:
-        logger.error("[ForecastAPI] Database query failed for forecasts: %s", e)
+        logger.exception("[ForecastAPI] Database query failed for forecasts: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for forecasts: {e}",
+            detail="Database query failed for forecasts.",
         ) from e
 
     if trend:
@@ -48,28 +49,31 @@ async def list_forecasts(
 
 
 @router.get("/forecast/radar")
-async def future_skills_radar():
+async def future_skills_radar(is_demo: Optional[bool] = Query(None)):
     """Return future skills radar matrix across rising, emerging, and stable clusters."""
     try:
-        return generate_future_skills_radar()
+        return generate_future_skills_radar(is_demo=is_demo)
     except (SupabaseRepositoryError, Exception) as e:
-        logger.error("[ForecastAPI] Database query failed for future skills radar: %s", e)
+        logger.exception("[ForecastAPI] Database query failed for future skills radar: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for future skills radar: {e}",
+            detail="Database query failed for future skills radar.",
         ) from e
 
 
 @router.get("/forecast/skill/{skill_id}")
-async def forecast_for_skill(skill_id: str):
+async def forecast_for_skill(
+    skill_id: str,
+    is_demo: Optional[bool] = Query(None, description="Filter by demo/authoritative data source"),
+):
     """Retrieve multi-horizon forecast trajectory for a specific skill."""
     try:
-        trajectory = get_skill_forecast_trajectory(skill_id)
+        trajectory = get_skill_forecast_trajectory(skill_id, is_demo=is_demo)
     except (SupabaseRepositoryError, Exception) as e:
-        logger.error("[ForecastAPI] Database query failed for skill '%s': %s", skill_id, e)
+        logger.exception("[ForecastAPI] Database query failed for skill '%s': %s", skill_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database query failed for skill forecast trajectory: {e}",
+            detail="Database query failed for skill forecast trajectory.",
         ) from e
 
     if trajectory:
