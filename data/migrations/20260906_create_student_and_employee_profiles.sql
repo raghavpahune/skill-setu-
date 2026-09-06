@@ -1,6 +1,6 @@
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-CHECK (UPPER(role) IN ('GOVERNMENT', 'INSTITUTE', 'EMPLOYER', 'STUDENT', 'ADMIN', 'EMPLOYEE'));
+CHECK (UPPER(role) IN ('GOVERNMENT', 'INSTITUTE', 'EMPLOYER', 'STUDENT', 'ADMIN', 'EMPLOYEE')) NOT VALID;
 
 DO $$
 BEGIN
@@ -74,11 +74,12 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'fk_employee_profiles_user'
+        WHERE table_name = 'employee_profiles'
+          AND constraint_name = 'fk_employee_profiles_user'
     ) THEN
         ALTER TABLE employee_profiles
         ADD CONSTRAINT fk_employee_profiles_user
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE NOT VALID;
     END IF;
 END $$;
 

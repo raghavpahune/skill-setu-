@@ -104,15 +104,18 @@ export default function CopilotChat({
   const hasAutoSentRef = useRef(false);
 
   const effectiveDefaultRole = useMemo(() => {
-    if (defaultRole === 'employee') return 'employee';
-    if (!isAuthenticated) return defaultRole;
-    if (authRole === 'STUDENT') return 'student';
-    if (authRole === 'EMPLOYEE') return 'employee';
-    if (authRole === 'EMPLOYER') return 'employer';
-    if (authRole === 'INSTITUTE') return 'institute';
-    if (authRole === 'GOVERNMENT') return 'government';
-    if (authRole === 'ADMIN') return defaultRole || 'admin';
-    return defaultRole;
+    if (isAuthenticated && authRole) {
+      const lowerAuth = authRole.toLowerCase();
+      if (lowerAuth !== 'admin') {
+        const valid = ['government', 'institute', 'student', 'employer', 'employee'];
+        if (valid.includes(lowerAuth)) {
+          return lowerAuth;
+        }
+        return 'student';
+      }
+      return defaultRole || 'admin';
+    }
+    return defaultRole || 'student';
   }, [authRole, isAuthenticated, defaultRole]);
 
   const [role, setRole] = useState(effectiveDefaultRole);
@@ -172,12 +175,6 @@ Select your stakeholder role above or explore one of the verified inquiries belo
       .catch(() => {});
   }, []);
 
-  // Update role if defaultRole prop changes
-  useEffect(() => {
-    if (defaultRole) {
-      setRole(defaultRole);
-    }
-  }, [defaultRole]);
 
   // If initialDistrict provided, update district state and welcome message
   useEffect(() => {
@@ -295,11 +292,14 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     setLoading(true);
 
     try {
+      const activeRole = (isAuthenticated && authRole && authRole.toLowerCase() !== 'admin')
+        ? (['government', 'institute', 'student', 'employer', 'employee'].includes(authRole.toLowerCase()) ? authRole.toLowerCase() : 'student')
+        : role;
       const res = await api.askCopilot(
         trimmed,
-        role,
+        activeRole,
         district || undefined,
-        (role === 'student' ? (studentId || initialStudentId) : undefined) || undefined,
+        (activeRole === 'student' ? (studentId || initialStudentId) : undefined) || undefined,
         contextData || undefined
       );
       setErrorState(null);

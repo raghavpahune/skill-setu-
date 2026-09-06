@@ -35,6 +35,7 @@ export default function StudentProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState(null);
+  const [isLoadError, setIsLoadError] = useState(false);
   const [successMsg, setSuccessMsg] = useState(null);
   const [isNewProfile, setIsNewProfile] = useState(false);
 
@@ -62,6 +63,7 @@ export default function StudentProfile() {
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setApiError(null);
+    setIsLoadError(false);
     try {
       const res = await api.getStudentProfile();
       if (res && res.profile) {
@@ -87,6 +89,7 @@ export default function StudentProfile() {
         setIsNewProfile(true);
         setProfile(null);
       } else {
+        setIsLoadError(true);
         setApiError(err.message || 'Failed loading profile from server.');
       }
     } finally {
@@ -233,11 +236,13 @@ export default function StudentProfile() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setApiError(null);
+    setIsLoadError(false);
     setSuccessMsg(null);
 
     const payload = formatStudentProfilePayload(form);
     const validation = validateStudentProfile(payload);
     if (!validation.isValid) {
+      setIsLoadError(false);
       setApiError(validation.errors.join(', '));
       return;
     }
@@ -256,6 +261,7 @@ export default function StudentProfile() {
       }
       setSuccessMsg('Skill Passport & Student Profile successfully updated.');
     } catch (err) {
+      setIsLoadError(false);
       setApiError(err.message || 'Failed saving profile. Please check inputs.');
     } finally {
       setSaving(false);
@@ -301,12 +307,15 @@ export default function StudentProfile() {
               <span>⚠️</span>
               <span>{apiError}</span>
             </div>
-            <button
-              onClick={loadProfile}
-              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold"
-            >
-              Retry
-            </button>
+            {isLoadError && (
+              <button
+                type="button"
+                onClick={loadProfile}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold"
+              >
+                Retry
+              </button>
+            )}
           </div>
         )}
 
