@@ -168,4 +168,10 @@ CREATE INDEX IF NOT EXISTS idx_jobs_freshness ON jobs(freshness_status);
 CREATE INDEX IF NOT EXISTS idx_schemes_freshness ON schemes(freshness_status);
 
 ALTER TABLE gov_opportunities ADD COLUMN IF NOT EXISTS is_demo BOOLEAN;
-UPDATE gov_opportunities SET is_demo = FALSE WHERE is_demo IS NULL;
+UPDATE gov_opportunities
+   SET is_demo = COALESCE(is_demo, CASE
+           WHEN source IN ('DEMO_SYNTHETIC', 'SANDBOX_SIMULATION') THEN TRUE
+           WHEN source IN ('VERIFIED_SNAPSHOT', 'ADZUNA_API', 'DATAGOV_IN', 'OGD_DATAGOV_IN', 'LIVE_API') THEN FALSE
+           ELSE FALSE
+       END)
+ WHERE is_demo IS NULL;

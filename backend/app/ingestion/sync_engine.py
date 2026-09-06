@@ -324,12 +324,12 @@ class SyncEngine:
                     new_links.append(link)
 
         if new_links:
-            set_demo("job_skills", current_js)
             try:
                 from app.repositories.supabase_repository import batch_create_job_skills
                 batch_create_job_skills(new_links)
             except Exception as e:
                 logger.error("[SyncEngine] Supabase batch_create_job_skills failed: %s", e)
                 raise
+            set_demo("job_skills", current_js)
 
         return len(new_links)

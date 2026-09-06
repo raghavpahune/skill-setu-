@@ -444,11 +444,14 @@ def get_skill_explainability(
         else:
             logger.exception("[SkillExplainability] Supabase forecast query failed for non-demo student %s: %s", student_id, e)
             raise RuntimeError("Database error fetching skill forecasts.") from e
-    try:
-        from app.repositories.supabase_repository import list_employer_feedback
-        feedback = list_employer_feedback() or []
-    except Exception:
-        feedback = [] if not is_explicit_demo else get_demo("employer_feedback")
+    if is_demo_req:
+        feedback = get_demo("employer_feedback")
+    else:
+        try:
+            from app.repositories.supabase_repository import list_employer_feedback
+            feedback = list_employer_feedback() or []
+        except Exception:
+            feedback = []
     difficult_skills = get_demo("difficult_skills") if is_demo_req else []
     if is_demo_req:
         signals = get_demo("industry_signals")

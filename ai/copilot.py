@@ -458,10 +458,19 @@ async def handle_question(
     context = _build_context(role, question, district, student_id, context_data, current_user, is_demo=is_demo_mode)
     is_live_ai = isinstance(provider, GeminiProvider)
 
-    logger.info(f"[Copilot] Query: '{question}' (student_id={student_id}, district={district}, provider={provider.__class__.__name__ if provider else 'None'}, is_live={is_live_ai}, role={role}, is_demo={is_demo_mode})")
+    logger.info(f"[Copilot] Request role={role}, district={district}, provider={provider.__class__.__name__ if provider else 'None'}, is_live={is_live_ai}, is_demo={is_demo_mode}")
 
     if not is_demo_mode:
-        # REAL MODE: Must NEVER call DemoProvider and NEVER fabricate facts.
+        if context.get("authoritative_data_status") == "empty_or_unindexed" and not context.get("student_profile") and not context.get("student_assessment"):
+            return {
+                "answer": "Authoritative labour market intelligence is currently unavailable or unindexed in Real Data mode. Live AI generation without verified data is restricted to prevent inaccurate guidance.",
+                "role": role,
+                "student_id": student_id,
+                "demo_mode": False,
+                "data_grounded": False,
+                "model": "Real Data Service (No Data)",
+                "provenance_label": "⚠️ No Authoritative Data",
+            }
         if not is_live_ai or provider is None:
             return {
                 "answer": "AI Copilot live inference is temporarily unavailable because the Gemini AI service is not configured or reachable. In Real Data mode, synthetic factual fallbacks are disabled to prevent inaccurate labour market intelligence.",

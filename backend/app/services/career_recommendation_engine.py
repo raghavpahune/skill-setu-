@@ -224,7 +224,7 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
     if not profile:
         raise ValueError(f"Student profile or assessment with ID '{student_id}' not found.")
 
-    source_provenance = profile.get("source", "DEMO_SYNTHETIC")
+    source_provenance = profile.get("source") or ("DEMO_SYNTHETIC" if (profile.get("is_demo") is True or is_demo_student_id(student_id)) else "STUDENT_SUBMITTED")
     is_demo_mode = is_explicit_demo_mode(is_demo) or (is_demo_student_id(student_id) and (profile.get("is_demo") is True or source_provenance == "DEMO_SYNTHETIC"))
 
     # 1. Normalize Student Current Skills

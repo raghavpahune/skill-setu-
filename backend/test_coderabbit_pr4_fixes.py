@@ -838,7 +838,7 @@ def test_review8_findings_isolation_and_authoritative_audit(monkeypatch):
     from app.services.district_service import get_district_plan
 
     # 1. Authoritative audit with no courses must return empty list (no demo fallback)
-    monkeypatch.setattr(repo, "list_courses", lambda: [])
+    monkeypatch.setattr(repo, "list_courses", lambda *args, **kwargs: [])
     audited = audit_all_courses(is_demo=False)
     assert audited == []
 

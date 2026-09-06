@@ -28,6 +28,18 @@ const EMPTY_DISTRICT_PLAN = (district) => ({
   local_courses: [],
   skill_gaps: [],
   top_skills: [],
+  required_equipment: [],
+  trainer_programs: [],
+  courses_needing_review: [],
+  required_training_seats: 0,
+  required_trainers_count: 0,
+  total_equipment_budget_inr: 0,
+  expected_impact: {
+    projected_placement_lift_pct: 0,
+    projected_skill_deficit_reduction_pct: 0,
+    target_placed_students: 0,
+    total_budget_estimate_inr: 0,
+  },
 });
 
 function EmptyState({
@@ -175,10 +187,9 @@ export default function DistrictPlan() {
         </div>
       </div>
 
-      {/* Non-blocking Error Banner if API offline */}
       {hasError && (
         <ErrorBanner
-          message={`Using localized cached benchmark model for ${districtName}. Backend connection was temporarily unavailable.`}
+          message={`Live district planning data is temporarily unavailable for ${districtName}. Backend connection was unreachable.`}
           onRetry={fetchPlan}
         />
       )}
@@ -599,11 +610,11 @@ export default function DistrictPlan() {
                   Trainer & Master Instructor Needs
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Certified faculty upskilling programs to support {plan?.required_training_seats || 180} additional training seats
+                  Certified faculty upskilling programs to support {plan?.required_training_seats ?? 0} additional training seats
                 </p>
               </div>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
-                {plan?.required_trainers_count || 4} Trainers Needed
+                {plan?.required_trainers_count ?? 0} Trainers Needed
               </span>
             </div>
 
@@ -719,22 +730,22 @@ export default function DistrictPlan() {
               <div className="p-3.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
                 <div className="text-[11px] text-emerald-800 dark:text-emerald-300 font-semibold">Placement Rate Lift</div>
                 <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1">
-                  +{plan?.expected_impact?.projected_placement_lift_pct || 18.5}%
+                  +{plan?.expected_impact?.projected_placement_lift_pct ?? 0}%
                 </div>
-                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Target: {plan?.expected_impact?.target_placed_students || 150} candidates</div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Target: {plan?.expected_impact?.target_placed_students ?? 0} candidates</div>
               </div>
 
               <div className="p-3.5 rounded-lg bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800">
                 <div className="text-[11px] text-teal-800 dark:text-teal-300 font-semibold">Skill Deficit Reduction</div>
                 <div className="text-2xl font-black text-teal-700 dark:text-teal-400 mt-1">
-                  -{plan?.expected_impact?.projected_skill_deficit_reduction_pct || 42.0}%
+                  -{plan?.expected_impact?.projected_skill_deficit_reduction_pct ?? 0}%
                 </div>
-                <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Across {plan?.skill_gaps?.length || 4} critical domains</div>
+                <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Across {plan?.skill_gaps?.length ?? 0} critical domains</div>
               </div>
             </div>
 
             <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-bold text-slate-900 dark:text-white">Estimated Budget Package:</span> ₹{(((plan?.expected_impact?.total_budget_estimate_inr || 2400000)) / 100000).toFixed(1)} Lakhs allocated for laboratory rigs and trainer certifications across {districtName}.
+              <span className="font-bold text-slate-900 dark:text-white">Estimated Budget Package:</span> ₹{(((plan?.expected_impact?.total_budget_estimate_inr ?? 0)) / 100000).toFixed(1)} Lakhs allocated for laboratory rigs and trainer certifications across {districtName}.
             </div>
           </div>
         </div>

@@ -323,7 +323,10 @@ Select your stakeholder role above or explore one of the verified inquiries belo
         ]);
       } else {
         const errMsg = err?.message || 'Service unreachable';
-        setErrorState(`Copilot service temporarily unavailable (${errMsg})`);
+        setErrorState({
+          message: `Copilot service temporarily unavailable (${errMsg})`,
+          query: trimmed,
+        });
         setMessages((prev) => [
           ...prev,
           {

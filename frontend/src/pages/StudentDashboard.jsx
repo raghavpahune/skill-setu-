@@ -149,9 +149,13 @@ export default function StudentDashboard() {
     setExplainModalOpen(true);
   };
 
-  // Load students & check personal student profile on mount / auth change
   useEffect(() => {
-    // 1. If user is logged in as a student, check if they already have personal assessment
+    if (!user?.id) {
+      setPassport(null);
+      setSelectedStudentId((prev) => (prev === 'me' ? '' : prev));
+      setStudents((prev) => prev.filter((s) => s.user_id !== 'me'));
+    }
+
     if (user?.id) {
       if (user.role === 'STUDENT') {
         setSelectedStudentId('me');
@@ -162,8 +166,7 @@ export default function StudentDashboard() {
             setSelectedStudentId('me');
             setPassport(myPass);
             setStudents((prev) => {
-              const alreadyHasMe = prev.some((s) => s.user_id === 'me');
-              if (alreadyHasMe) return prev;
+              const filtered = prev.filter((s) => s.user_id !== 'me');
               const meItem = {
                 user_id: 'me',
                 name: `${myPass.name || user.full_name || 'My Profile'} (Live Profile)`,
@@ -171,13 +174,12 @@ export default function StudentDashboard() {
                 skill_match_pct: myPass.skill_match_pct || 0,
                 source: 'USER_SUBMITTED',
               };
-              return [meItem, ...prev];
+              return [meItem, ...filtered];
             });
           } else if (myPass && myPass.has_assessment === false) {
             setPassport(myPass);
             setStudents((prev) => {
-              const alreadyHasMe = prev.some((s) => s.user_id === 'me');
-              if (alreadyHasMe) return prev;
+              const filtered = prev.filter((s) => s.user_id !== 'me');
               const meItem = {
                 user_id: 'me',
                 name: `${user.full_name || 'My Profile'} (Unassessed)`,
@@ -185,7 +187,7 @@ export default function StudentDashboard() {
                 skill_match_pct: 0,
                 source: 'NO_SUBMISSION',
               };
-              return [meItem, ...prev];
+              return [meItem, ...filtered];
             });
           }
         })
@@ -194,17 +196,16 @@ export default function StudentDashboard() {
 
     api.getStudents()
       .then((res) => {
-        const studentList = Array.isArray(res) ? res : [];
+        const studentList = Array.isArray(res) ? res.filter((r) => r.user_id !== 'me') : [];
         setStudents((prev) => {
-          const hasMe = prev.some((s) => s.user_id === 'me');
-          const meItem = prev.find((s) => s.user_id === 'me');
-          if (studentList.length > 0) {
-            return hasMe ? [meItem, ...studentList.filter((r) => r.user_id !== 'me')] : studentList;
+          const currentMe = user?.id ? prev.find((s) => s.user_id === 'me') : null;
+          if (currentMe) {
+            return [currentMe, ...studentList];
           }
-          return hasMe ? [meItem] : [];
+          return studentList;
         });
         if (studentList.length > 0) {
-          setSelectedStudentId((prev) => prev || studentList[0].user_id);
+          setSelectedStudentId((prev) => prev || (user?.id && user.role === 'STUDENT' ? 'me' : studentList[0].user_id));
         }
       })
       .catch((err) => {
