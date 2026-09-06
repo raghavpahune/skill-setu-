@@ -21,6 +21,7 @@ const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 const CopilotPage = lazy(() => import('./pages/CopilotPage'));
 const EmployerDashboard = lazy(() => import('./pages/EmployerDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const CurriculumHub = lazy(() => import('./pages/CurriculumHub'));
 
 function RouteLoadingFallback() {
   return (
@@ -107,6 +108,14 @@ export default function App() {
                   element={
                     <ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN']}>
                       <EmployerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/curriculum"
+                  element={
+                    <ProtectedRoute allowedRoles={['INSTITUTE', 'GOVERNMENT', 'ADMIN']}>
+                      <CurriculumHub />
                     </ProtectedRoute>
                   }
                 />
