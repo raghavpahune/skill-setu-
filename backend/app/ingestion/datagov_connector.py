@@ -238,7 +238,7 @@ class DataGovConnector(BaseSourceAdapter):
         source_type = record.get("source_type")
         is_sandbox = record.get("is_sandbox", False)
         ext_id = record.get("external_id") or record.get("source_record_id")
-        title = record.get("title", "").strip()
+        title = str(record.get("title") or "").strip()
         url = record.get("application_portal_url") or record.get("apply_url") or record.get("source_url")
 
         if source != "OGD_DATAGOV_IN":

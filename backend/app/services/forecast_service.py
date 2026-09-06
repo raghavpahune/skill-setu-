@@ -3,8 +3,11 @@
 ponytail: At MVP this just returns stored demo data.
 Upgrade path: plug in a real ML model (time series / trend analysis) here.
 """
+import logging
 from app.db import get_demo
 from app.repositories.supabase_repository import list_skill_forecasts
+
+logger = logging.getLogger(__name__)
 
 
 def get_forecasts(skill_id: str | None = None, is_demo: bool | None = None) -> list[dict]:
@@ -18,12 +21,14 @@ def get_forecasts(skill_id: str | None = None, is_demo: bool | None = None) -> l
         from app.repositories.supabase_repository import list_skills
         try:
             forecasts = list_skill_forecasts(skill_id=skill_id) or []
-        except Exception:
+        except Exception as e:
+            logger.warning("[ForecastService] list_skill_forecasts failed: %s", e)
             forecasts = []
         try:
             repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
-        except Exception:
+        except Exception as e:
+            logger.warning("[ForecastService] list_skills failed: %s", e)
             skills_map = {}
 
     return [

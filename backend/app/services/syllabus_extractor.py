@@ -3,11 +3,14 @@
 Extracts industry-aligned skills, NSQF levels, and domain categories directly
 from course syllabus documents (PDF or plain text) using zero external dependencies.
 """
+import logging
 import re
 import zlib
 from collections import Counter
 from typing import Any
 from app.db import get_demo
+
+logger = logging.getLogger(__name__)
 
 
 def extract_raw_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -94,7 +97,8 @@ def extract_skills_from_syllabus(
         try:
             from app.repositories.supabase_repository import list_skills
             all_skills = list_skills(limit=10000) or []
-        except Exception:
+        except Exception as e:
+            logger.warning("[SyllabusExtractor] Failed to load skills from repository: %s", e)
             all_skills = []
     matched_skills = []
     seen_ids = set()

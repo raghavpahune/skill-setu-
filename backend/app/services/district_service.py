@@ -16,7 +16,7 @@ def get_all_districts(is_demo: bool | None = None) -> list[dict]:
     elif is_demo is False:
         try:
             from app.repositories.supabase_repository import list_jobs, list_courses
-            jobs = list_jobs() or []
+            jobs = list_jobs(limit=10000) or []
             courses = list_courses() or []
         except Exception:
             jobs = []
@@ -24,7 +24,7 @@ def get_all_districts(is_demo: bool | None = None) -> list[dict]:
     else:
         try:
             from app.repositories.supabase_repository import list_jobs, list_courses
-            repo_jobs = list_jobs()
+            repo_jobs = list_jobs(limit=10000)
             repo_courses = list_courses()
             if repo_jobs or repo_courses:
                 jobs = repo_jobs or []
@@ -65,7 +65,7 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
     else:
         try:
             from app.repositories.supabase_repository import list_jobs
-            jobs = list_jobs() or []
+            jobs = list_jobs(limit=10000) or []
         except Exception:
             jobs = []
 
@@ -83,10 +83,11 @@ def get_district_plan(district: str, is_demo: bool | None = None) -> dict[str, A
             skills_map = {}
 
         try:
-            from app.db import get_supabase_client
-            client = get_supabase_client()
-            res = client.table("placements").select("*").execute() if client else None
-            placements = getattr(res, "data", []) or []
+            from app.repositories.supabase_repository import list_placements
+            placements = sorted(
+                list_placements() or [],
+                key=lambda r: r.get("year") or 0,
+            )
         except Exception:
             placements = []
 
@@ -337,7 +338,7 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
     else:
         try:
             from app.repositories.supabase_repository import list_jobs
-            jobs = list_jobs() or []
+            jobs = list_jobs(limit=10000) or []
         except Exception:
             jobs = []
         try:
@@ -347,14 +348,15 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
             courses = []
         try:
             from app.repositories.supabase_repository import list_skills
-            skills = list_skills() or []
+            skills = list_skills(limit=10000) or []
         except Exception:
             skills = []
         try:
-            from app.db import get_supabase_client
-            client = get_supabase_client()
-            res = client.table("placements").select("*").execute() if client else None
-            placements = getattr(res, "data", []) or []
+            from app.repositories.supabase_repository import list_placements
+            placements = sorted(
+                list_placements() or [],
+                key=lambda r: r.get("year") or 0,
+            )
         except Exception:
             placements = []
         try:

@@ -496,12 +496,11 @@ async def handle_question(
             err_msg = str(e)
             logger.error(f"[Copilot] Live generation error in real mode: {err_msg}")
             return {
-                "answer": f"AI Copilot live inference encountered an error: {err_msg}. In Real Data mode, synthetic factual fallbacks are disabled.",
+                "answer": "AI Copilot live inference encountered an error. In Real Data mode, synthetic factual fallbacks are disabled.",
                 "role": role,
                 "student_id": student_id,
                 "demo_mode": False,
                 "data_grounded": bool(context),
-                "error_details": err_msg,
                 "model": "Real Data Service (Error)",
                 "provenance_label": "⚠️ Service Error",
             }

@@ -104,6 +104,9 @@ export default function DistrictPlan() {
   const [plan, setPlan] = useState(() => EMPTY_DISTRICT_PLAN(districtName));
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const fetchPlan = () => setRetryCount((c) => c + 1);
 
   useEffect(() => {
     let isCurrent = true;
@@ -132,7 +135,7 @@ export default function DistrictPlan() {
     return () => {
       isCurrent = false;
     };
-  }, [districtName]);
+  }, [districtName, retryCount]);
 
   return (
     <Layout>

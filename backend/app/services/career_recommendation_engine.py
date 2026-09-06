@@ -302,12 +302,14 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
 
     if is_demo_mode:
         all_courses = get_demo("courses")
+        course_source_default = "DEMO_SYNTHETIC"
     else:
         try:
             from app.repositories.supabase_repository import list_courses
             all_courses = list_courses() or []
         except Exception:
             all_courses = []
+        course_source_default = "INSTITUTE_SUBMITTED"
 
     if is_demo_mode:
         all_signals = get_demo("industry_signals")
@@ -386,8 +388,8 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
                     "category": c.get("category"),
                     "placement_rate": c.get("placement_rate", 80),
                     "nsqf_level": c.get("nsqf_level", 5),
-                    "source": c.get("source", "DEMO_SYNTHETIC"),
-                    "is_demo": c.get("is_demo", True),
+                    "source": c.get("source") or course_source_default,
+                    "is_demo": c.get("is_demo", is_demo_mode),
                 })
 
         role_signals = []
@@ -514,7 +516,7 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
                     "institute_name": c.get("institute") or c.get("institute_name"),
                     "district": c.get("district"),
                     "placement_rate": c.get("placement_rate", 80),
-                    "source": c.get("source", "DEMO_SYNTHETIC"),
+                    "source": c.get("source") or course_source_default,
                 })
 
         # Match industry signals for this specific missing skill (Phase 26)

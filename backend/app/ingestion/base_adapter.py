@@ -303,13 +303,15 @@ def extract_skills_and_unmapped(
                 if re.search(pattern, text, re.IGNORECASE):
                     is_matched = True
             else:
+                leading = r"\b" if re.match(r"\w", name) else r"(?<!\w)"
                 trailing = r"\b" if re.search(r"\w$", name) else r"(?!\w)"
-                pattern = r"\b" + re.escape(name) + trailing
+                pattern = leading + re.escape(name) + trailing
                 if re.search(pattern, text, re.IGNORECASE):
                     is_matched = True
         else:
+            leading = r"\b" if re.match(r"\w", name_lower) else r"(?<!\w)"
             trailing = r"\b" if re.search(r"\w$", name_lower) else r"(?!\w)"
-            pattern = r"\b" + re.escape(name_lower) + trailing
+            pattern = leading + re.escape(name_lower) + trailing
             if re.search(pattern, text, re.IGNORECASE):
                 is_matched = True
 
@@ -332,16 +334,18 @@ def extract_skills_and_unmapped(
                         syn_pat = r"\b(golang|go\s+programming|go\s+developer|go\s+backend)\b"
                         matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
                     else:
+                        leading = r"\b" if re.match(r"\w", syn_clean) else r"(?<!\w)"
                         trailing = r"\b" if re.search(r"\w$", syn_clean) else r"(?!\w)"
-                        syn_pat = r"\b" + re.escape(syn_clean) + trailing
+                        syn_pat = leading + re.escape(syn_clean) + trailing
                         matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
                     if matched_by_context:
                         is_matched = True
                         matched_skill_names_lower.add(syn_lower)
                         break
                 else:
+                    leading = r"\b" if re.match(r"\w", syn_lower) else r"(?<!\w)"
                     trailing = r"\b" if re.search(r"\w$", syn_lower) else r"(?!\w)"
-                    syn_pat = r"\b" + re.escape(syn_lower) + trailing
+                    syn_pat = leading + re.escape(syn_lower) + trailing
                     if re.search(syn_pat, text, re.IGNORECASE):
                         is_matched = True
                         matched_skill_names_lower.add(syn_lower)

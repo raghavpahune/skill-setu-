@@ -430,6 +430,13 @@ if _REAL_DISK_DIR.is_dir():
 
 
 def _restore_real_disk_files():
+    if _REAL_DISK_DIR.is_dir():
+        for _f in _REAL_DISK_DIR.glob("*.json"):
+            if _f not in _REAL_DISK_SNAPSHOT:
+                try:
+                    _f.unlink(missing_ok=True)
+                except Exception:
+                    pass
     for _f, _content in _REAL_DISK_SNAPSHOT.items():
         try:
             _f.write_bytes(_content)

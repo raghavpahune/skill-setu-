@@ -138,7 +138,7 @@ async def list_opportunities(
             "description": j.get("description", ""),
             "posted_date": j.get("posted_date"),
             "status": j.get("status", "active"),
-            "source": j.get("source", "DEMO_SYNTHETIC" if is_demo_mode else "LIVE_API"),
+            "source": j.get("source") or ("DEMO_SYNTHETIC" if is_demo_mode else "UNKNOWN"),
             "skills": opp_skills,
         })
 
@@ -231,7 +231,7 @@ async def get_opportunity(
                     "description": job.get("description", ""),
                     "posted_date": job.get("posted_date"),
                     "status": job.get("status", "active"),
-                    "source": job.get("source", "LIVE_API"),
+                    "source": job.get("source") or ("DEMO_SYNTHETIC" if is_demo_mode else "UNKNOWN"),
                     "skills": skills_by_job.get(job["id"], []),
                 }
         except Exception as e:

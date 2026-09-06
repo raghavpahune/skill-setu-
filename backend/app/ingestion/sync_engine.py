@@ -73,6 +73,7 @@ class SyncEngine:
             total_fetched = 0
             total_added = 0
             total_updated = 0
+            total_skipped = 0
             src_norm = (source_name or "all").lower().strip()
             valid_sources = {"all", "data.gov.in", "schemes", "ogd", "adzuna", "jobs"}
             if src_norm not in valid_sources:
@@ -88,12 +89,15 @@ class SyncEngine:
                 sch_records = raw_sch.get("records", [])
                 total_fetched += len(sch_records)
                 transformed_schemes = self.datagov_connector.transform_scholarship_schemes(sch_records)
+                total_skipped += max(0, len(sch_records) - len(transformed_schemes))
 
                 # Craftsmen Training Schemes
                 raw_cts = self.datagov_connector.fetch_resource(RESOURCE_ITI_CRAFTSMEN)
                 cts_records = raw_cts.get("records", [])
                 total_fetched += len(cts_records)
-                transformed_schemes.extend(self.datagov_connector.transform_cts_schemes(cts_records))
+                cts_schemes = self.datagov_connector.transform_cts_schemes(cts_records)
+                total_skipped += max(0, len(cts_records) - len(cts_schemes))
+                transformed_schemes.extend(cts_schemes)
 
                 added_s, updated_s = self._upsert_schemes(transformed_schemes)
                 total_added += added_s
@@ -104,12 +108,15 @@ class SyncEngine:
                 naps_records = raw_naps.get("records", [])
                 total_fetched += len(naps_records)
                 transformed_opps = self.datagov_connector.transform_naps_opportunities(naps_records)
+                total_skipped += max(0, len(naps_records) - len(transformed_opps))
 
                 # PMKVY Vocational Training
                 raw_pmkvy = self.datagov_connector.fetch_resource(RESOURCE_PMKVY_SKILL)
                 pmkvy_records = raw_pmkvy.get("records", [])
                 total_fetched += len(pmkvy_records)
-                transformed_opps.extend(self.datagov_connector.transform_pmkvy_opportunities(pmkvy_records))
+                pmkvy_opps = self.datagov_connector.transform_pmkvy_opportunities(pmkvy_records)
+                total_skipped += max(0, len(pmkvy_records) - len(pmkvy_opps))
+                transformed_opps.extend(pmkvy_opps)
 
                 added_o, updated_o = self._upsert_jobs(transformed_opps)
                 total_added += added_o
@@ -124,6 +131,7 @@ class SyncEngine:
                 total_fetched += len(adzuna_raw)
 
                 adzuna_jobs = self.adzuna_connector.validate_and_transform(adzuna_raw)
+                total_skipped += max(0, len(adzuna_raw) - len(adzuna_jobs))
                 added_j, updated_j = self._upsert_jobs(adzuna_jobs)
                 total_added += added_j
                 total_updated += updated_j
@@ -141,6 +149,7 @@ class SyncEngine:
                 "records_fetched": total_fetched,
                 "records_added": total_added,
                 "records_updated": total_updated,
+                "records_skipped": total_skipped,
                 "completed_at": completed_at,
                 "duration_ms": duration_ms,
             })
