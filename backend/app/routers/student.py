@@ -179,8 +179,8 @@ async def my_skill_passport(
         ]
         return {
             "user_id": user_id,
-            "name": current_user.get("full_name") or matched_profile["name"],
-            "target_role": matched_profile["target_role"],
+            "name": current_user.get("full_name") or matched_profile.get("full_name") or matched_profile.get("name", "Student Candidate"),
+            "target_role": matched_profile.get("target_role") or matched_profile.get("desired_role", ""),
             "skill_match_pct": matched_profile["skill_match_pct"],
             "current_skills": current,
             "required_skills": required,

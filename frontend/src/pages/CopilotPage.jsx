@@ -4,21 +4,19 @@ import Layout from '../components/Layout';
 import CopilotChat from '../components/CopilotChat';
 import { useAuth } from '../context/AuthContext';
 
+import { resolveEffectiveCopilotRole } from '../utils/copilotRole';
+
 export default function CopilotPage({ roleOverride }) {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const { role: authRole, isAuthenticated } = useAuth();
   const urlRole = searchParams.get('role');
-  const validRoles = ['government', 'institute', 'student', 'employer', 'admin'];
-
-  let initialRole = 'student';
-  if (roleOverride && validRoles.includes(roleOverride.toLowerCase())) {
-    initialRole = roleOverride.toLowerCase();
-  } else if (urlRole && validRoles.includes(urlRole.toLowerCase())) {
-    initialRole = urlRole.toLowerCase();
-  } else if (isAuthenticated && authRole && validRoles.includes(authRole.toLowerCase())) {
-    initialRole = authRole.toLowerCase();
-  }
+  const initialRole = resolveEffectiveCopilotRole({
+    authRole,
+    isAuthenticated,
+    urlRole,
+    roleOverride,
+  });
 
   const initialPrompt = searchParams.get('q') || '';
   const urlDistrict = searchParams.get('district') || '';

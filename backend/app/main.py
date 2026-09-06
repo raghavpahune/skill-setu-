@@ -67,10 +67,11 @@ app.add_middleware(
 from app.routers import (
     auth, skills, jobs, gaps, courses, signals, forecast,
     districts, student, copilot, employer, schemes, opportunities, sync,
-    simulator, admin, gov_opportunities, institute, curriculum,
+    simulator, admin, gov_opportunities, institute, curriculum, profile,
 )
 
 app.include_router(auth.router, prefix="/api", tags=["Authentication"])
+app.include_router(profile.router, prefix="/api", tags=["Profiles"])
 
 app.include_router(skills.router, prefix="/api", tags=["Skills"])
 app.include_router(jobs.router, prefix="/api", tags=["Jobs"])

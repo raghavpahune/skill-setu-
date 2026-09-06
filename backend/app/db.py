@@ -240,8 +240,8 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
-    # 4. Ensure baseline demo users exist for local testing and demonstration
-    init_demo_users()
+    if settings.use_demo_data:
+        init_demo_users()
 
 
 def get_data_governance_summary() -> dict[str, Any]:
@@ -250,7 +250,7 @@ def get_data_governance_summary() -> dict[str, Any]:
         init_db()
 
     tables = [
-        "student_assessments", "student_profiles", "employer_demands",
+        "student_assessments", "student_profiles", "employee_profiles", "employer_demands",
         "employer_feedback", "courses", "industry_signals",
         "gov_opportunities", "users", "jobs", "skills"
     ]
@@ -268,6 +268,9 @@ def get_data_governance_summary() -> dict[str, Any]:
             elif tbl == "student_profiles":
                 from app.repositories.supabase_repository import list_student_profiles
                 records = list_student_profiles()
+            elif tbl == "employee_profiles":
+                from app.repositories.supabase_repository import list_employee_profiles
+                records = list_employee_profiles()
             elif tbl == "employer_demands":
                 from app.repositories.supabase_repository import list_employer_demands
                 records = list_employer_demands()
@@ -844,7 +847,8 @@ def get_skill_forecast_by_id(forecast_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def init_demo_users():
-    """Ensure baseline demo accounts exist for each role with bcrypt hashed passwords."""
+    if not settings.use_demo_data:
+        return
     users = _cache.setdefault("users", [])
     existing_emails = {u.get("email", "").lower() for u in users if isinstance(u, dict)}
 
@@ -857,6 +861,30 @@ def init_demo_users():
             "hashed_password": hash_password("Password@123"),
             "full_name": "Aarav Patil",
             "role": "STUDENT",
+            "organization_id": None,
+            "district": "Pune",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-student-002",
+            "email": "student2@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "Priya Deshmukh",
+            "role": "STUDENT",
+            "organization_id": None,
+            "district": "Mumbai",
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "usr-employee-001",
+            "email": "employee@skillsetu.gov.in",
+            "hashed_password": hash_password("Password@123"),
+            "full_name": "Vikram Shinde",
+            "role": "EMPLOYEE",
             "organization_id": None,
             "district": "Pune",
             "is_active": True,

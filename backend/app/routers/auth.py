@@ -18,15 +18,15 @@ from app.db import get_user_by_email, get_user_by_id, save_user
 logger = logging.getLogger("skillsetu.auth")
 router = APIRouter()
 
-ALLOWED_PUBLIC_ROLES = {"STUDENT", "EMPLOYER", "INSTITUTE", "GOVERNMENT"}
-ALL_ROLES = {"STUDENT", "EMPLOYER", "INSTITUTE", "GOVERNMENT", "ADMIN"}
+ALLOWED_PUBLIC_ROLES = {"STUDENT", "EMPLOYEE", "EMPLOYER", "INSTITUTE", "GOVERNMENT"}
+ALL_ROLES = {"STUDENT", "EMPLOYEE", "EMPLOYER", "INSTITUTE", "GOVERNMENT", "ADMIN"}
 
 
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=150, description="Valid email address")
     password: str = Field(..., min_length=6, max_length=100, description="Minimum 6 characters password")
     full_name: str = Field(..., min_length=2, max_length=100, description="Full name")
-    role: str = Field(..., description="STUDENT, EMPLOYER, INSTITUTE, or GOVERNMENT")
+    role: str = Field(..., description="STUDENT, EMPLOYEE, EMPLOYER, INSTITUTE, or GOVERNMENT")
     organization_id: str | None = None
     district: str | None = None
 

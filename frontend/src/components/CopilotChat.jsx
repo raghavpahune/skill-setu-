@@ -35,6 +35,13 @@ const ROLE_DEFINITIONS = [
     placeholder: 'Ask about district labour deficits, ITI seat allocations, or scheme budgets (e.g., What are the biggest skill gaps in Pune?)...',
   },
   {
+    id: 'employee',
+    label: 'Employees',
+    badge: 'Career Transition & Reskilling',
+    icon: '⚡',
+    placeholder: 'Ask about career transitions, upskilling paths, or transferable competencies (e.g., How do I transition to an Automation Specialist?)...',
+  },
+  {
     id: 'admin',
     label: 'Admin',
     badge: 'Governance & Provenance',
@@ -51,6 +58,12 @@ const CONTEXTUAL_PROMPTS = {
     'What step-by-step learning roadmap should I follow to bridge my skill gaps?',
     'Which skills should I learn for an AI Engineer role?',
     'What is the requirement for EV Battery Technician in Pune?',
+  ],
+  employee: [
+    'How can I transition from my current role to an advanced technology role in Maharashtra?',
+    'Which skills from my experience are transferable to Electric Vehicle manufacturing?',
+    'What certified upskilling courses are available for working professionals in Pune?',
+    'Which high-growth industries in Maharashtra value my existing skill background?',
   ],
   employer: [
     'Which technical competencies are currently reporting the highest hiring bottlenecks?',
@@ -91,13 +104,18 @@ export default function CopilotChat({
   const hasAutoSentRef = useRef(false);
 
   const effectiveDefaultRole = useMemo(() => {
-    if (!isAuthenticated) return defaultRole;
-    if (authRole === 'STUDENT') return 'student';
-    if (authRole === 'EMPLOYER') return 'employer';
-    if (authRole === 'INSTITUTE') return 'institute';
-    if (authRole === 'GOVERNMENT') return 'government';
-    if (authRole === 'ADMIN') return 'admin';
-    return defaultRole;
+    if (isAuthenticated && authRole) {
+      const lowerAuth = authRole.toLowerCase();
+      if (lowerAuth !== 'admin') {
+        const valid = ['government', 'institute', 'student', 'employer', 'employee'];
+        if (valid.includes(lowerAuth)) {
+          return lowerAuth;
+        }
+        return 'student';
+      }
+      return defaultRole || 'admin';
+    }
+    return defaultRole || 'student';
   }, [authRole, isAuthenticated, defaultRole]);
 
   const [role, setRole] = useState(effectiveDefaultRole);
@@ -157,12 +175,6 @@ Select your stakeholder role above or explore one of the verified inquiries belo
       .catch(() => {});
   }, []);
 
-  // Update role if defaultRole prop changes
-  useEffect(() => {
-    if (defaultRole) {
-      setRole(defaultRole);
-    }
-  }, [defaultRole]);
 
   // If initialDistrict provided, update district state and welcome message
   useEffect(() => {
@@ -280,11 +292,14 @@ Select your stakeholder role above or explore one of the verified inquiries belo
     setLoading(true);
 
     try {
+      const activeRole = (isAuthenticated && authRole && authRole.toLowerCase() !== 'admin')
+        ? (['government', 'institute', 'student', 'employer', 'employee'].includes(authRole.toLowerCase()) ? authRole.toLowerCase() : 'student')
+        : role;
       const res = await api.askCopilot(
         trimmed,
-        role,
+        activeRole,
         district || undefined,
-        (role === 'student' ? (studentId || initialStudentId) : undefined) || undefined,
+        (activeRole === 'student' ? (studentId || initialStudentId) : undefined) || undefined,
         contextData || undefined
       );
       setErrorState(null);
