@@ -93,7 +93,7 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
     if is_explicit_demo_mode():
         logs = list(get_demo("sync_logs"))
         if requested_source:
-            logs = [l for l in logs if l.get("source_name") == requested_source]
+            logs = [log for log in logs if log.get("source_name") == requested_source]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
@@ -104,7 +104,7 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
 
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_log = logs[0] if logs else None
-    last_success = next((l for l in logs if l.get("status") == "success"), None)
+    last_success = next((log for log in logs if log.get("status") == "success"), None)
 
     if failed_to_fetch and not logs:
         status = "unavailable"
@@ -160,7 +160,7 @@ def tool_get_sync_logs(args: dict[str, Any]) -> dict[str, Any]:
     if is_explicit_demo_mode():
         logs = list(get_demo("sync_logs"))
         if source:
-            logs = [l for l in logs if l.get("source_name") == source]
+            logs = [log for log in logs if log.get("source_name") == source]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
