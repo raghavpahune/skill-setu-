@@ -190,8 +190,17 @@ def test_curriculum_hardening_audit_and_validation(client):
     assert res_whitespace.status_code == 400
 
 
-def test_placement_rate_no_synthetic_fallback():
-    courses = audit_all_courses(is_demo=True)
-    assert len(courses) > 0
-    for c in courses:
-        assert isinstance(c["placement_rate"], (int, float))
+def test_placement_rate_no_synthetic_fallback(monkeypatch):
+    from app.repositories import supabase_repository
+    monkeypatch.setattr(supabase_repository, "list_courses", lambda *args, **kwargs: [
+        {"id": "cr-test-orphan-999", "name": "Orphan Trade", "district": "Nashik", "category": "General Technical", "enrolment_count": 50}
+    ])
+    monkeypatch.setattr(supabase_repository, "list_course_skills", lambda *args, **kwargs: [])
+    monkeypatch.setattr(supabase_repository, "list_placements", lambda *args, **kwargs: [])
+    monkeypatch.setattr(supabase_repository, "list_skills", lambda *args, **kwargs: [])
+
+    courses = audit_all_courses(is_demo=False)
+    assert len(courses) == 1
+    orphan = courses[0]
+    assert orphan["placed_count"] == 0
+    assert orphan["placement_rate"] == 0.0

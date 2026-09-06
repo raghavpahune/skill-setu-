@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { api } from '../services/api';
@@ -200,18 +200,21 @@ export default function CurriculumHub() {
   const [districtFilter, setDistrictFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const requestIdRef = useRef(0);
 
   const fetchData = useCallback(() => {
-    let live = true;
+    const currentRequestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     Promise.allSettled([
       api.getCurriculumSummary(),
       api.getCurriculumAudit(),
     ]).then(([summaryRes, auditRes]) => {
-      if (!live) return;
+      if (currentRequestId !== requestIdRef.current) return;
       if (summaryRes.status === 'fulfilled' && summaryRes.value?.status === 'success') {
         setSummary(summaryRes.value);
+      } else {
+        setSummary(null);
       }
       const raw = auditRes.status === 'fulfilled' ? auditRes.value : null;
       if (raw && raw.status !== 'error' && !raw.detail) {
@@ -223,13 +226,12 @@ export default function CurriculumHub() {
       }
       setLoading(false);
     });
-    return () => { live = false; };
   }, []);
 
   useEffect(() => {
-    const cancel = fetchData();
+    fetchData();
     return () => {
-      if (cancel) cancel();
+      requestIdRef.current++;
     };
   }, [fetchData]);
 
@@ -479,7 +481,7 @@ export default function CurriculumHub() {
 
       <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 p-4 text-[11px] text-slate-500 dark:text-slate-400">
         <span className="font-semibold text-slate-700 dark:text-slate-300">Data Provenance: </span>
-        Course health scores are computed dynamically from authoritative Supabase placement records, employer demand signals, and multi-horizon skill forecasts. Blueprints reflect NSQF-aligned modernization paths, not guaranteed outcomes.
+        Course health scores are computed dynamically from active institutional placement records, employer demand signals, and multi-horizon skill forecasts. Blueprints reflect NSQF-aligned modernization paths, not guaranteed outcomes.
       </div>
 
       {selectedBlueprint && (
