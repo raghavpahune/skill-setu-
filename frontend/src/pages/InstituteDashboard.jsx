@@ -342,6 +342,13 @@ export default function InstituteDashboard() {
             </button>
           )}
           <Link
+            to="/curriculum"
+            className="px-3.5 py-2 bg-slate-900 dark:bg-teal-700 hover:bg-slate-800 dark:hover:bg-teal-600 text-white rounded-lg text-xs font-bold border border-slate-700 dark:border-teal-600 flex items-center gap-1.5 transition-colors"
+          >
+            <span>📊</span>
+            <span>Curriculum Hub</span>
+          </Link>
+          <Link
             to="/student/copilot"
             className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition-colors"
           >

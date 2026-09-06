@@ -492,6 +492,13 @@ export default function GovernmentDashboard() {
             </button>
           )}
           <Link
+            to="/curriculum"
+            className="px-4 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+          >
+            <span>📋</span>
+            <span>Curriculum Intelligence</span>
+          </Link>
+          <Link
             to={`/government/district/${encodeURIComponent(selectedDistrict || 'Pune')}`}
             className="px-4 py-2 bg-slate-900 dark:bg-teal-600 hover:bg-slate-800 dark:hover:bg-teal-700 text-white text-sm font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
           >
@@ -500,6 +507,7 @@ export default function GovernmentDashboard() {
           </Link>
         </div>
       </div>
+
 
       {/* Toast Notification */}
       {toastMessage && (
