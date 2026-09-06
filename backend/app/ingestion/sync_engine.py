@@ -267,10 +267,8 @@ class SyncEngine:
         if supabase_ready and not is_demo:
             from app.repositories.supabase_repository import upsert_schemes
             upsert_schemes(incoming_schemes)
-        elif is_demo or not supabase_ready:
+        else:
             set_demo("schemes", persisted_schemes)
-            if supabase_ready:
-                persist_schemes_to_supabase(incoming_schemes)
 
         return added, updated
 
@@ -345,10 +343,8 @@ class SyncEngine:
         if supabase_ready and not is_demo:
             from app.repositories.supabase_repository import upsert_jobs
             upsert_jobs(incoming_jobs)
-        elif is_demo or not supabase_ready:
+        else:
             set_demo("jobs", persisted_jobs)
-            if supabase_ready:
-                persist_jobs_to_supabase(incoming_jobs)
 
         return added, updated
 
@@ -392,10 +388,7 @@ class SyncEngine:
             if supabase_ready and not is_demo:
                 from app.repositories.supabase_repository import batch_create_job_skills
                 batch_create_job_skills(new_links)
-            elif is_demo or not supabase_ready:
-                if supabase_ready:
-                    from app.repositories.supabase_repository import batch_create_job_skills
-                    batch_create_job_skills(new_links)
+            else:
                 demo_js = list(get_demo("job_skills"))
                 demo_js.extend(new_links)
                 set_demo("job_skills", demo_js)

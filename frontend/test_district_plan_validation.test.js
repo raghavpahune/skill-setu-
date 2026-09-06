@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { isValidDistrictPlan } from './src/utils/districtPlanValidator.js';
 
 const EMPTY_DISTRICT_PLAN = (district) => ({
   district,
@@ -29,19 +30,7 @@ const EMPTY_DISTRICT_PLAN = (district) => ({
   },
 });
 
-function validateAndApplyDistrictPlan(res, districtName, setPlan, setHasError) {
-  if (res && res.district && (res.total_jobs !== undefined || res.skill_gaps || res.top_skills || res.local_courses)) {
-    setPlan(res);
-  } else {
-    setHasError(true);
-    setPlan(EMPTY_DISTRICT_PLAN(districtName));
-  }
-}
-
-test('valid backend district plan response is accepted without status kpis or top_shortages', () => {
-  let appliedPlan = null;
-  let hasError = false;
-
+test('valid backend district plan response is accepted by production validator', () => {
   const validBackendResponse = {
     district: 'Pune',
     total_jobs: 42,
@@ -70,24 +59,10 @@ test('valid backend district plan response is accepted without status kpis or to
     },
   };
 
-  validateAndApplyDistrictPlan(
-    validBackendResponse,
-    'Pune',
-    (p) => { appliedPlan = p; },
-    (e) => { hasError = e; },
-  );
-
-  assert.equal(hasError, false);
-  assert.equal(appliedPlan.district, 'Pune');
-  assert.equal(appliedPlan.total_jobs, 42);
-  assert.equal(appliedPlan.top_roles.length, 1);
-  assert.equal(appliedPlan.local_courses.length, 1);
+  assert.equal(isValidDistrictPlan(validBackendResponse), true);
 });
 
 test('valid backend response with zero jobs and empty lists is accepted as authoritative zero data', () => {
-  let appliedPlan = null;
-  let hasError = false;
-
   const validEmptyResponse = {
     district: 'Solapur',
     total_jobs: 0,
@@ -116,58 +91,45 @@ test('valid backend response with zero jobs and empty lists is accepted as autho
     },
   };
 
-  validateAndApplyDistrictPlan(
-    validEmptyResponse,
-    'Solapur',
-    (p) => { appliedPlan = p; },
-    (e) => { hasError = e; },
-  );
-
-  assert.equal(hasError, false);
-  assert.equal(appliedPlan.district, 'Solapur');
-  assert.equal(appliedPlan.total_jobs, 0);
-  assert.equal(appliedPlan.top_roles.length, 0);
+  assert.equal(isValidDistrictPlan(validEmptyResponse), true);
 });
 
-test('incomplete response missing required plan fields enters controlled error state and safe empty plan', () => {
-  let appliedPlan = null;
-  let hasError = false;
+test('partial payload with district and total_jobs 0 triggers fallback rather than setPlan', () => {
+  const partialPayload = {
+    district: 'Pune',
+    total_jobs: 0,
+  };
 
+  assert.equal(isValidDistrictPlan(partialPayload), false);
+
+  let planState = null;
+  let errorState = false;
+
+  if (isValidDistrictPlan(partialPayload)) {
+    planState = partialPayload;
+  } else {
+    errorState = true;
+    planState = EMPTY_DISTRICT_PLAN('Pune');
+  }
+
+  assert.equal(errorState, true);
+  assert.equal(planState.district, 'Pune');
+  assert.deepEqual(planState.top_roles, []);
+  assert.deepEqual(planState.skill_gaps, []);
+  assert.equal(planState.total_jobs, 0);
+  assert.equal(planState.expected_impact.projected_placement_lift_pct, 0);
+});
+
+test('incomplete response missing required plan fields is rejected by production validator', () => {
   const incompleteResponse = {
     district: 'Kolhapur',
   };
 
-  validateAndApplyDistrictPlan(
-    incompleteResponse,
-    'Kolhapur',
-    (p) => { appliedPlan = p; },
-    (e) => { hasError = e; },
-  );
-
-  assert.equal(hasError, true);
-  assert.equal(appliedPlan.district, 'Kolhapur');
-  assert.equal(appliedPlan.total_jobs, 0);
-  assert.equal(appliedPlan.total_courses, 0);
-  assert.deepEqual(appliedPlan.top_roles, []);
-  assert.deepEqual(appliedPlan.skill_gaps, []);
-  assert.deepEqual(appliedPlan.required_equipment, []);
-  assert.equal(appliedPlan.expected_impact.projected_placement_lift_pct, 0);
-  assert.equal(appliedPlan.expected_impact.total_budget_estimate_inr, 0);
+  assert.equal(isValidDistrictPlan(incompleteResponse), false);
 });
 
-test('null or undefined backend response enters controlled error state and safe empty plan', () => {
-  let appliedPlan = null;
-  let hasError = false;
-
-  validateAndApplyDistrictPlan(
-    null,
-    'Nagpur',
-    (p) => { appliedPlan = p; },
-    (e) => { hasError = e; },
-  );
-
-  assert.equal(hasError, true);
-  assert.equal(appliedPlan.district, 'Nagpur');
-  assert.equal(appliedPlan.total_jobs, 0);
-  assert.equal(appliedPlan.expected_impact.target_placed_students, 0);
+test('null or undefined backend response is rejected by production validator', () => {
+  assert.equal(isValidDistrictPlan(null), false);
+  assert.equal(isValidDistrictPlan(undefined), false);
+  assert.equal(isValidDistrictPlan({}), false);
 });

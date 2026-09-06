@@ -3,6 +3,7 @@ import asyncio
 import json
 from typing import Any
 
+from app.config import settings
 from app.core.data_mode import is_explicit_demo_mode
 from app.db import get_demo
 from app.routers.schemes import list_schemes
@@ -128,6 +129,20 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def tool_refresh_data_source(args: dict[str, Any]) -> dict[str, Any]:
+    configured_key = (getattr(settings, "admin_api_key", None) or "").strip()
+    admin_key = str(args.get("admin_key") or args.get("admin_api_key") or "").strip()
+    caller_role = str(args.get("role") or args.get("caller_role") or "").strip().upper()
+    if caller_role and caller_role != "ADMIN":
+        return {
+            "status": "error",
+            "error": "Unauthorized: non-admin callers cannot trigger data refresh",
+        }
+    if configured_key and caller_role != "ADMIN" and admin_key != configured_key:
+        return {
+            "status": "error",
+            "error": "Unauthorized: valid admin API key or ADMIN role required to trigger data refresh",
+        }
+
     source = str(args.get("source", "all")).lower().strip()
     if source not in ALLOWED_MCP_SOURCES:
         return {
@@ -305,6 +320,10 @@ TOOLS = {
                 "source": {
                     "type": "string",
                     "description": "Source to refresh (all, data.gov.in, adzuna, jobs, schemes, industry_signals, skill_forecasts)",
+                },
+                "admin_key": {
+                    "type": "string",
+                    "description": "Optional admin API key for authentication",
                 },
             },
         },

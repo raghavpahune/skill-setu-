@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import SkillGapBar from '../components/SkillGapBar';
 import { api } from '../services/api';
+import { isValidDistrictPlan } from '../utils/districtPlanValidator';
 
 const DISTRICT_NAMES = [
   'Pune',
@@ -120,7 +121,7 @@ export default function DistrictPlan() {
     api.getDistrictPlan(districtName)
       .then((res) => {
         if (!isCurrent) return;
-        if (res && res.district && (res.total_jobs !== undefined || res.skill_gaps || res.top_skills || res.local_courses)) {
+        if (isValidDistrictPlan(res)) {
           setPlan(res);
         } else {
           setHasError(true);

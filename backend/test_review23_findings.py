@@ -197,3 +197,53 @@ def test_forecast_service_propagates_unexpected_programming_error(monkeypatch):
 
     with pytest.raises(TypeError, match="Unexpected argument type"):
         get_forecasts(skill_id=None, is_demo=False)
+
+
+def test_sync_engine_demo_mode_blocks_authoritative_writes(monkeypatch):
+    from app.ingestion.sync_engine import SyncEngine
+
+    supabase_writes = []
+
+    monkeypatch.setattr("app.ingestion.sync_engine.is_explicit_demo_mode", lambda: True)
+    monkeypatch.setattr("app.ingestion.sync_engine.is_supabase_connected", lambda: True)
+    monkeypatch.setattr("app.ingestion.sync_engine.persist_schemes_to_supabase", lambda schemes: supabase_writes.append(("schemes", schemes)))
+    monkeypatch.setattr("app.ingestion.sync_engine.persist_jobs_to_supabase", lambda jobs: supabase_writes.append(("jobs", jobs)))
+    monkeypatch.setattr("app.repositories.supabase_repository.upsert_schemes", lambda schemes: supabase_writes.append(("upsert_schemes", schemes)))
+    monkeypatch.setattr("app.repositories.supabase_repository.upsert_jobs", lambda jobs: supabase_writes.append(("upsert_jobs", jobs)))
+    monkeypatch.setattr("app.repositories.supabase_repository.batch_create_job_skills", lambda links: supabase_writes.append(("batch_create_job_skills", links)))
+
+    engine = SyncEngine()
+    test_schemes = [{"source": "DEMO", "external_id": "sch-demo-1", "title": "Demo Scheme"}]
+    test_jobs = [{"source": "DEMO", "external_id": "job-demo-1", "title": "Demo Job", "skill_ids": ["sk-1"]}]
+
+    engine._upsert_schemes(test_schemes)
+    engine._upsert_jobs(test_jobs)
+    engine._upsert_job_skills(test_jobs)
+
+    assert len(supabase_writes) == 0
+
+
+def test_mcp_refresh_data_source_rejects_non_admin_caller():
+    from app.mcp.tools import tool_refresh_data_source
+
+    result = tool_refresh_data_source({"source": "data.gov.in", "role": "student"})
+    assert result["status"] == "error"
+    assert "Unauthorized" in result["error"]
+
+
+def test_mcp_refresh_data_source_requires_admin_key_when_configured(monkeypatch):
+    from app.config import settings
+    from app.mcp.tools import tool_refresh_data_source
+
+    monkeypatch.setattr(settings, "admin_api_key", "secret-test-key-999")
+
+    result_unauthorized = tool_refresh_data_source({"source": "data.gov.in"})
+    assert result_unauthorized["status"] == "error"
+    assert "Unauthorized" in result_unauthorized["error"]
+
+    result_wrong_key = tool_refresh_data_source({"source": "data.gov.in", "admin_key": "wrong-key"})
+    assert result_wrong_key["status"] == "error"
+    assert "Unauthorized" in result_wrong_key["error"]
+
+    result_authorized = tool_refresh_data_source({"source": "data.gov.in", "admin_key": "secret-test-key-999"})
+    assert result_authorized["status"] in ("success", "skipped")
