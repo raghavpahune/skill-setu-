@@ -1165,11 +1165,14 @@ def list_placements(course_ids: list[str] | None = None) -> list[dict[str, Any]]
         raise SupabaseRepositoryError(f"Database query failed for placements: {e}") from e
 
 
-def list_sync_logs(limit: int = 100) -> list[dict[str, Any]]:
+def list_sync_logs(limit: int = 100, source_name: str | None = None) -> list[dict[str, Any]]:
     """List automated synchronization audit logs from Supabase."""
     try:
         client = get_client()
-        res = client.table("sync_logs").select("*").order("started_at", desc=True).limit(limit).execute()
+        query = client.table("sync_logs").select("*")
+        if source_name:
+            query = query.eq("source_name", source_name)
+        res = query.order("started_at", desc=True).limit(limit).execute()
         return getattr(res, "data", []) or []
     except SupabaseRepositoryError:
         raise

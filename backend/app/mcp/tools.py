@@ -92,16 +92,15 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
     failed_to_fetch = False
     if is_explicit_demo_mode():
         logs = list(get_demo("sync_logs"))
+        if requested_source:
+            logs = [l for l in logs if l.get("source_name") == requested_source]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            logs = list_sync_logs(limit=50)
+            logs = list_sync_logs(limit=50, source_name=requested_source)
         except Exception:
             logs = []
             failed_to_fetch = True
-
-    if requested_source:
-        logs = [l for l in logs if l.get("source_name") == requested_source]
 
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_log = logs[0] if logs else None
@@ -160,15 +159,14 @@ def tool_get_sync_logs(args: dict[str, Any]) -> dict[str, Any]:
     source = args.get("source")
     if is_explicit_demo_mode():
         logs = list(get_demo("sync_logs"))
+        if source:
+            logs = [l for l in logs if l.get("source_name") == source]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            logs = list_sync_logs(limit=limit * 2)
+            logs = list_sync_logs(limit=limit, source_name=source)
         except Exception:
             logs = []
-
-    if source:
-        logs = [l for l in logs if l.get("source_name") == source]
 
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     safe_logs = []

@@ -115,16 +115,23 @@ class IngestionScheduler:
                 "message": "Synchronization is already in progress. Overlapping run prevented.",
             }
 
-        loop = asyncio.get_running_loop()
-        is_distributed_running = await loop.run_in_executor(None, self._check_active_distributed_sync)
-        if is_distributed_running:
-            logger.warning("Synchronization requested while another sync is actively running. Skipping.")
-            return {
-                "status": "skipped",
-                "message": "Synchronization is already in progress. Overlapping run prevented.",
-            }
-
         async with lock:
+            if self._is_sync_running:
+                logger.warning("Synchronization requested while another sync is actively running. Skipping.")
+                return {
+                    "status": "skipped",
+                    "message": "Synchronization is already in progress. Overlapping run prevented.",
+                }
+
+            loop = asyncio.get_running_loop()
+            is_distributed_running = await loop.run_in_executor(None, self._check_active_distributed_sync)
+            if is_distributed_running:
+                logger.warning("Synchronization requested while another sync is actively running. Skipping.")
+                return {
+                    "status": "skipped",
+                    "message": "Synchronization is already in progress. Overlapping run prevented.",
+                }
+
             self._is_sync_running = True
             attempt_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
             start_perf = time.perf_counter()
