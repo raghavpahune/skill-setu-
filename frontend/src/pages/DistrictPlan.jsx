@@ -116,7 +116,7 @@ export default function DistrictPlan() {
     api.getDistrictPlan(districtName)
       .then((res) => {
         if (!isCurrent) return;
-        if (res && res.district && (res.status === 'success' || res.kpis || res.top_shortages)) {
+        if (res && res.district && (res.total_jobs !== undefined || res.skill_gaps || res.top_skills || res.local_courses)) {
           setPlan(res);
         } else {
           setHasError(true);

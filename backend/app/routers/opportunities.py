@@ -231,7 +231,7 @@ async def get_opportunity(
                     "description": job.get("description", ""),
                     "posted_date": job.get("posted_date"),
                     "status": job.get("status", "active"),
-                    "source": job.get("source") or ("DEMO_SYNTHETIC" if is_demo_mode else "UNKNOWN"),
+                    "source": job.get("source") or "UNKNOWN",
                     "skills": skills_by_job.get(job["id"], []),
                 }
         except Exception as e:

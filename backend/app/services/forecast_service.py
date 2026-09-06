@@ -18,16 +18,16 @@ def get_forecasts(skill_id: str | None = None, is_demo: bool | None = None) -> l
         if skill_id:
             forecasts = [f for f in forecasts if f.get("skill_id") == skill_id]
     else:
-        from app.repositories.supabase_repository import list_skills
+        from app.repositories.supabase_repository import list_skills, SupabaseRepositoryError
         try:
             forecasts = list_skill_forecasts(skill_id=skill_id) or []
-        except Exception as e:
+        except SupabaseRepositoryError as e:
             logger.warning("[ForecastService] list_skill_forecasts failed: %s", e)
             forecasts = []
         try:
             repo_skills = list_skills(limit=10000) or []
             skills_map = {s["id"]: s for s in repo_skills if "id" in s}
-        except Exception as e:
+        except SupabaseRepositoryError as e:
             logger.warning("[ForecastService] list_skills failed: %s", e)
             skills_map = {}
 

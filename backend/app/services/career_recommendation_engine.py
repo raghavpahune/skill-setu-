@@ -305,8 +305,24 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
         course_source_default = "DEMO_SYNTHETIC"
     else:
         try:
-            from app.repositories.supabase_repository import list_courses
+            from app.repositories.supabase_repository import list_courses, list_course_skills, list_skills
             all_courses = list_courses() or []
+            if all_courses:
+                course_ids = [c["id"] for c in all_courses if c.get("id")]
+                cs_links = list_course_skills(course_ids=course_ids) or []
+                skills_repo = list_skills(limit=10000) or []
+                skill_name_map = {s["id"]: s.get("name", "") for s in skills_repo if s.get("id")}
+                skills_by_course: dict[str, list[str]] = {}
+                for cs in cs_links:
+                    cid = cs.get("course_id")
+                    sid = cs.get("skill_id")
+                    sname = skill_name_map.get(sid, sid)
+                    if cid and sname:
+                        skills_by_course.setdefault(cid, []).append(sname)
+                for c in all_courses:
+                    cid = c.get("id")
+                    if cid and cid in skills_by_course and not c.get("skills"):
+                        c["skills"] = skills_by_course[cid]
         except Exception:
             all_courses = []
         course_source_default = "INSTITUTE_SUBMITTED"
