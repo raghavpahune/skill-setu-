@@ -40,6 +40,11 @@ class ProfileNotFoundError(SupabaseRepositoryError):
     pass
 
 
+class EmployeeProfileNotFoundError(SupabaseRepositoryError):
+    pass
+
+
+
 class CourseNotFoundError(SupabaseRepositoryError):
     """Raised when a course record cannot be located in Supabase."""
     pass
@@ -261,9 +266,48 @@ VALID_EMPLOYER_DEMAND_COLUMNS = {
 
 VALID_STUDENT_PROFILE_COLUMNS = {
     "user_id",
+    "full_name",
+    "name",
+    "institution",
+    "degree",
+    "education_level",
+    "academic_year",
+    "graduation_year",
     "target_role",
+    "desired_role",
+    "preferred_location",
+    "career_interests",
+    "skills",
+    "required_skills",
+    "roadmap",
+    "projects",
+    "certifications",
+    "courses",
     "skill_match_pct",
+    "source",
+    "is_demo",
+    "created_at",
+    "updated_at",
 }
+
+VALID_EMPLOYEE_PROFILE_COLUMNS = {
+    "user_id",
+    "full_name",
+    "name",
+    "current_role",
+    "years_of_experience",
+    "industry",
+    "education",
+    "target_role",
+    "preferred_location",
+    "skills",
+    "certifications",
+    "source",
+    "is_demo",
+    "created_at",
+    "updated_at",
+}
+
 
 VALID_STUDENT_ASSESSMENT_COLUMNS = {
     "id",
@@ -448,6 +492,61 @@ def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
         raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
+
+
+def delete_student_profile(user_id: str) -> bool:
+    try:
+        client = get_client()
+        res = client.table("student_profiles").delete().eq("user_id", user_id).execute()
+        return bool(res.data)
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed deleting student_profile user_id='%s': %s", user_id, e)
+        raise SupabaseRepositoryError(f"Database delete failed for student profile: {e}") from e
+
+
+def get_employee_profile(user_id: str) -> dict[str, Any] | None:
+    try:
+        client = get_client()
+        res = client.table("employee_profiles").select("*").eq("user_id", user_id).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        return None
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching employee_profile user_id='%s': %s", user_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for employee profile '{user_id}': {e}") from e
+
+
+def list_employee_profiles() -> list[dict[str, Any]]:
+    try:
+        client = get_client()
+        res = client.table("employee_profiles").select("*").execute()
+        return res.data or []
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed listing employee_profiles: %s", e)
+        raise SupabaseRepositoryError(f"Database query failed for employee profiles: {e}") from e
+
+
+def upsert_employee_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
+    try:
+        client = get_client()
+        clean_profile = {k: v for k, v in profile_data.items() if k in VALID_EMPLOYEE_PROFILE_COLUMNS}
+        res = client.table("employee_profiles").upsert(clean_profile).execute()
+        saved = res.data[0] if (res.data and len(res.data) > 0) else profile_data
+        return {**profile_data, **saved}
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting employee_profile user_id='%s': %s", profile_data.get("user_id"), e)
+        raise SupabaseRepositoryError(f"Database upsert failed for employee profile: {e}") from e
+
+
+def delete_employee_profile(user_id: str) -> bool:
+    try:
+        client = get_client()
+        res = client.table("employee_profiles").delete().eq("user_id", user_id).execute()
+        return bool(res.data)
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed deleting employee_profile user_id='%s': %s", user_id, e)
+        raise SupabaseRepositoryError(f"Database delete failed for employee profile: {e}") from e
+
 
 
 

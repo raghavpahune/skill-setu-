@@ -103,11 +103,35 @@ CREATE POLICY "students_read_own_profile"
   TO authenticated
   USING (auth.uid()::text = user_id);
 
+CREATE POLICY "students_modify_own_profile"
+  ON student_profiles
+  FOR ALL
+  TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 CREATE POLICY "students_read_own_skills"
   ON student_skills
   FOR SELECT
   TO authenticated
   USING (auth.uid()::text = student_id);
+
+ALTER TABLE employee_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_role_all_employee_profiles"
+  ON employee_profiles
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "employees_manage_own_profile"
+  ON employee_profiles
+  FOR ALL
+  TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 
 -- ----------------------------------------------------------------------------
 -- 4. EMPLOYERS & EMPLOYER DEMANDS

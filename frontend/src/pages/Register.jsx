@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const ROLES = [
   { id: 'STUDENT', label: 'Student / Candidate', desc: 'Skill Passport, Gaps & AI Copilot', icon: '🎓' },
+  { id: 'EMPLOYEE', label: 'Working Professional', desc: 'Career Passport, Skills & Upskilling', icon: '💼' },
   { id: 'EMPLOYER', label: 'Employer / Enterprise', desc: 'Demand Reporting & Signal Validation', icon: '🏢' },
   { id: 'INSTITUTE', label: 'Training Institute / ITI', desc: 'Curriculum & Placement Health', icon: '🏛️' },
   { id: 'GOVERNMENT', label: 'Policy / Government', desc: 'State & District Intelligence & Plans', icon: '🇮🇳' },
@@ -72,7 +73,8 @@ export default function Register() {
       });
 
       const role = (user.role || '').toUpperCase();
-      if (role === 'STUDENT') navigate('/student');
+      if (role === 'STUDENT') navigate('/student/profile');
+      else if (role === 'EMPLOYEE') navigate('/employee/profile');
       else if (role === 'EMPLOYER') navigate('/employer');
       else if (role === 'INSTITUTE') navigate('/institute');
       else if (role === 'GOVERNMENT') navigate('/government');

@@ -74,7 +74,13 @@ export default function Layout({ children }) {
       case 'STUDENT':
         return [
           { path: '/student', label: 'Student Passport', desc: 'Personal Skill Pathway & Roadmap' },
+          { path: '/student/profile', label: 'Edit Passport', desc: 'Manage Skills, Projects & Certs' },
           { path: '/student/copilot', label: 'AI Career Copilot', desc: 'Evidence-Based Q&A & Guidance' },
+        ];
+      case 'EMPLOYEE':
+        return [
+          { path: '/employee/profile', label: 'Career Passport', desc: 'Experience, Skills & Transition Target' },
+          { path: '/student/copilot?role=employee', label: 'AI Career Copilot', desc: 'Transition Insights & Guidance' },
         ];
       case 'EMPLOYER':
         return [
@@ -142,6 +148,18 @@ export default function Layout({ children }) {
             { path: '/student/copilot?role=student', label: 'AI Career Copilot' },
             { path: '/student?tab=signals', label: 'Industry & Technology Alerts' },
             { path: '/student?tab=forecast', label: 'Future Rising Skills' },
+          ],
+        };
+      case 'EMPLOYEE':
+        return {
+          col2Title: 'Career Console',
+          col2Links: [
+            { path: '/employee/profile', label: 'My Career Passport' },
+            { path: '/student/copilot?role=employee', label: 'Career Transition Copilot' },
+          ],
+          col3Title: 'Workforce Intelligence',
+          col3Links: [
+            { path: '/student/copilot?role=employee', label: 'Skill Intelligence' },
           ],
         };
       case 'EMPLOYER':
@@ -240,6 +258,8 @@ export default function Layout({ children }) {
         return 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800';
       case 'STUDENT':
         return 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800';
+      case 'EMPLOYEE':
+        return 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800';
       case 'EMPLOYER':
         return 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
       case 'INSTITUTE':

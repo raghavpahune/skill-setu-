@@ -125,6 +125,9 @@ class MockSupabaseQuery:
                 if idx is None:
                     item_id = item.get("id")
                     idx = next((i for i, r in enumerate(self.table.rows) if item_id and r.get("id") == item_id), None)
+                if idx is None:
+                    uid = item.get("user_id")
+                    idx = next((i for i, r in enumerate(self.table.rows) if uid and r.get("user_id") == uid), None)
                 if idx is not None:
                     self.table.rows[idx].update(deepcopy(item))
                     result_rows.append(deepcopy(self.table.rows[idx]))
@@ -226,6 +229,7 @@ class MockSupabaseClient:
             "employer_feedback": MockSupabaseTable(feedback_rows),
             "employer_demands": MockSupabaseTable(demands_rows),
             "student_profiles": MockSupabaseTable(profiles_rows),
+            "employee_profiles": MockSupabaseTable(getattr(self, "_employee_profiles_rows", None)),
             "student_assessments": MockSupabaseTable(assessments_rows),
             "courses": MockSupabaseTable(courses_rows),
             "industry_signals": MockSupabaseTable(industry_signals_rows),

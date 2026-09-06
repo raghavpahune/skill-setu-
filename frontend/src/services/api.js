@@ -154,6 +154,72 @@ export const api = {
   getStudentRoadmap: (id) => fetchJSON(`/student/${id}/roadmap`),
   getStudentAlertDomains: () => fetchJSON('/student/alert-domains'),
 
+  getStudentProfile: () => fetchJSON('/student/profile'),
+  createStudentProfile: (payload) => fetchJSON('/student/profile', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  updateStudentProfile: (payload) => fetchJSON('/student/profile', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  patchStudentProfile: (payload) => fetchJSON('/student/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
+  updateStudentSkills: (skills) => fetchJSON('/student/profile/skills', {
+    method: 'PUT',
+    body: JSON.stringify({ skills }),
+  }),
+  addStudentSkill: (skill) => fetchJSON('/student/profile/skills', {
+    method: 'POST',
+    body: JSON.stringify(skill),
+  }),
+  deleteStudentSkill: (skillName) => fetchJSON(`/student/profile/skills/${encodeURIComponent(skillName)}`, {
+    method: 'DELETE',
+  }),
+  updateStudentProjects: (projects) => fetchJSON('/student/profile/projects', {
+    method: 'PUT',
+    body: JSON.stringify({ projects }),
+  }),
+  updateStudentCertifications: (certifications) => fetchJSON('/student/profile/certifications', {
+    method: 'PUT',
+    body: JSON.stringify({ certifications }),
+  }),
+  updateStudentCourses: (courses) => fetchJSON('/student/profile/courses', {
+    method: 'PUT',
+    body: JSON.stringify({ courses }),
+  }),
+
+  getEmployeeProfile: () => fetchJSON('/employee/profile'),
+  createEmployeeProfile: (payload) => fetchJSON('/employee/profile', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  updateEmployeeProfile: (payload) => fetchJSON('/employee/profile', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  patchEmployeeProfile: (payload) => fetchJSON('/employee/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
+  updateEmployeeSkills: (skills) => fetchJSON('/employee/profile/skills', {
+    method: 'PUT',
+    body: JSON.stringify({ skills }),
+  }),
+  addEmployeeSkill: (skill) => fetchJSON('/employee/profile/skills', {
+    method: 'POST',
+    body: JSON.stringify(skill),
+  }),
+  deleteEmployeeSkill: (skillName) => fetchJSON(`/employee/profile/skills/${encodeURIComponent(skillName)}`, {
+    method: 'DELETE',
+  }),
+  updateEmployeeCertifications: (certifications) => fetchJSON('/employee/profile/certifications', {
+    method: 'PUT',
+    body: JSON.stringify({ certifications }),
+  }),
+
   getStudentIndustryAlerts: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return fetchJSON(`/student/industry-alerts${query ? `?${query}` : ''}`);
