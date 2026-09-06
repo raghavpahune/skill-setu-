@@ -726,16 +726,17 @@ def test_review7_conftest_fixture_table_independence():
     """Finding 2 (Review 7): Fixture loads missing tables and demo users even if _cache is partially populated."""
     from app.db import _cache
 
-    # Partially populate _cache simulating a dirty cache from an earlier test
-    _cache["partial_dummy"] = [{"id": "dummy-1"}]
-    # Remove schemes to simulate a missing table in partial cache
-    _cache.pop("schemes", None)
+    try:
+        _cache["partial_dummy"] = [{"id": "dummy-1"}]
+        _cache.pop("schemes", None)
 
-    from conftest import ensure_cache_baseline
-    ensure_cache_baseline()
+        from conftest import ensure_cache_baseline
+        ensure_cache_baseline()
 
-    assert "schemes" in _cache and len(_cache["schemes"]) > 0
-    assert any(u.get("email") == "student@skillsetu.gov.in" for u in _cache.get("users", []))
+        assert "schemes" in _cache and len(_cache["schemes"]) > 0
+        assert any(u.get("email") == "student@skillsetu.gov.in" for u in _cache.get("users", []))
+    finally:
+        _cache.pop("partial_dummy", None)
 
 
 def test_review7_conftest_mock_ilike_wildcards():

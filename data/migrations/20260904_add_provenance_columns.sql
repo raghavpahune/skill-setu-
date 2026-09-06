@@ -148,8 +148,7 @@ UPDATE schemes
 -- 3. INDEXES & CONSTRAINTS FOR DEDUPLICATION & QUERY PERFORMANCE
 -- ----------------------------------------------------------------------------
 
--- Deduplication index on (source, external_id) to support ON CONFLICT upsert
--- Note: schemes table uniqueness is already enforced via schema constraint UNIQUE (source, external_id)
+
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_source_external_id ON jobs(source, external_id);
 
 -- Fast content hash lookup index for deduplication across ingestion runs

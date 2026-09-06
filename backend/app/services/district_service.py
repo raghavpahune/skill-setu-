@@ -10,35 +10,30 @@ from app.services.curriculum_engine import audit_all_courses, EQUIPMENT_CATALOG,
 
 def get_all_districts(is_demo: bool | None = None) -> list[dict]:
     """List all districts with job counts and course counts."""
-    if is_demo is False:
-        try:
-            from app.repositories.supabase_repository import list_jobs
-            jobs = list_jobs() or []
-        except Exception:
-            jobs = []
-    elif is_demo is True:
+    if is_demo is True:
         jobs = get_demo("jobs")
-    else:
+        courses = get_demo("courses")
+    elif is_demo is False:
         try:
-            from app.repositories.supabase_repository import list_jobs
-            repo_jobs = list_jobs()
-            jobs = repo_jobs if repo_jobs else get_demo("jobs")
-        except Exception:
-            jobs = get_demo("jobs")
-    if is_demo is False:
-        try:
-            from app.repositories.supabase_repository import list_courses
+            from app.repositories.supabase_repository import list_jobs, list_courses
+            jobs = list_jobs() or []
             courses = list_courses() or []
         except Exception:
+            jobs = []
             courses = []
-    elif is_demo is True:
-        courses = get_demo("courses")
     else:
         try:
-            from app.repositories.supabase_repository import list_courses
+            from app.repositories.supabase_repository import list_jobs, list_courses
+            repo_jobs = list_jobs()
             repo_courses = list_courses()
-            courses = repo_courses if repo_courses else get_demo("courses")
+            if repo_jobs or repo_courses:
+                jobs = repo_jobs or []
+                courses = repo_courses or []
+            else:
+                jobs = get_demo("jobs")
+                courses = get_demo("courses")
         except Exception:
+            jobs = get_demo("jobs")
             courses = get_demo("courses")
     
     job_counts = Counter(j["district"] for j in jobs if j.get("district"))
@@ -387,7 +382,6 @@ def get_platform_metrics_summary(is_demo: bool | None = None) -> dict[str, Any]:
     )
     employer_approval_rate = round((confirmed_or_valid / max(1, total_feedback)) * 100, 1) if total_feedback else (87.5 if is_demo_mode else 0.0)
 
-    # 4. Curriculum Update Time (Average modernization cycle in months)
     avg_curriculum_update_time_months = 3.8 if (courses or is_demo_mode) else 0.0
 
     # 5. Training Capacity Deficit (Total missing seats in critical/high gap skills)

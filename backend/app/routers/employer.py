@@ -122,9 +122,9 @@ async def list_validations(
 
         if status and status != "all" and item.get("status", "").lower() != status.lower():
             continue
-        if district and district != "all" and has_employer and item.get("district", "").lower() != district.lower():
+        if district and district != "all" and item.get("district", "").lower() != district.lower():
             continue
-        if industry and industry != "all" and has_employer and item.get("industry", "").lower() != industry.lower():
+        if industry and industry != "all" and item.get("industry", "").lower() != industry.lower():
             continue
         if demand_level and demand_level != "all" and item.get("demand_level", "").lower() != demand_level.lower():
             continue

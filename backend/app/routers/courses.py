@@ -14,22 +14,22 @@ router = APIRouter()
 async def list_courses(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
-    try:
-        courses = list_courses_repo()
-    except SupabaseRepositoryError as e:
-        logger.exception("[Courses] Failed fetching courses from Supabase: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database query failed for courses.",
-        ) from e
-
     if is_explicit_demo_mode(is_demo):
+        courses = get_demo("courses")
         placements = {
             p["course_id"]: p
             for p in sorted(get_demo("placements"), key=lambda r: r.get("year") or 0)
             if p.get("course_id")
         }
     else:
+        try:
+            courses = list_courses_repo() or []
+        except SupabaseRepositoryError as e:
+            logger.exception("[Courses] Failed fetching courses from Supabase: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database query failed for courses.",
+            ) from e
         try:
             repo_placements = list_placements_repo() or []
             placements = {

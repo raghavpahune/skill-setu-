@@ -474,8 +474,6 @@ def test_no_timestamp_reset_on_snapshot_load():
     for job in transformed:
         assert job["fetched_at"] == "2026-08-31T12:00:00Z"
         assert job["snapshot_captured_at"] == "2026-08-31T12:00:00Z"
-        # fetched_at must be the historical capture date, not now()
-        assert not job["fetched_at"].startswith(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"))
 
 
 # ============================================================================

@@ -27,7 +27,7 @@ def _get_skills_map(is_demo: bool = False) -> dict[str, str]:
         return {s["id"]: s["name"] for s in get_demo("skills")}
     try:
         from app.repositories.supabase_repository import list_skills
-        return {s["id"]: s.get("name", s["id"]) for s in (list_skills() or [])}
+        return {s["id"]: s.get("name", s["id"]) for s in (list_skills() or []) if "id" in s}
     except Exception:
         return {}
 

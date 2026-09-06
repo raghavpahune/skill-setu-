@@ -71,7 +71,11 @@ def audit_all_courses(is_demo: bool | None = None) -> list[dict[str, Any]]:
     if is_demo_mode:
         courses = get_demo("courses")
         course_skills_raw = get_demo("course_skills")
-        placements = {p["course_id"]: p for p in get_demo("placements")}
+        placements = {
+            p["course_id"]: p
+            for p in sorted(get_demo("placements"), key=lambda r: r.get("year") or 0)
+            if p.get("course_id")
+        }
         skills_map = {s["id"]: s for s in get_demo("skills")}
         forecasts = {f["skill_id"]: f for f in compute_multi_horizon_forecasts(is_demo=True)}
     else:

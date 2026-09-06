@@ -461,7 +461,7 @@ async def handle_question(
     logger.info(f"[Copilot] Request role={role}, district={district}, provider={provider.__class__.__name__ if provider else 'None'}, is_live={is_live_ai}, is_demo={is_demo_mode}")
 
     if not is_demo_mode:
-        if context.get("authoritative_data_status") == "empty_or_unindexed" and not context.get("student_profile") and not context.get("student_assessment"):
+        if context.get("authoritative_data_status") == "empty_or_unindexed" and not context.get("student_profiles") and not context.get("student_recommendation_context"):
             return {
                 "answer": "Authoritative labour market intelligence is currently unavailable or unindexed in Real Data mode. Live AI generation without verified data is restricted to prevent inaccurate guidance.",
                 "role": role,
