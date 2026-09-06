@@ -137,10 +137,10 @@ def tool_refresh_data_source(args: dict[str, Any]) -> dict[str, Any]:
             "status": "error",
             "error": "Unauthorized: non-admin callers cannot trigger data refresh",
         }
-    if configured_key and caller_role != "ADMIN" and admin_key != configured_key:
+    if configured_key and admin_key != configured_key:
         return {
             "status": "error",
-            "error": "Unauthorized: valid admin API key or ADMIN role required to trigger data refresh",
+            "error": "Unauthorized: valid admin API key required to trigger data refresh",
         }
 
     source = str(args.get("source", "all")).lower().strip()

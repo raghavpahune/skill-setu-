@@ -235,7 +235,14 @@ def test_mcp_refresh_data_source_requires_admin_key_when_configured(monkeypatch)
     from app.config import settings
     from app.mcp.tools import tool_refresh_data_source
 
+    async def fake_execute_sync(*, source):
+        return {"status": "skipped", "records_fetched": 0}
+
     monkeypatch.setattr(settings, "admin_api_key", "secret-test-key-999")
+    monkeypatch.setattr(
+        "app.ingestion.scheduler.scheduler.execute_sync",
+        fake_execute_sync,
+    )
 
     result_unauthorized = tool_refresh_data_source({"source": "data.gov.in"})
     assert result_unauthorized["status"] == "error"
@@ -244,6 +251,10 @@ def test_mcp_refresh_data_source_requires_admin_key_when_configured(monkeypatch)
     result_wrong_key = tool_refresh_data_source({"source": "data.gov.in", "admin_key": "wrong-key"})
     assert result_wrong_key["status"] == "error"
     assert "Unauthorized" in result_wrong_key["error"]
+
+    result_spoofed_role = tool_refresh_data_source({"source": "data.gov.in", "role": "ADMIN"})
+    assert result_spoofed_role["status"] == "error"
+    assert "Unauthorized" in result_spoofed_role["error"]
 
     result_authorized = tool_refresh_data_source({"source": "data.gov.in", "admin_key": "secret-test-key-999"})
     assert result_authorized["status"] in ("success", "skipped")

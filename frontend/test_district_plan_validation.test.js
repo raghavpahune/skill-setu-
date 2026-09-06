@@ -128,6 +128,124 @@ test('incomplete response missing required plan fields is rejected by production
   assert.equal(isValidDistrictPlan(incompleteResponse), false);
 });
 
+test('payload missing numeric totals is rejected by production validator', () => {
+  const baseResponse = {
+    district: 'Pune',
+    total_jobs: 10,
+    total_courses: 5,
+    total_enrolment: 100,
+    top_roles: [],
+    top_demanded_roles: [],
+    top_skills: [],
+    top_demanded_skills: [],
+    skill_gaps: [],
+    local_courses: [],
+    industry_demand: [],
+    recommended_courses: [],
+    courses_needing_review: [],
+    required_training_seats: 10,
+    required_equipment: [],
+    total_equipment_budget_inr: 50000,
+    required_trainers_count: 2,
+    trainer_programs: [],
+    nearby_institutes: [],
+    expected_impact: {
+      projected_placement_lift_pct: 10,
+      projected_skill_deficit_reduction_pct: 20,
+      target_placed_students: 8,
+      total_budget_estimate_inr: 50000,
+    },
+  };
+
+  const missingJobs = { ...baseResponse };
+  delete missingJobs.total_jobs;
+  assert.equal(isValidDistrictPlan(missingJobs), false);
+
+  const nanJobs = { ...baseResponse, total_jobs: 'not-a-number' };
+  assert.equal(isValidDistrictPlan(nanJobs), false);
+});
+
+test('payload missing plan array or with non-array is rejected by production validator', () => {
+  const baseResponse = {
+    district: 'Pune',
+    total_jobs: 10,
+    total_courses: 5,
+    total_enrolment: 100,
+    top_roles: [],
+    top_demanded_roles: [],
+    top_skills: [],
+    top_demanded_skills: [],
+    skill_gaps: [],
+    local_courses: [],
+    industry_demand: [],
+    recommended_courses: [],
+    courses_needing_review: [],
+    required_training_seats: 10,
+    required_equipment: [],
+    total_equipment_budget_inr: 50000,
+    required_trainers_count: 2,
+    trainer_programs: [],
+    nearby_institutes: [],
+    expected_impact: {
+      projected_placement_lift_pct: 10,
+      projected_skill_deficit_reduction_pct: 20,
+      target_placed_students: 8,
+      total_budget_estimate_inr: 50000,
+    },
+  };
+
+  const missingGaps = { ...baseResponse };
+  delete missingGaps.skill_gaps;
+  assert.equal(isValidDistrictPlan(missingGaps), false);
+
+  const nonArrayCourses = { ...baseResponse, local_courses: 'not-an-array' };
+  assert.equal(isValidDistrictPlan(nonArrayCourses), false);
+});
+
+test('payload missing expected_impact or its numeric metrics is rejected by production validator', () => {
+  const baseResponse = {
+    district: 'Pune',
+    total_jobs: 10,
+    total_courses: 5,
+    total_enrolment: 100,
+    top_roles: [],
+    top_demanded_roles: [],
+    top_skills: [],
+    top_demanded_skills: [],
+    skill_gaps: [],
+    local_courses: [],
+    industry_demand: [],
+    recommended_courses: [],
+    courses_needing_review: [],
+    required_training_seats: 10,
+    required_equipment: [],
+    total_equipment_budget_inr: 50000,
+    required_trainers_count: 2,
+    trainer_programs: [],
+    nearby_institutes: [],
+    expected_impact: {
+      projected_placement_lift_pct: 10,
+      projected_skill_deficit_reduction_pct: 20,
+      target_placed_students: 8,
+      total_budget_estimate_inr: 50000,
+    },
+  };
+
+  const missingImpact = { ...baseResponse };
+  delete missingImpact.expected_impact;
+  assert.equal(isValidDistrictPlan(missingImpact), false);
+
+  const missingImpactMetric = {
+    ...baseResponse,
+    expected_impact: {
+      projected_placement_lift_pct: 10,
+      projected_skill_deficit_reduction_pct: 20,
+      target_placed_students: 8,
+    },
+  };
+  assert.equal(isValidDistrictPlan(missingImpactMetric), false);
+});
+
 test('null or undefined backend response is rejected by production validator', () => {
   assert.equal(isValidDistrictPlan(null), false);
   assert.equal(isValidDistrictPlan(undefined), false);
