@@ -105,12 +105,14 @@ export default function DistrictPlan() {
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-  const fetchPlan = () => {
+  useEffect(() => {
+    let isCurrent = true;
     setLoading(true);
     setHasError(false);
 
     api.getDistrictPlan(districtName)
       .then((res) => {
+        if (!isCurrent) return;
         if (res && res.district && (res.status === 'success' || res.kpis || res.top_shortages)) {
           setPlan(res);
         } else {
@@ -120,15 +122,16 @@ export default function DistrictPlan() {
         setLoading(false);
       })
       .catch((err) => {
+        if (!isCurrent) return;
         console.warn(`[DistrictPlan] Could not fetch live plan for ${districtName}:`, err);
         setHasError(true);
         setPlan(EMPTY_DISTRICT_PLAN(districtName));
         setLoading(false);
       });
-  };
 
-  useEffect(() => {
-    fetchPlan();
+    return () => {
+      isCurrent = false;
+    };
   }, [districtName]);
 
   return (

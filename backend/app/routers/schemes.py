@@ -246,7 +246,7 @@ async def recommended_schemes(
 async def get_scheme(scheme_id: str, is_demo: bool | None = None):
     """Get single scheme details by ID or scheme code."""
     # 1. Explicit demo requested or demo ID prefix
-    if is_explicit_demo_mode(is_demo) or is_demo_scheme_id(scheme_id):
+    if is_demo is not False and (is_explicit_demo_mode(is_demo) or is_demo_scheme_id(scheme_id)):
         schemes = get_demo("schemes")
         for s in schemes:
             if s.get("id") == scheme_id or s.get("scheme_code", "").lower() == scheme_id.lower():

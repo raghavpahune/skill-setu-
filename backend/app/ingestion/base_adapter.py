@@ -305,7 +305,7 @@ def extract_skills_and_unmapped(
             else:
                 trailing = r"\b" if re.search(r"\w$", name) else r"(?!\w)"
                 pattern = r"\b" + re.escape(name) + trailing
-                if re.search(pattern, text):
+                if re.search(pattern, text, re.IGNORECASE):
                     is_matched = True
         else:
             trailing = r"\b" if re.search(r"\w$", name_lower) else r"(?!\w)"
@@ -334,7 +334,7 @@ def extract_skills_and_unmapped(
                     else:
                         trailing = r"\b" if re.search(r"\w$", syn_clean) else r"(?!\w)"
                         syn_pat = r"\b" + re.escape(syn_clean) + trailing
-                        matched_by_context = bool(re.search(syn_pat, text))
+                        matched_by_context = bool(re.search(syn_pat, text, re.IGNORECASE))
                     if matched_by_context:
                         is_matched = True
                         matched_skill_names_lower.add(syn_lower)

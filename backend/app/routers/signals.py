@@ -97,7 +97,8 @@ async def list_industry_signals(
         raw_signals = get_demo("industry_signals")
     else:
         try:
-            raw_signals = list_industry_signals_repo()
+            repo_signals = list_industry_signals_repo() or []
+            raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed listing industry signals from Supabase: %s", e)
             raise HTTPException(
@@ -161,6 +162,8 @@ async def get_industry_signal(
     else:
         try:
             matched = get_industry_signal_repo(signal_id)
+            if matched and (matched.get("is_demo") is True or matched.get("source") == "DEMO_SYNTHETIC"):
+                matched = None
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)
             raise HTTPException(
@@ -188,7 +191,8 @@ async def legacy_list_signals(
         raw_signals = get_demo("industry_signals")
     else:
         try:
-            raw_signals = list_industry_signals_repo()
+            repo_signals = list_industry_signals_repo() or []
+            raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed listing signals: %s", e)
             raise HTTPException(
@@ -212,6 +216,8 @@ async def legacy_get_signal(
     else:
         try:
             matched = get_industry_signal_repo(signal_id)
+            if matched and (matched.get("is_demo") is True or matched.get("source") == "DEMO_SYNTHETIC"):
+                matched = None
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed fetching signal '%s': %s", signal_id, e)
             raise HTTPException(

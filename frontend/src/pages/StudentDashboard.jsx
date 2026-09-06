@@ -150,6 +150,7 @@ export default function StudentDashboard() {
   };
 
   useEffect(() => {
+    let isCurrent = true;
     setStudents((prev) => prev.filter((s) => s.user_id !== 'me'));
 
     if (!user?.id) {
@@ -163,6 +164,7 @@ export default function StudentDashboard() {
       }
       api.getMyPassport()
         .then((myPass) => {
+          if (!isCurrent) return;
           if (myPass && (myPass.is_personalized || myPass.source === 'USER_SUBMITTED')) {
             setSelectedStudentId('me');
             setPassport(myPass);
@@ -197,6 +199,7 @@ export default function StudentDashboard() {
 
     api.getStudents()
       .then((res) => {
+        if (!isCurrent) return;
         const studentList = Array.isArray(res) ? res.filter((r) => r.user_id !== 'me') : [];
         setStudents((prev) => {
           const currentMe = user?.id ? prev.find((s) => s.user_id === 'me') : null;
@@ -210,8 +213,13 @@ export default function StudentDashboard() {
         }
       })
       .catch((err) => {
+        if (!isCurrent) return;
         console.warn('Failed to load candidate list:', err);
       });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [user]);
 
   // Load personalized recommendations when student changes (Phase 15)
