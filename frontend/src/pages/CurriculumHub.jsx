@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { api } from '../services/api';
@@ -63,6 +63,7 @@ function BlueprintModal({ courseId, courseName, onClose }) {
 
   useEffect(() => {
     let live = true;
+    setBlueprint(null);
     setLoading(true);
     setError(null);
     api.getCourseModernizationBlueprint(courseId)
@@ -199,29 +200,40 @@ export default function CurriculumHub() {
   const [districtFilter, setDistrictFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const requestIdRef = useRef(0);
 
   const fetchData = useCallback(() => {
+    const currentRequestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     Promise.allSettled([
       api.getCurriculumSummary(),
       api.getCurriculumAudit(),
     ]).then(([summaryRes, auditRes]) => {
+      if (currentRequestId !== requestIdRef.current) return;
       if (summaryRes.status === 'fulfilled' && summaryRes.value?.status === 'success') {
         setSummary(summaryRes.value);
+      } else {
+        setSummary(null);
       }
       const raw = auditRes.status === 'fulfilled' ? auditRes.value : null;
-      if (raw) {
+      if (raw && raw.status !== 'error' && !raw.detail) {
         const arr = Array.isArray(raw?.courses) ? raw.courses : (Array.isArray(raw) ? raw : []);
         setCourses(arr);
       } else {
-        setError(auditRes.reason?.message || 'Failed to load curriculum audit data');
+        const failureMessage = raw?.detail || raw?.message || auditRes.reason?.message || 'Failed to load curriculum audit data';
+        setError(failureMessage);
       }
       setLoading(false);
     });
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    return () => {
+      requestIdRef.current++;
+    };
+  }, [fetchData]);
 
   const districts = useMemo(() => {
     const ds = [...new Set(courses.map(c => c.district).filter(Boolean))].sort();
@@ -249,6 +261,29 @@ export default function CurriculumHub() {
     for (const c of courses) { map[c.obsolescence_risk] = (map[c.obsolescence_risk] || 0) + 1; }
     return map;
   }, [courses]);
+
+  const computedAvgHealth = useMemo(() => {
+    if (summary?.avg_health_score !== undefined && summary?.avg_health_score !== null) {
+      return summary.avg_health_score;
+    }
+    if (courses.length === 0) return 0;
+    const sum = courses.reduce((acc, c) => acc + (Number(c.health_score) || 0), 0);
+    return Math.round((sum / courses.length) * 10) / 10;
+  }, [summary, courses]);
+
+  const computedTotalBudget = useMemo(() => {
+    if (summary?.total_equipment_budget_estimate_inr !== undefined && summary?.total_equipment_budget_estimate_inr !== null) {
+      return summary.total_equipment_budget_estimate_inr;
+    }
+    return courses.reduce((acc, c) => acc + (Number(c.total_equipment_budget_inr) || 0), 0);
+  }, [summary, courses]);
+
+  const computedOversupplyCount = useMemo(() => {
+    if (summary?.oversupply_count !== undefined && summary?.oversupply_count !== null) {
+      return summary.oversupply_count;
+    }
+    return courses.filter(c => (c.oversupply_status || '').includes('OVERSUPPLY')).length;
+  }, [summary, courses]);
 
   return (
     <Layout>
@@ -288,9 +323,9 @@ export default function CurriculumHub() {
             <StatCard title="Courses Audited" value={summary?.total_courses ?? courses.length} subtitle="Active vocational programs" icon="📋" />
             <StatCard title="Critical Obsolete" value={summary?.critical_obsolete_count ?? riskCounts.CRITICAL_OBSOLETE ?? 0} subtitle="Immediate revision needed" icon="🚨" color="rose" />
             <StatCard title="High Risk" value={summary?.high_risk_count ?? riskCounts.HIGH_RISK ?? 0} subtitle="Syllabus lagging industry" icon="⚠️" color="amber" />
-            <StatCard title="Oversupply Flagged" value={summary?.oversupply_count ?? 0} subtitle="Seats exceeding demand" icon="📉" color="navy" />
-            <StatCard title="Avg Health Score" value={`${summary?.avg_health_score ?? 0}/100`} subtitle="State-wide course health" icon="💚" color="teal" />
-            <StatCard title="Equipment Budget" value={`₹${(((summary?.total_equipment_budget_estimate_inr ?? 0)) / 10000000).toFixed(1)}Cr`} subtitle="Est. modernization cost" icon="🏭" />
+            <StatCard title="Oversupply Flagged" value={computedOversupplyCount} subtitle="Seats exceeding demand" icon="📉" color="navy" />
+            <StatCard title="Avg Health Score" value={`${computedAvgHealth}/100`} subtitle="State-wide course health" icon="💚" color="teal" />
+            <StatCard title="Equipment Budget" value={`₹${(computedTotalBudget / 10000000).toFixed(1)}Cr`} subtitle="Est. modernization cost" icon="🏭" />
           </>
         )}
       </div>
@@ -394,7 +429,7 @@ export default function CurriculumHub() {
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${risk.bar}`} style={{ width: `${course.health_score}%` }} />
+                            <div className={`h-full rounded-full ${risk.bar}`} style={{ width: `${Math.max(0, Math.min(100, Number(course.health_score) || 0))}%` }} />
                           </div>
                           <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{course.health_score}</span>
                         </div>
@@ -402,7 +437,7 @@ export default function CurriculumHub() {
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-teal-500" style={{ width: `${course.modernity_score}%` }} />
+                            <div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.max(0, Math.min(100, Number(course.modernity_score) || 0))}%` }} />
                           </div>
                           <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{course.modernity_score}</span>
                         </div>
@@ -446,7 +481,7 @@ export default function CurriculumHub() {
 
       <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 p-4 text-[11px] text-slate-500 dark:text-slate-400">
         <span className="font-semibold text-slate-700 dark:text-slate-300">Data Provenance: </span>
-        Course health scores are derived from authoritative Supabase placement records, employer demand signals, and multi-horizon skill forecasts. Scores update on every data sync. Blueprints reflect NSQF-aligned modernization paths, not guaranteed outcomes.
+        Course health scores are computed dynamically from active institutional placement records, employer demand signals, and multi-horizon skill forecasts. Blueprints reflect NSQF-aligned modernization paths, not guaranteed outcomes.
       </div>
 
       {selectedBlueprint && (

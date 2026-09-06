@@ -16,10 +16,10 @@ async def get_curriculum_audit(
     district: Optional[str] = Query(None, description="Filter by district"),
     risk: Optional[str] = Query(None, description="Filter by obsolescence risk"),
     category: Optional[str] = Query(None, description="Filter by sector category"),
+    is_demo: Optional[bool] = Query(None, description="Filter by demo/authoritative data source"),
 ):
-    """Retrieve state-wide institutional course health, modernity scores, and obsolescence audit."""
     try:
-        courses = audit_all_courses()
+        courses = audit_all_courses(is_demo=is_demo)
     except Exception as e:
         logger.error("[CurriculumAudit] Course audit failure: %s", e)
         raise HTTPException(
@@ -47,10 +47,11 @@ async def get_curriculum_audit(
 
 
 @router.get("/curriculum/summary")
-async def get_curriculum_summary():
-    """Aggregate KPI statistics for institutional and government dashboards."""
+async def get_curriculum_summary(
+    is_demo: Optional[bool] = Query(None, description="Filter by demo/authoritative data source"),
+):
     try:
-        courses = audit_all_courses()
+        courses = audit_all_courses(is_demo=is_demo)
     except Exception as e:
         logger.error("[CurriculumSummary] Course summary failure: %s", e)
         raise HTTPException(
@@ -79,9 +80,17 @@ async def get_curriculum_summary():
 
 
 @router.get("/curriculum/recommendations/{course_id}")
-async def get_course_recommendations(course_id: str):
-    """Retrieve detailed 5-point modernization blueprint for an individual course."""
-    blueprint = get_course_modernization_blueprint(course_id)
+async def get_course_recommendations(
+    course_id: str,
+    is_demo: Optional[bool] = Query(None, description="Filter by demo/authoritative data source"),
+):
+    clean_course_id = course_id.strip()
+    if not clean_course_id or len(clean_course_id) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid course ID format",
+        )
+    blueprint = get_course_modernization_blueprint(clean_course_id, is_demo=is_demo)
     if not blueprint:
-        raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Course '{clean_course_id}' not found")
     return blueprint
