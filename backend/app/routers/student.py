@@ -419,7 +419,21 @@ async def learning_roadmap(
                     detail="Forbidden: You do not have permission to view another student's learning roadmap.",
                 )
     from app.services.roadmap_service import compute_adaptive_roadmap
-    return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
+    from app.repositories.supabase_repository import SupabaseRepositoryError
+    try:
+        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
+    except SupabaseRepositoryError as e:
+        logger.exception("[Student] Supabase repository error retrieving roadmap: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database failure retrieving student roadmap.",
+        )
+    except RuntimeError as e:
+        logger.warning("[Student] Roadmap computation unavailable: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Roadmap service temporarily unavailable.",
+        )
 
 
 @router.post("/student/me/roadmap/recalculate")
@@ -436,26 +450,36 @@ async def recalculate_student_roadmap(
 ):
     if student_id == "me" and current_user:
         student_id = current_user.get("id")
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to recalculate learning roadmap.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user_id = current_user.get("id")
+    user_role = (current_user.get("role") or "").upper()
+    if user_id != student_id and user_role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You cannot recalculate another student's learning roadmap.",
+        )
     is_demo_id = is_demo_student_id(student_id)
-    if not is_demo_id:
-        demo_profiles = get_demo("student_profiles") or []
-        is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
-        if not is_demo_fixture:
-            if not current_user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required to recalculate learning roadmap.",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            user_id = current_user.get("id")
-            user_role = (current_user.get("role") or "").upper()
-            if user_id != student_id and user_role != "ADMIN":
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Forbidden: You cannot recalculate another student's learning roadmap.",
-                )
     from app.services.roadmap_service import compute_adaptive_roadmap
-    return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
+    from app.repositories.supabase_repository import SupabaseRepositoryError
+    try:
+        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
+    except SupabaseRepositoryError as e:
+        logger.exception("[Student] Supabase repository error recalculating roadmap: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database failure recalculating student roadmap.",
+        )
+    except RuntimeError as e:
+        logger.warning("[Student] Roadmap recalculation unavailable: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Roadmap recalculation currently unavailable.",
+        )
 
 
 

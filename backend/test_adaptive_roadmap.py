@@ -6,6 +6,11 @@ from app.repositories import supabase_repository
 from app.services.roadmap_service import compute_adaptive_roadmap
 
 
+@pytest.fixture(autouse=True)
+def stub_upsert_student_roadmap(monkeypatch):
+    monkeypatch.setattr(supabase_repository, "upsert_student_roadmap", lambda data: data)
+
+
 def test_topological_dag_ordering_ai_engineer():
     result = compute_adaptive_roadmap("stu-001", target_role="AI Engineer", is_demo=True)
     assert result["has_roadmap"] is True
@@ -158,3 +163,37 @@ def test_demo_candidate_roadmap_without_auth():
         assert len(data["roadmap"]) >= 4
         assert "readiness_score" in data
         assert "summary" in data
+
+
+def test_recalculate_roadmap_requires_auth_and_prevents_idor():
+    save_user({"id": "usr-auth-recalc", "email": "authrecalc@gov.in", "role": "STUDENT", "full_name": "Auth Recalc"})
+    save_user({"id": "usr-auth-other", "email": "otherrecalc@gov.in", "role": "STUDENT", "full_name": "Other Recalc"})
+    save_user({"id": "usr-auth-admin", "email": "adminrecalc@gov.in", "role": "ADMIN", "full_name": "Admin Recalc"})
+
+    with TestClient(app) as c:
+        unauth = c.post("/api/student/usr-auth-recalc/roadmap/recalculate")
+        assert unauth.status_code == 401
+
+        other_token = create_access_token({"sub": "usr-auth-other", "email": "otherrecalc@gov.in", "role": "STUDENT"})
+        forbidden = c.post(
+            "/api/student/usr-auth-recalc/roadmap/recalculate",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+        assert forbidden.status_code == 403
+
+        admin_token = create_access_token({"sub": "usr-auth-admin", "email": "adminrecalc@gov.in", "role": "ADMIN"})
+        admin_res = c.post(
+            "/api/student/stu-001/roadmap/recalculate",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert admin_res.status_code == 200
+
+
+def test_roadmap_computation_raises_on_repository_failure(monkeypatch):
+    def failing_get_profile(uid):
+        raise RuntimeError("Database connection refused")
+
+    monkeypatch.setattr(supabase_repository, "get_student_profile", failing_get_profile)
+    with pytest.raises(RuntimeError) as exc_info:
+        compute_adaptive_roadmap("usr-real-student-123", is_demo=False)
+    assert "Roadmap source data unavailable" in str(exc_info.value)

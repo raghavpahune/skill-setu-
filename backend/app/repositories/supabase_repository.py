@@ -532,14 +532,18 @@ def get_student_roadmap(user_id: str) -> dict[str, Any] | None:
         res = client.table("student_roadmaps").select("*").eq("user_id", user_id).execute()
         if res.data and len(res.data) > 0:
             db_roadmap = res.data[0]
-    except Exception:
-        db_roadmap = None
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed fetching student_roadmap user_id='%s': %s", user_id, e)
+        raise SupabaseRepositoryError(f"Database query failed for student roadmap '{user_id}': {e}") from e
 
     from app.db import _cache
+    from app.config import settings
     if db_roadmap:
         return db_roadmap
-    cached_roadmaps = _cache.get("student_roadmaps", [])
-    return next((r for r in cached_roadmaps if (r.get("user_id") or r.get("id")) == user_id), None)
+    if settings.use_demo_data:
+        cached_roadmaps = _cache.get("student_roadmaps", [])
+        return next((r for r in cached_roadmaps if (r.get("user_id") or r.get("id")) == user_id), None)
+    return None
 
 
 def upsert_student_roadmap(roadmap_data: dict[str, Any]) -> dict[str, Any]:
@@ -550,8 +554,11 @@ def upsert_student_roadmap(roadmap_data: dict[str, Any]) -> dict[str, Any]:
         res = client.table("student_roadmaps").upsert(clean_roadmap, on_conflict="user_id").execute()
         if res.data and len(res.data) > 0:
             saved_db = res.data[0]
-    except Exception:
-        saved_db = clean_roadmap
+        else:
+            saved_db = clean_roadmap
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting student_roadmap user_id='%s': %s", roadmap_data.get("user_id"), e)
+        raise SupabaseRepositoryError(f"Database upsert failed for student roadmap: {e}") from e
 
     from app.db import _cache, _flush_real_table
     roadmaps = _cache.setdefault("student_roadmaps", [])

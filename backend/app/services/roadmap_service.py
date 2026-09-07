@@ -1,9 +1,12 @@
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
 from app.core.security import is_demo_student_id
 from app.db import get_demo
 from app.repositories import supabase_repository
+
+logger = logging.getLogger("skillsetu.roadmap")
 
 PREREQUISITES_MAP: dict[str, list[str]] = {
     "sk-002": ["sk-001"],
@@ -317,9 +320,12 @@ def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is
     is_demo_req = is_demo if is_demo is not None else is_demo_student_id(student_id)
 
     profile = None
+    profile_failed = False
     try:
         profile = supabase_repository.get_student_profile(student_id)
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed fetching profile for roadmap '%s': %s", student_id, e)
+        profile_failed = True
         profile = None
 
     if not profile and is_demo_req:
@@ -329,16 +335,20 @@ def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is
                 break
 
     assessment = None
+    assessment_failed = False
     try:
         assessment = supabase_repository.get_student_assessment_by_user(student_id) or supabase_repository.get_student_assessment(student_id)
-    except Exception:
-        assessment = None
-
+    except Exception as e:
+        logger.warning("Failed fetching assessment for roadmap '%s': %s", student_id, e)
+        assessment_failed = True
     if not assessment and is_demo_req:
         for a in get_demo("student_assessments") or []:
             if a.get("id") == student_id or a.get("user_id") == student_id:
                 assessment = a
                 break
+
+    if not is_demo_req and (profile_failed or assessment_failed):
+        raise RuntimeError(f"Roadmap source data unavailable due to repository failure for student '{student_id}'")
 
     if not profile and not assessment and not is_demo_req:
         return {
@@ -446,11 +456,13 @@ def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is
 
         total_estimated_hours += hours
 
+        norm_skill = _normalize_skill_token(skill_name)
         fc = forecast_map.get(sid, {})
         matched_courses = []
         for c in courses_list:
-            c_skills = [str(s).lower() for s in (c.get("skills") or c.get("skills_taught") or [])]
-            if skill_name.lower() in c_skills or any(skill_name.lower() in cs for cs in c_skills) or skill_name.lower() in (c.get("name") or "").lower():
+            c_skills = {_normalize_skill_token(str(s)) for s in (c.get("skills") or c.get("skills_taught") or []) if s}
+            c_name_tokens = {_normalize_skill_token(w) for w in (c.get("name") or c.get("course_name") or "").split() if w}
+            if norm_skill in c_skills or norm_skill in c_name_tokens or _normalize_skill_token(c.get("name") or c.get("course_name") or "") == norm_skill:
                 matched_courses.append({
                     "course_id": c.get("id"),
                     "course_name": c.get("name") or c.get("course_name"),
@@ -464,8 +476,9 @@ def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is
         for sig in signals_list:
             if not sig.get("is_active", True) or sig.get("validation_status", "APPROVED") != "APPROVED":
                 continue
-            sig_skills = [str(s).lower() for s in (sig.get("skills") or [])]
-            if any(skill_name.lower() in s for s in sig_skills) or skill_name.lower() in (sig.get("title") or "").lower():
+            sig_skills = {_normalize_skill_token(str(s)) for s in (sig.get("skills") or []) if s}
+            sig_title_tokens = {_normalize_skill_token(w) for w in (sig.get("title") or "").split() if w}
+            if norm_skill in sig_skills or norm_skill in sig_title_tokens or _normalize_skill_token(sig.get("title") or "") == norm_skill:
                 matched_signals.append({
                     "id": sig.get("id"),
                     "title": sig.get("title"),
@@ -549,9 +562,16 @@ def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is
         "is_demo": is_demo_req,
     }
 
-    try:
-        supabase_repository.upsert_student_roadmap(result)
-    except Exception:
-        pass
+    if is_demo_req:
+        try:
+            supabase_repository.upsert_student_roadmap(result)
+        except Exception as e:
+            logger.warning("Demo roadmap write suppressed: %s", e)
+    else:
+        try:
+            supabase_repository.upsert_student_roadmap(result)
+        except Exception as e:
+            logger.error("Failed persisting student roadmap for user '%s': %s", student_id, e)
+            raise
 
     return result

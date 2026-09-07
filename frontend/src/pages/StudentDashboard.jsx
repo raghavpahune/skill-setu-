@@ -992,7 +992,7 @@ export default function StudentDashboard() {
                   Stage 4 • Job Readiness
                 </span>
                 <p className="font-semibold text-slate-900 dark:text-white text-[11px] mt-0.5">
-                  {roadmap?.readiness_score ?? comparisonData.overallMatchPct}% Role Qualified
+                  {roadmap?.readiness_score ?? comparisonData?.overall_match_pct ?? 0}% Role Qualified
                 </p>
               </div>
             </div>

@@ -71,7 +71,7 @@ def test_automated_ingestion_idempotency_and_deduplication():
     # Phase 32E: ingestion reads from Supabase, so clear mock table too
     get_client().table("industry_signals").rows.clear()
     summary_1 = industry_ingestor.ingest_from_feeds()
-    assert summary_1["status"] in ("success", "partial_success")
+    assert summary_1["status"] in ("success", "partial", "partial_success")
     assert summary_1["records_added"] > 0
 
 

@@ -479,7 +479,7 @@ class IndustryIntelligenceIngestor:
                 added += 1
 
         summary = {
-            "status": "success" if not errors else "partial_success",
+            "status": "success" if not errors else "partial",
             "last_run": now_iso,
             "records_fetched": len(feed_data),
             "records_added": added,
