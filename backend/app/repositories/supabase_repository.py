@@ -1005,7 +1005,7 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
                 break
 
         if not saved_row:
-            raise SupabaseRepositoryError(f"Database persistence failed for industry signal: all retries exhausted")
+            raise SupabaseRepositoryError("Database persistence failed for industry signal: all retries exhausted")
 
         _cache.setdefault("industry_signals", [])
         idx = next((i for i, s in enumerate(_cache["industry_signals"]) if s.get("id") == saved_row.get("id")), None)

@@ -973,28 +973,42 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
     ]
-    db_ids = set()
-    db_emails = set()
     client = get_supabase_client()
-    if client:
-        try:
-            existing_resp = client.table("users").select("id, email").execute()
-            db_ids = {str(r["id"]) for r in (existing_resp.data or []) if r.get("id")}
-            db_emails = {str(r["email"]).strip().lower() for r in (existing_resp.data or []) if r.get("email")}
-        except Exception as e:
-            logger.warning("[DB] Failed querying users from Supabase: %s", e)
+    if not client:
+        for acc in demo_accounts:
+            if acc["email"].strip().lower() not in existing_emails:
+                users.append(acc)
+                existing_emails.add(acc["email"].strip().lower())
+        return
 
-    valid_demo_accounts = [
-        acc for acc in demo_accounts
-        if str(acc["id"]) not in db_ids and acc["email"].strip().lower() not in db_emails
-    ]
+    try:
+        existing_resp = client.table("users").select("id, email").execute()
+        existing_users = existing_resp.data or []
+        db_ids = {str(r["id"]) for r in existing_users if r.get("id")}
+        db_emails = {str(r["email"]).strip().lower() for r in existing_users if r.get("email")}
+    except Exception as e:
+        logger.warning("[DB] Failed querying users from Supabase: %s", e)
+        return
 
-    for acc in valid_demo_accounts:
-        if acc["email"].strip().lower() not in existing_emails:
-            users.append(acc)
-            existing_emails.add(acc["email"].strip().lower())
+    to_insert = []
+    for acc in demo_accounts:
+        acc_id = str(acc["id"])
+        acc_email = acc["email"].strip().lower()
+        is_exact_match = any(
+            str(r.get("id")) == acc_id and str(r.get("email", "")).strip().lower() == acc_email
+            for r in existing_users
+        )
+        is_collision = (acc_id in db_ids or acc_email in db_emails) and not is_exact_match
+        if is_collision:
+            continue
+        if is_exact_match:
+            if acc_email not in existing_emails:
+                users.append(acc)
+                existing_emails.add(acc_email)
+        else:
+            to_insert.append(acc)
 
-    if client and valid_demo_accounts:
+    if to_insert:
         try:
             new_supabase_users = [
                 {
@@ -1003,9 +1017,13 @@ def init_demo_users():
                     "email": acc["email"],
                     "role": acc["role"],
                 }
-                for acc in valid_demo_accounts
+                for acc in to_insert
             ]
             client.table("users").insert(new_supabase_users).execute()
+            for acc in to_insert:
+                if acc["email"].strip().lower() not in existing_emails:
+                    users.append(acc)
+                    existing_emails.add(acc["email"].strip().lower())
         except Exception as e:
             logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
 

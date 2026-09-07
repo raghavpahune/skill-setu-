@@ -94,7 +94,7 @@ def test_init_demo_users_filters_colliding_accounts_from_cache():
     from app.db import _cache
     client_db = get_client()
     existing_user = {
-        "id": "usr-student-001",
+        "id": "usr-real-student-999",
         "name": "Original Real Student",
         "email": "student@skillsetu.gov.in",
         "role": "STUDENT",
