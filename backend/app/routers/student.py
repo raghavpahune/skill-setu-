@@ -14,6 +14,7 @@ from app.services.student_service import (
     get_personalized_industry_alerts,
     get_skill_explainability,
     get_diagnostic_quiz_questions,
+    get_personalized_diagnostic_questions,
     evaluate_student_assessment,
 )
 
@@ -333,6 +334,20 @@ async def skill_passport(
                 break
 
     if p:
+        if not is_demo_student_id(student_id):
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required to view candidate profile.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            user_id = current_user.get("id")
+            user_role = (current_user.get("role") or "").upper()
+            if (p.get("user_id") or p.get("id")) != user_id and user_role != "ADMIN":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You cannot access another student's profile.",
+                )
         current = [
             {
                 **sk,
@@ -432,6 +447,26 @@ async def learning_roadmap(
                 break
 
     if a:
+        if _is_private_user_record(a):
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required to view candidate learning roadmap.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            user_id = current_user.get("id")
+            user_email = current_user.get("email")
+            user_role = (current_user.get("role") or "").upper()
+            is_owner = (
+                (a.get("user_id") and a.get("user_id") == user_id)
+                or (a.get("id") and a.get("id") == user_id)
+                or (user_email and a.get("user_email") == user_email)
+            )
+            if not is_owner and user_role != "ADMIN":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You do not have permission to view another student's learning roadmap.",
+                )
         target_role = a.get("career_goal", "AI Engineer")
         from app.services.student_service import ROLE_REQUIREMENTS_MAP
         req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-003", "sk-004", "sk-006", "sk-005"])
@@ -480,6 +515,20 @@ async def learning_roadmap(
                 break
 
     if p:
+        if _is_private_user_record(p) or not is_demo_student_id(student_id):
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required to view candidate profile roadmap.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            user_id = current_user.get("id")
+            user_role = (current_user.get("role") or "").upper()
+            if (p.get("user_id") or p.get("id")) != user_id and user_role != "ADMIN":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You cannot access another student's profile roadmap.",
+                )
         roadmap = []
         for idx, sid in enumerate(p.get("roadmap", []), start=1):
             skill = skills_map.get(sid, {})
@@ -551,17 +600,21 @@ async def list_students(
     return results
 
 
-# ---------------------------------------------------------------------------
-# Phase 12 Endpoints: Student Assessment & Quiz
-# ---------------------------------------------------------------------------
-
 @router.get("/student/assessment/quiz-questions")
-async def get_quiz_questions():
-    """Return standard diagnostic quiz questions and options for student assessment."""
-    return {"questions": get_diagnostic_quiz_questions()}
-
-
-from app.core.security import get_optional_current_user, get_current_user
+async def get_quiz_questions(
+    student_id: str | None = Query(None),
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    if current_user:
+        user_role = (current_user.get("role") or "").upper()
+        target_id = student_id if (user_role == "ADMIN" and student_id) else current_user.get("id")
+        user_email = current_user.get("email")
+        return get_personalized_diagnostic_questions(target_id, user_email)
+    return {
+        "status": "unauthenticated",
+        "domain": "general",
+        "questions": get_diagnostic_quiz_questions(),
+    }
 
 
 @router.post("/student/assessment")

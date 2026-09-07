@@ -307,13 +307,22 @@ export default function StudentProfile() {
               <span>⚠️</span>
               <span>{apiError}</span>
             </div>
-            {isLoadError && (
+            {isLoadError ? (
               <button
                 type="button"
                 onClick={loadProfile}
-                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold"
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
               >
-                Retry
+                Retry Load
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-50"
+              >
+                {saving ? 'Retrying...' : 'Retry Save'}
               </button>
             )}
           </div>

@@ -91,87 +91,111 @@ class SyncEngine:
             if src_norm not in valid_sources:
                 raise ValueError(f"Unsupported sync source selector '{source_name}'. Supported selectors: {sorted(valid_sources)}")
 
-            # ----------------------------------------------------------------
-            # 1. Ingest Schemes and Opportunities from data.gov.in
-            # ----------------------------------------------------------------
+            source_errors = []
+            source_successes = []
+
             if src_norm in ("all", "data.gov.in", "schemes", "ogd"):
-                logger.info("[SyncEngine] Ingesting government datasets from data.gov.in...")
-                # Student Welfare Schemes
-                raw_sch = self.datagov_connector.fetch_resource(RESOURCE_SCHOLARSHIP_ALLOCATION)
-                sch_records = raw_sch.get("records", [])
-                total_fetched += len(sch_records)
-                transformed_schemes = self.datagov_connector.transform_scholarship_schemes(sch_records)
-                total_skipped += max(0, len(sch_records) - len(transformed_schemes))
+                try:
+                    logger.info("[SyncEngine] Ingesting government datasets from data.gov.in...")
+                    raw_sch = self.datagov_connector.fetch_resource(RESOURCE_SCHOLARSHIP_ALLOCATION)
+                    sch_records = raw_sch.get("records", [])
+                    total_fetched += len(sch_records)
+                    transformed_schemes = self.datagov_connector.transform_scholarship_schemes(sch_records)
+                    total_skipped += max(0, len(sch_records) - len(transformed_schemes))
 
-                # Craftsmen Training Schemes
-                raw_cts = self.datagov_connector.fetch_resource(RESOURCE_ITI_CRAFTSMEN)
-                cts_records = raw_cts.get("records", [])
-                total_fetched += len(cts_records)
-                cts_schemes = self.datagov_connector.transform_cts_schemes(cts_records)
-                total_skipped += max(0, len(cts_records) - len(cts_schemes))
-                transformed_schemes.extend(cts_schemes)
+                    raw_cts = self.datagov_connector.fetch_resource(RESOURCE_ITI_CRAFTSMEN)
+                    cts_records = raw_cts.get("records", [])
+                    total_fetched += len(cts_records)
+                    cts_schemes = self.datagov_connector.transform_cts_schemes(cts_records)
+                    total_skipped += max(0, len(cts_records) - len(cts_schemes))
+                    transformed_schemes.extend(cts_schemes)
 
-                added_s, updated_s = self._upsert_schemes(transformed_schemes)
-                total_added += added_s
-                total_updated += updated_s
+                    added_s, updated_s = self._upsert_schemes(transformed_schemes)
+                    total_added += added_s
+                    total_updated += updated_s
 
-                # Government Apprenticeships (NAPS)
-                raw_naps = self.datagov_connector.fetch_resource(RESOURCE_NAPS_APPRENTICESHIP)
-                naps_records = raw_naps.get("records", [])
-                total_fetched += len(naps_records)
-                transformed_opps = self.datagov_connector.transform_naps_opportunities(naps_records)
-                total_skipped += max(0, len(naps_records) - len(transformed_opps))
+                    raw_naps = self.datagov_connector.fetch_resource(RESOURCE_NAPS_APPRENTICESHIP)
+                    naps_records = raw_naps.get("records", [])
+                    total_fetched += len(naps_records)
+                    transformed_opps = self.datagov_connector.transform_naps_opportunities(naps_records)
+                    total_skipped += max(0, len(naps_records) - len(transformed_opps))
 
-                # PMKVY Vocational Training
-                raw_pmkvy = self.datagov_connector.fetch_resource(RESOURCE_PMKVY_SKILL)
-                pmkvy_records = raw_pmkvy.get("records", [])
-                total_fetched += len(pmkvy_records)
-                pmkvy_opps = self.datagov_connector.transform_pmkvy_opportunities(pmkvy_records)
-                total_skipped += max(0, len(pmkvy_records) - len(pmkvy_opps))
-                transformed_opps.extend(pmkvy_opps)
+                    raw_pmkvy = self.datagov_connector.fetch_resource(RESOURCE_PMKVY_SKILL)
+                    pmkvy_records = raw_pmkvy.get("records", [])
+                    total_fetched += len(pmkvy_records)
+                    pmkvy_opps = self.datagov_connector.transform_pmkvy_opportunities(pmkvy_records)
+                    total_skipped += max(0, len(pmkvy_records) - len(pmkvy_opps))
+                    transformed_opps.extend(pmkvy_opps)
 
-                added_o, updated_o = self._upsert_jobs(transformed_opps)
-                total_added += added_o
-                total_updated += updated_o
+                    added_o, updated_o = self._upsert_jobs(transformed_opps)
+                    total_added += added_o
+                    total_updated += updated_o
+                    source_successes.append("data.gov.in")
+                except Exception as err:
+                    logger.warning("[SyncEngine] Datagov ingestion failed: %s", err)
+                    source_errors.append(f"data.gov.in: {err}")
 
-            # ----------------------------------------------------------------
-            # 2. Ingest Live Jobs from Adzuna India API
-            # ----------------------------------------------------------------
             if src_norm in ("all", "adzuna", "jobs"):
-                logger.info("[SyncEngine] Ingesting live job vacancies from Adzuna India...")
-                adzuna_raw = self.adzuna_connector.fetch_raw(page=1, results_per_page=25, where="Maharashtra")
-                total_fetched += len(adzuna_raw)
+                try:
+                    logger.info("[SyncEngine] Ingesting live job vacancies from Adzuna India...")
+                    adzuna_raw = self.adzuna_connector.fetch_raw(page=1, results_per_page=25, where="Maharashtra")
+                    total_fetched += len(adzuna_raw)
 
-                adzuna_jobs = self.adzuna_connector.validate_and_transform(adzuna_raw)
-                total_skipped += max(0, len(adzuna_raw) - len(adzuna_jobs))
-                added_j, updated_j = self._upsert_jobs(adzuna_jobs)
-                total_added += added_j
-                total_updated += updated_j
+                    adzuna_jobs = self.adzuna_connector.validate_and_transform(adzuna_raw)
+                    total_skipped += max(0, len(adzuna_raw) - len(adzuna_jobs))
+                    added_j, updated_j = self._upsert_jobs(adzuna_jobs)
+                    total_added += added_j
+                    total_updated += updated_j
 
-                self._upsert_job_skills(adzuna_jobs)
+                    self._upsert_job_skills(adzuna_jobs)
+                    source_successes.append("adzuna")
+                except Exception as err:
+                    logger.warning("[SyncEngine] Adzuna ingestion failed: %s", err)
+                    source_errors.append(f"adzuna: {err}")
 
             if src_norm in ("all", "industry_signals", "industry"):
-                from app.ingestion.industry_intelligence import industry_ingestor
-                ind_res = industry_ingestor.ingest_from_feeds()
-                total_fetched += ind_res.get("fetched", 0)
-                total_added += ind_res.get("added", 0)
-                total_updated += ind_res.get("updated", 0)
-                total_skipped += ind_res.get("skipped", 0)
+                try:
+                    from app.ingestion.industry_intelligence import industry_ingestor
+                    ind_res = industry_ingestor.ingest_from_feeds()
+                    total_fetched += ind_res.get("fetched", 0)
+                    total_added += ind_res.get("added", 0)
+                    total_updated += ind_res.get("updated", 0)
+                    total_skipped += ind_res.get("skipped", 0)
+                    source_successes.append("industry_signals")
+                except Exception as err:
+                    logger.warning("[SyncEngine] Industry signals ingestion failed: %s", err)
+                    source_errors.append(f"industry_signals: {err}")
 
             if src_norm in ("all", "skill_forecasts", "forecasts", "forecast"):
-                from app.services.forecast_engine import persist_computed_forecasts
-                fc_res = persist_computed_forecasts()
-                total_added += len(fc_res)
+                try:
+                    from app.services.forecast_engine import persist_computed_forecasts
+                    fc_res = persist_computed_forecasts()
+                    total_added += len(fc_res)
+                    source_successes.append("skill_forecasts")
+                except Exception as err:
+                    logger.warning("[SyncEngine] Forecasts persistence failed: %s", err)
+                    source_errors.append(f"skill_forecasts: {err}")
 
             duration_ms = int((time.perf_counter() - start_perf) * 1000)
             completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+            if source_errors:
+                if not source_successes:
+                    status_val = "failed"
+                else:
+                    status_val = "partial_success" if src_norm == "all" else "failed"
+                err_msg = "; ".join(source_errors)
+            else:
+                status_val = "success"
+                err_msg = None
+
             log_entry.update({
-                "status": "success",
+                "status": status_val,
                 "records_fetched": total_fetched,
                 "records_added": total_added,
                 "records_updated": total_updated,
                 "records_skipped": total_skipped,
+                "error_message": err_msg,
                 "completed_at": completed_at,
                 "duration_ms": duration_ms,
             })
