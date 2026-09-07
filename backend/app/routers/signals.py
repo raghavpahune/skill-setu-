@@ -33,13 +33,11 @@ def _get_skills_map(is_demo: bool = False) -> dict[str, str]:
 
 
 def _normalize_signal_output(sig: dict[str, Any], skills_map: dict[str, str]) -> dict[str, Any]:
-    """Ensure consistent schema output across legacy demo records and freshly ingested records."""
     published_at = sig.get("published_at") or (f"{sig['signal_date']}T00:00:00Z" if sig.get("signal_date") else "2026-01-01T00:00:00Z")
-    is_active = sig.get("is_active", True)
-    val_status = sig.get("validation_status", STATUS_APPROVED)
+    is_active = True if sig.get("is_active") is None else bool(sig.get("is_active"))
+    val_status = sig.get("validation_status") or STATUS_APPROVED
     freshness = sig.get("freshness") or calculate_freshness(published_at, is_active, val_status)
 
-    # Resolve skills list if affected_skills format
     skills = sig.get("skills", [])
     if not skills and "affected_skills" in sig:
         skills = [skills_map.get(sid, sid) for sid in sig.get("affected_skills", [])]
@@ -92,13 +90,21 @@ async def list_industry_signals(
     offset: int = Query(0, ge=0),
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
-    """Retrieve public, approved, active industry intelligence signals."""
     if is_explicit_demo_mode(is_demo):
         raw_signals = get_demo("industry_signals")
     else:
         try:
             repo_signals = list_industry_signals_repo() or []
+            if not repo_signals:
+                from app.ingestion.industry_intelligence import industry_ingestor
+                industry_ingestor.ingest_from_feeds()
+                repo_signals = list_industry_signals_repo() or []
             raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
+            if not raw_signals:
+                from app.ingestion.industry_intelligence import industry_ingestor
+                industry_ingestor.ingest_from_feeds()
+                repo_signals = list_industry_signals_repo() or []
+                raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed listing industry signals from Supabase: %s", e)
             raise HTTPException(
@@ -181,18 +187,25 @@ async def get_industry_signal(
     return {"status": "success", "signal": normalized}
 
 
-# Backward Compatibility Endpoints
 @router.get("/signals")
 async def legacy_list_signals(
-    is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+    is_demo: bool | None = Query(None),
 ):
-    """Legacy backward-compatible endpoint for existing dashboard widgets."""
     if is_explicit_demo_mode(is_demo):
         raw_signals = get_demo("industry_signals")
     else:
         try:
             repo_signals = list_industry_signals_repo() or []
+            if not repo_signals:
+                from app.ingestion.industry_intelligence import industry_ingestor
+                industry_ingestor.ingest_from_feeds()
+                repo_signals = list_industry_signals_repo() or []
             raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
+            if not raw_signals:
+                from app.ingestion.industry_intelligence import industry_ingestor
+                industry_ingestor.ingest_from_feeds()
+                repo_signals = list_industry_signals_repo() or []
+                raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed listing signals: %s", e)
             raise HTTPException(

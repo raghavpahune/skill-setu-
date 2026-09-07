@@ -222,6 +222,24 @@ async def get_my_student_profile(
     }
 
 
+def ensure_user_in_supabase(user_id: str, current_user: dict[str, Any], role: str) -> None:
+    from app.db import get_supabase_client
+    client = get_supabase_client()
+    if not client:
+        return
+    try:
+        user_res = client.table("users").select("id").eq("id", user_id).execute()
+        if not user_res.data:
+            client.table("users").upsert({
+                "id": user_id,
+                "name": current_user.get("full_name") or current_user.get("name") or "Platform User",
+                "email": current_user.get("email") or f"{user_id}@skillsetu.gov.in",
+                "role": role,
+            }, on_conflict="id").execute()
+    except Exception as e:
+        logger.warning("[Profile] Failed ensuring user presence in Supabase users table: %s", e)
+
+
 @router.post("/student/profile", status_code=status.HTTP_201_CREATED)
 async def create_student_profile(
     payload: StudentProfilePayload,
@@ -234,6 +252,7 @@ async def create_student_profile(
             detail="Forbidden: Student profile creation requires STUDENT or ADMIN role.",
         )
     user_id = current_user["id"]
+    ensure_user_in_supabase(user_id, current_user, role)
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
@@ -269,7 +288,7 @@ async def create_student_profile(
         logger.exception("[Profile] Database failure creating student profile %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database persistence failed for student profile.",
+            detail=f"Database persistence failed for student profile: {e}",
         ) from e
 
     return {
@@ -291,6 +310,7 @@ async def update_student_profile(
             detail="Forbidden: Student profile update requires STUDENT or ADMIN role.",
         )
     user_id = current_user["id"]
+    ensure_user_in_supabase(user_id, current_user, role)
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
@@ -324,7 +344,7 @@ async def update_student_profile(
         logger.exception("[Profile] Database failure updating student profile %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database persistence failed for student profile.",
+            detail=f"Database persistence failed for student profile: {e}",
         ) from e
 
     return {
@@ -346,6 +366,7 @@ async def patch_student_profile(
             detail="Forbidden: Student profile patch requires STUDENT or ADMIN role.",
         )
     user_id = current_user["id"]
+    ensure_user_in_supabase(user_id, current_user, role)
     try:
         existing = supabase_repository.get_student_profile(user_id)
     except SupabaseRepositoryError as e:
@@ -384,7 +405,7 @@ async def patch_student_profile(
         logger.exception("[Profile] Database upsert failure on patch %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database persistence failed for student profile patch.",
+            detail=f"Database persistence failed for student profile patch: {e}",
         ) from e
 
     return {

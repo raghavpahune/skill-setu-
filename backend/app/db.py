@@ -847,7 +847,7 @@ def get_skill_forecast_by_id(forecast_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def init_demo_users():
-    if not settings.use_demo_data:
+    if not (settings.use_demo_data or settings.demo_auth_enabled):
         return
     users = _cache.setdefault("users", [])
     existing_emails = {u.get("email", "").lower() for u in users if isinstance(u, dict)}
@@ -859,6 +859,7 @@ def init_demo_users():
             "id": "usr-student-001",
             "email": "student@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "Aarav Patil",
             "full_name": "Aarav Patil",
             "role": "STUDENT",
             "organization_id": None,
@@ -871,6 +872,7 @@ def init_demo_users():
             "id": "usr-student-002",
             "email": "student2@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "Priya Deshmukh",
             "full_name": "Priya Deshmukh",
             "role": "STUDENT",
             "organization_id": None,
@@ -883,6 +885,7 @@ def init_demo_users():
             "id": "usr-employee-001",
             "email": "employee@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "Vikram Shinde",
             "full_name": "Vikram Shinde",
             "role": "EMPLOYEE",
             "organization_id": None,
@@ -895,6 +898,7 @@ def init_demo_users():
             "id": "usr-employer-001",
             "email": "employer@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "Tata Motors Skill Lead",
             "full_name": "Tata Motors Skill Lead",
             "role": "EMPLOYER",
             "organization_id": "emp-001",
@@ -907,6 +911,7 @@ def init_demo_users():
             "id": "usr-employer-002",
             "email": "employer2@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "Bajaj Auto Talent Head",
             "full_name": "Bajaj Auto Talent Head",
             "role": "EMPLOYER",
             "organization_id": "emp-002",
@@ -919,6 +924,7 @@ def init_demo_users():
             "id": "usr-institute-001",
             "email": "institute@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "COEP Vocational Director",
             "full_name": "COEP Vocational Director",
             "role": "INSTITUTE",
             "organization_id": "inst-coep",
@@ -931,6 +937,7 @@ def init_demo_users():
             "id": "usr-institute-002",
             "email": "institute2@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "VJTI Principal",
             "full_name": "VJTI Principal",
             "role": "INSTITUTE",
             "organization_id": "inst-vjti",
@@ -943,6 +950,7 @@ def init_demo_users():
             "id": "usr-gov-001",
             "email": "government@skillsetu.gov.in",
             "hashed_password": hash_password("Password@123"),
+            "name": "Maharashtra Skill Officer",
             "full_name": "Maharashtra Skill Officer",
             "role": "GOVERNMENT",
             "organization_id": "gov-msis",
@@ -955,6 +963,7 @@ def init_demo_users():
             "id": "usr-admin-001",
             "email": "admin@skillsetu.gov.in",
             "hashed_password": hash_password("AdminPass@2026"),
+            "name": "SkillSetu System Administrator",
             "full_name": "SkillSetu System Administrator",
             "role": "ADMIN",
             "organization_id": "admin-gov",
@@ -969,9 +978,24 @@ def init_demo_users():
             users.append(acc)
             existing_emails.add(acc["email"].lower())
 
+    client = get_supabase_client()
+    if client:
+        try:
+            supabase_users = [
+                {
+                    "id": acc["id"],
+                    "name": acc.get("full_name") or acc.get("name", ""),
+                    "email": acc["email"],
+                    "role": acc["role"],
+                }
+                for acc in demo_accounts
+            ]
+            client.table("users").upsert(supabase_users, on_conflict="id").execute()
+        except Exception as e:
+            logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
+
 
 def get_user_by_email(email: str) -> dict | None:
-    """Find user record by case-insensitive email address."""
     if not _cache:
         init_db()
     users = _cache.get("users", [])
@@ -979,29 +1003,46 @@ def get_user_by_email(email: str) -> dict | None:
     for u in users:
         if u.get("email", "").strip().lower() == clean_email:
             return u
+    client = get_supabase_client()
+    if client:
+        try:
+            res = client.table("users").select("*").ilike("email", clean_email).execute()
+            if res.data and len(res.data) > 0:
+                user = res.data[0]
+                user.setdefault("full_name", user.get("name", ""))
+                return user
+        except Exception as e:
+            logger.warning("[DB] Failed querying user by email from Supabase: %s", e)
     return None
 
 
 def get_user_by_id(user_id: str) -> dict | None:
-    """Find user record by ID."""
     if not _cache:
         init_db()
     users = _cache.get("users", [])
     for u in users:
         if u.get("id") == user_id:
             return u
+    client = get_supabase_client()
+    if client:
+        try:
+            res = client.table("users").select("*").eq("id", user_id).execute()
+            if res.data and len(res.data) > 0:
+                user = res.data[0]
+                user.setdefault("full_name", user.get("name", ""))
+                return user
+        except Exception as e:
+            logger.warning("[DB] Failed querying user by id from Supabase: %s", e)
     return None
 
 
 def list_users() -> list[dict]:
-    """Return all user accounts."""
     if not _cache:
         init_db()
     return _cache.get("users", [])
 
 
 def save_user(user_data: dict) -> dict:
-    """Save or update user record in memory cache, local real storage, and Supabase."""
     if not _cache:
         init_db()
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -1009,10 +1050,17 @@ def save_user(user_data: dict) -> dict:
     user_data["updated_at"] = now_iso
     user_data.setdefault("source", "USER_SUBMITTED")
     user_data["is_demo"] = False
+    if "full_name" in user_data and "name" not in user_data:
+        user_data["name"] = user_data["full_name"]
+    elif "name" in user_data and "full_name" not in user_data:
+        user_data["full_name"] = user_data["name"]
+
     client = get_supabase_client()
     if client:
         try:
-            client.table("users").upsert(user_data).execute()
+            valid_cols = {"id", "name", "email", "role", "created_at"}
+            clean_supabase_user = {k: v for k, v in user_data.items() if k in valid_cols}
+            client.table("users").upsert(clean_supabase_user, on_conflict="id").execute()
             logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
         except Exception as e:
             logger.error("[DB] Failed persisting user to Supabase: %s", e)

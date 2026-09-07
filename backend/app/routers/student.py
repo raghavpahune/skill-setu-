@@ -14,6 +14,7 @@ from app.services.student_service import (
     get_personalized_industry_alerts,
     get_skill_explainability,
     get_diagnostic_quiz_questions,
+    get_personalized_diagnostic_questions,
     evaluate_student_assessment,
 )
 
@@ -551,17 +552,20 @@ async def list_students(
     return results
 
 
-# ---------------------------------------------------------------------------
-# Phase 12 Endpoints: Student Assessment & Quiz
-# ---------------------------------------------------------------------------
-
 @router.get("/student/assessment/quiz-questions")
-async def get_quiz_questions():
-    """Return standard diagnostic quiz questions and options for student assessment."""
-    return {"questions": get_diagnostic_quiz_questions()}
-
-
-from app.core.security import get_optional_current_user, get_current_user
+async def get_quiz_questions(
+    student_id: str | None = Query(None),
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    target_id = current_user.get("id") if current_user else student_id
+    if target_id:
+        user_email = current_user.get("email") if current_user else None
+        return get_personalized_diagnostic_questions(target_id, user_email)
+    return {
+        "status": "unauthenticated",
+        "domain": "general",
+        "questions": get_diagnostic_quiz_questions(),
+    }
 
 
 @router.post("/student/assessment")

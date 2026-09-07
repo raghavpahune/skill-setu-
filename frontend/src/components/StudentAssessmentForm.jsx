@@ -57,16 +57,18 @@ const SUGGESTED_SKILLS = [
 
 export default function StudentAssessmentForm({ onOpenExplainability, onAssessmentSubmitted }) {
   const { user } = useAuth();
-  const [step, setStep] = useState(1); // 1: Demographics, 2: Goal & Interests, 3: Skills, 4: Quiz, 5: Result
+  const [step, setStep] = useState(1);
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [incompleteMessage, setIncompleteMessage] = useState('');
+  const [assessmentDomain, setAssessmentDomain] = useState('general');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [latestAssessment, setLatestAssessment] = useState(null);
 
-  // Assessment History
   const [historyList, setHistoryList] = useState([]);
-  const [historyFilter, setHistoryFilter] = useState('all'); // 'all' | 'USER_SUBMITTED' | 'DEMO_SYNTHETIC'
+  const [historyFilter, setHistoryFilter] = useState('all');
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
 
@@ -112,13 +114,20 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
       .catch(() => setLoadingHistory(false));
   };
 
-  // Load Quiz Questions and History on mount
   useEffect(() => {
     api.getAssessmentQuizQuestions()
       .then((res) => {
+        if (res?.status === 'profile_incomplete') {
+          setProfileIncomplete(true);
+          setIncompleteMessage(res.message || 'Please complete your Skill Passport before taking your personalized assessment.');
+          setLoadingQuestions(false);
+          return;
+        }
+        if (res?.domain) {
+          setAssessmentDomain(res.domain);
+        }
         if (res?.questions) {
           setQuizQuestions(res.questions);
-          // Initialize default answers
           const initialAnswers = {};
           res.questions.forEach((q) => {
             if (q.options?.length > 0) {
@@ -685,7 +694,25 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
             </div>
           </div>
 
-          {loadingQuestions ? (
+          {profileIncomplete ? (
+            <div className="p-6 rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 font-bold text-base">
+                  <span>⚠️</span>
+                  <span>Skill Passport Incomplete</span>
+                </div>
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  {incompleteMessage || 'Please complete your Skill Passport before taking your personalized assessment.'}
+                </p>
+              </div>
+              <Link
+                to="/student/profile"
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl whitespace-nowrap transition-colors shadow-xs"
+              >
+                Complete Skill Passport →
+              </Link>
+            </div>
+          ) : loadingQuestions ? (
             <div className="py-12 text-center text-xs text-slate-500 animate-pulse">
               Loading diagnostic questions from SkillSetu intelligence engine...
             </div>
@@ -700,6 +727,18 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
                     <span className="font-mono text-teal-600 dark:text-teal-400 font-bold uppercase tracking-wider text-[11px]">
                       Question {idx + 1} • {q.category}
                     </span>
+                    {q.skills?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {q.skills.map((sk) => (
+                          <span
+                            key={sk}
+                            className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800"
+                          >
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm leading-snug">
                     {q.question}
@@ -755,7 +794,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
             </button>
             <button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || profileIncomplete}
               className="px-8 py-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
             >
               {submitting ? (
@@ -805,44 +844,117 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
               </div>
             </div>
 
-            {/* Top Score Matrix */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="p-4 rounded-xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/60">
-                <span className="text-[10px] font-bold text-teal-800 dark:text-teal-300 uppercase font-mono block">
-                  Diagnostic Quiz Aptitude
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60">
+                <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase font-mono block">
+                  Domain Readiness Score
                 </span>
                 <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
-                  {activeAssessment.quiz_score_pct}%
+                  {activeAssessment.domain_readiness_score ?? activeAssessment.combined_readiness_score ?? 0}%
                 </div>
-                <p className="text-[11px] text-teal-700 dark:text-teal-400 mt-0.5">
-                  Standardized problem solving & tooling readiness
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5">
+                  Calibrated across domain aptitude & role prerequisites
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60">
                 <span className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase font-mono block">
-                  Target Competency Match
+                  Skill Proficiency Score
                 </span>
                 <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
-                  {activeAssessment.skill_match_pct}%
+                  {activeAssessment.skill_proficiency_score ?? activeAssessment.skill_match_pct ?? 0}%
                 </div>
                 <p className="text-[11px] text-blue-700 dark:text-blue-400 mt-0.5">
-                  Match against {activeAssessment.career_goal} labour benchmark
+                  Reported vs required {activeAssessment.career_goal} competencies
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/60">
+                <span className="text-[10px] font-bold text-teal-800 dark:text-teal-300 uppercase font-mono block">
+                  Diagnostic Aptitude
+                </span>
+                <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
+                  {activeAssessment.quiz_score_pct}%
+                </div>
+                <p className="text-[11px] text-teal-700 dark:text-teal-400 mt-0.5">
+                  Scenario-based problem solving score
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/60">
                 <span className="text-[10px] font-bold text-purple-800 dark:text-purple-300 uppercase font-mono block">
-                  Overall Readiness Status
+                  Overall Readiness
                 </span>
                 <div className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 uppercase">
                   {activeAssessment.evaluation_summary?.readiness_level?.replace('_', ' ') || 'EVALUATED'}
                 </div>
                 <p className="text-[11px] text-purple-700 dark:text-purple-400 mt-0.5">
-                  Grounded in live Maharashtra labour signals
+                  Live Maharashtra benchmark
                 </p>
               </div>
             </div>
+
+            {activeAssessment.knowledge_breakdown && (
+              <div className="space-y-3 mb-8 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                  Knowledge Breakdown by Competency
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                    <span className="font-bold text-emerald-800 dark:text-emerald-300 block mb-1">
+                      Strong Knowledge ({activeAssessment.knowledge_breakdown.strong?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {activeAssessment.knowledge_breakdown.strong?.map((s) => (
+                        <span key={s} className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 text-[10px]">
+                          {s}
+                        </span>
+                      ))}
+                      {!activeAssessment.knowledge_breakdown.strong?.length && <span className="text-slate-400 text-[10px]">None identified</span>}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+                    <span className="font-bold text-blue-800 dark:text-blue-300 block mb-1">
+                      Moderate Knowledge ({activeAssessment.knowledge_breakdown.moderate?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {activeAssessment.knowledge_breakdown.moderate?.map((s) => (
+                        <span key={s} className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-[10px]">
+                          {s}
+                        </span>
+                      ))}
+                      {!activeAssessment.knowledge_breakdown.moderate?.length && <span className="text-slate-400 text-[10px]">None identified</span>}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                    <span className="font-bold text-amber-800 dark:text-amber-300 block mb-1">
+                      Weak Knowledge ({activeAssessment.knowledge_breakdown.weak?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {activeAssessment.knowledge_breakdown.weak?.map((s) => (
+                        <span key={s} className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-[10px]">
+                          {s}
+                        </span>
+                      ))}
+                      {!activeAssessment.knowledge_breakdown.weak?.length && <span className="text-slate-400 text-[10px]">None identified</span>}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800">
+                    <span className="font-bold text-rose-800 dark:text-rose-300 block mb-1">
+                      Missing Prerequisites ({activeAssessment.knowledge_breakdown.missing?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {activeAssessment.knowledge_breakdown.missing?.map((m) => (
+                        <span key={m.skill_id || m.name} className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200 text-[10px]">
+                          {m.name || m.skill_name}
+                        </span>
+                      ))}
+                      {!activeAssessment.knowledge_breakdown.missing?.length && <span className="text-slate-400 text-[10px]">None</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Priority Skill Gaps */}
             <div className="space-y-4 mb-8">

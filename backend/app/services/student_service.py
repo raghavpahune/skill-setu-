@@ -733,7 +733,6 @@ DIAGNOSTIC_QUIZ_QUESTIONS = [
 
 
 def get_diagnostic_quiz_questions() -> list[dict[str, Any]]:
-    """Return sanitized quiz questions for frontend rendering."""
     return [
         {
             "id": q["id"],
@@ -745,7 +744,439 @@ def get_diagnostic_quiz_questions() -> list[dict[str, Any]]:
     ]
 
 
-# Standard role requirement mapping grounded in SkillSetu labour-market database
+DOMAIN_QUESTION_BANK = [
+    {
+        "id": "q_sw_git",
+        "category": "Software & DevOps",
+        "domain": "software",
+        "skills": ["Git", "DevOps"],
+        "question": "In a collaborative Git workflow, what is the best practice for isolating new features before merging into the release branch?",
+        "options": [
+            {"key": "a", "text": "Commit directly to the main branch to ensure fast synchronization.", "points": 5},
+            {"key": "b", "text": "Create a dedicated feature branch, perform automated testing and pull request reviews prior to merging.", "points": 20},
+            {"key": "c", "text": "Delete local repositories and clone fresh daily.", "points": 5},
+            {"key": "d", "text": "Disable branch protection rules to avoid merge conflicts.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sw_docker",
+        "category": "Software & DevOps",
+        "domain": "software",
+        "skills": ["Docker", "Containers", "DevOps"],
+        "question": "What is the primary advantage of utilizing multi-stage Docker builds in production deployments?",
+        "options": [
+            {"key": "a", "text": "They increase image size by retaining all build-time dependencies.", "points": 5},
+            {"key": "b", "text": "They produce lightweight, secure final images by copying only compiled artifacts into runtime containers.", "points": 20},
+            {"key": "c", "text": "They prevent containers from running on Linux kernels.", "points": 5},
+            {"key": "d", "text": "They eliminate the need for container registries.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sw_dsa",
+        "category": "Software Engineering",
+        "domain": "software",
+        "skills": ["Data Structures", "Algorithms"],
+        "question": "Which data structure provides average O(1) time complexity for lookup, insert, and delete operations by key?",
+        "options": [
+            {"key": "a", "text": "Singly Linked List", "points": 5},
+            {"key": "b", "text": "Binary Search Tree", "points": 10},
+            {"key": "c", "text": "Hash Map / Hash Table", "points": 20},
+            {"key": "d", "text": "Array requiring linear scan", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sw_api",
+        "category": "Software Engineering",
+        "domain": "software",
+        "skills": ["API Design", "Backend"],
+        "question": "Which HTTP method is designated by RFC standards to be idempotent for updating an existing resource with a full replacement representation?",
+        "options": [
+            {"key": "a", "text": "POST", "points": 10},
+            {"key": "b", "text": "PUT", "points": 20},
+            {"key": "c", "text": "PATCH", "points": 10},
+            {"key": "d", "text": "CONNECT", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sw_py",
+        "category": "Software Engineering",
+        "domain": "software",
+        "skills": ["Python", "Programming"],
+        "question": "Why are Python generator expressions preferred over large list comprehensions when streaming millions of records?",
+        "options": [
+            {"key": "a", "text": "Generators preload the entire dataset into RAM immediately.", "points": 5},
+            {"key": "b", "text": "Generators yield items lazily on-demand, reducing memory consumption to O(1).", "points": 20},
+            {"key": "c", "text": "Generators disable Python garbage collection entirely.", "points": 5},
+            {"key": "d", "text": "Generators convert all variables into static C types.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sw_java",
+        "category": "Software Engineering",
+        "domain": "software",
+        "skills": ["Java", "Backend"],
+        "question": "In concurrent Java programming, what does declaring a variable as volatile guarantee?",
+        "options": [
+            {"key": "a", "text": "Atomic execution of compound increment operations.", "points": 10},
+            {"key": "b", "text": "Immediate visibility of writes across all threads by bypassing thread-local CPU cache.", "points": 20},
+            {"key": "c", "text": "Automatic serialization of the enclosing class to disk.", "points": 5},
+            {"key": "d", "text": "Prevention of garbage collection on that object.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_ai_rag",
+        "category": "AI & Machine Learning",
+        "domain": "ai_ml",
+        "skills": ["RAG", "Generative AI", "AI Agents"],
+        "question": "What core mechanism enables a Retrieval-Augmented Generation (RAG) system to minimize factual hallucinations in LLM responses?",
+        "options": [
+            {"key": "a", "text": "Increasing the LLM temperature parameter to maximum creativity.", "points": 5},
+            {"key": "b", "text": "Retrieving grounded domain context from a vector database and injecting it into the prompt context window.", "points": 20},
+            {"key": "c", "text": "Training models solely on synthetic unverified text prompts.", "points": 5},
+            {"key": "d", "text": "Storing text as unindexed flat binary blobs.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_ai_eval",
+        "category": "AI & Machine Learning",
+        "domain": "ai_ml",
+        "skills": ["Machine Learning", "Model Evaluation"],
+        "question": "When evaluating a classification model with severe class imbalance (99% negative, 1% positive), which metric is most reliable?",
+        "options": [
+            {"key": "a", "text": "Raw Accuracy", "points": 5},
+            {"key": "b", "text": "Precision-Recall AUC and F1-Score on the minority class", "points": 20},
+            {"key": "c", "text": "Total training epoch count", "points": 5},
+            {"key": "d", "text": "Number of input features regardless of relevance", "points": 5},
+        ],
+    },
+    {
+        "id": "q_ai_overfit",
+        "category": "AI & Machine Learning",
+        "domain": "ai_ml",
+        "skills": ["Deep Learning", "Regularization"],
+        "question": "What technique prevents deep neural networks from memorizing training noise and overfitting?",
+        "options": [
+            {"key": "a", "text": "Removing validation datasets during training.", "points": 5},
+            {"key": "b", "text": "Applying Dropout, weight decay (L2 regularization), and early stopping based on validation loss.", "points": 20},
+            {"key": "c", "text": "Duplicating identical training batches repeatedly without shuffling.", "points": 5},
+            {"key": "d", "text": "Maximizing model parameter count with minimal data samples.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_ds_sql",
+        "category": "Data Science",
+        "domain": "ai_ml",
+        "skills": ["SQL", "Data Analysis"],
+        "question": "In analytical SQL, which clause allows calculating a moving average or running total across partitions without collapsing individual rows?",
+        "options": [
+            {"key": "a", "text": "GROUP BY without aggregate functions", "points": 5},
+            {"key": "b", "text": "Window functions using the OVER (PARTITION BY ... ORDER BY ...) clause", "points": 20},
+            {"key": "c", "text": "CROSS JOIN on all records", "points": 5},
+            {"key": "d", "text": "HAVING clause without conditions", "points": 5},
+        ],
+    },
+    {
+        "id": "q_ds_pandas",
+        "category": "Data Science",
+        "domain": "ai_ml",
+        "skills": ["Data Preprocessing", "Python", "Data Analysis"],
+        "question": "When preparing telemetry data with extreme outliers for statistical modeling, what is the best preprocessing step?",
+        "options": [
+            {"key": "a", "text": "Silently replace all missing values with arbitrary zero values.", "points": 5},
+            {"key": "b", "text": "Perform exploratory outlier analysis, apply robust scaling or log transformation, and impute missing data methodically.", "points": 20},
+            {"key": "c", "text": "Delete 90% of observations at random.", "points": 5},
+            {"key": "d", "text": "Bypass normalization and feed unscaled values into distance-based estimators.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_mech_cad",
+        "category": "Mechanical & Manufacturing",
+        "domain": "mechanical",
+        "skills": ["CAD", "Parametric Modeling", "AutoCAD"],
+        "question": "In parametric 3D CAD modeling, what does Geometric Dimensioning and Tolerancing (GD&T) ensure during component fabrication?",
+        "options": [
+            {"key": "a", "text": "Visual aesthetic colors on assembly renders.", "points": 5},
+            {"key": "b", "text": "Explicit allowable variation in geometry, form, orientation, and location for proper assembly mating.", "points": 20},
+            {"key": "c", "text": "Disabling all manufacturing tolerances to enforce perfect theoretical dimensions.", "points": 5},
+            {"key": "d", "text": "Converting 3D assemblies into 1D text lists.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_mech_mfg",
+        "category": "Mechanical & Manufacturing",
+        "domain": "mechanical",
+        "skills": ["CNC Programming", "Manufacturing"],
+        "question": "What does the G-code command 'G01' specify in CNC milling and turning operations?",
+        "options": [
+            {"key": "a", "text": "Rapid non-cutting positioning move at maximum traverse speed.", "points": 10},
+            {"key": "b", "text": "Linear feed interpolation cutting move at a controlled feed rate.", "points": 20},
+            {"key": "c", "text": "Spindle stop and coolant shutoff.", "points": 5},
+            {"key": "d", "text": "Emergency machine reset.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_mech_thermo",
+        "category": "Mechanical Engineering",
+        "domain": "mechanical",
+        "skills": ["Thermodynamics", "Heat Transfer"],
+        "question": "Which mode of heat transfer governs thermal dissipation across metal heat sinks in natural convection air cooling?",
+        "options": [
+            {"key": "a", "text": "Conduction through the metal fin matrix combined with convective fluid dissipation into surrounding air.", "points": 20},
+            {"key": "b", "text": "Pure vacuum electromagnetic radiation only.", "points": 5},
+            {"key": "c", "text": "Nuclear transmutation.", "points": 5},
+            {"key": "d", "text": "Frictional kinetic heating.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_mech_plc",
+        "category": "Robotics & Automation",
+        "domain": "mechanical",
+        "skills": ["PLC Programming", "Industrial Automation", "Robotics"],
+        "question": "In industrial PLC ladder logic, how is an emergency stop (E-Stop) circuit wired to meet safety integrity levels (SIL)?",
+        "options": [
+            {"key": "a", "text": "Normally Open (NO) software flag with no hardware interlock.", "points": 5},
+            {"key": "b", "text": "Fail-safe Normally Closed (NC) physical contact opening on power disruption or press.", "points": 20},
+            {"key": "c", "text": "Through an unmonitored wireless Bluetooth bridge.", "points": 5},
+            {"key": "d", "text": "In series with the operator touchscreen back-light.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_mech_quality",
+        "category": "Quality Engineering",
+        "domain": "mechanical",
+        "skills": ["Quality Control", "Six Sigma", "Manufacturing"],
+        "question": "What does a process capability index (Cpk) greater than 1.33 indicate in mass component manufacturing?",
+        "options": [
+            {"key": "a", "text": "The process is unstable and generating over 50% scrap.", "points": 5},
+            {"key": "b", "text": "The process is capable, centered, and producing well within specified engineering upper and lower tolerance limits.", "points": 20},
+            {"key": "c", "text": "All measurement sensors have failed calibration.", "points": 5},
+            {"key": "d", "text": "Production cycle times have doubled.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_elec_circuits",
+        "category": "Electrical Engineering",
+        "domain": "electrical",
+        "skills": ["Circuit Analysis", "Electrical"],
+        "question": "According to Kirchhoff's Current Law (KCL), what is the algebraic sum of all electrical currents entering and exiting an ideal circuit node?",
+        "options": [
+            {"key": "a", "text": "Infinite amperes.", "points": 5},
+            {"key": "b", "text": "Zero, reflecting conservation of electric charge.", "points": 20},
+            {"key": "c", "text": "Equal to the supply voltage.", "points": 5},
+            {"key": "d", "text": "Dependent strictly on ambient room temperature.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_elec_bms",
+        "category": "Electric Vehicles",
+        "domain": "electrical",
+        "skills": ["EV Battery Technology", "BMS", "Electric Vehicles"],
+        "question": "What critical function does an active cell balancing circuit perform within an EV Lithium-ion Battery Management System (BMS)?",
+        "options": [
+            {"key": "a", "text": "Overcharging weak cells until they match strong cells.", "points": 5},
+            {"key": "b", "text": "Equalizing state-of-charge across all series cells to maximize usable pack capacity and prevent thermal runaway.", "points": 20},
+            {"key": "c", "text": "Discharging the entire vehicle pack to zero volts on every startup.", "points": 5},
+            {"key": "d", "text": "Bypassing temperature sensor monitoring during fast charging.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_elec_power",
+        "category": "Power Electronics",
+        "domain": "electrical",
+        "skills": ["Power Electronics", "Inverters", "EV"],
+        "question": "In an EV traction inverter, what is the primary purpose of Pulse-Width Modulation (PWM) applied to MOSFET/IGBT gate drivers?",
+        "options": [
+            {"key": "a", "text": "Converting DC battery voltage into variable-frequency, variable-amplitude sinusoidal AC currents for the traction motor.", "points": 20},
+            {"key": "b", "text": "Generating mechanical brake pressure on the wheels.", "points": 5},
+            {"key": "c", "text": "Increasing radio frequency interference across cabin speakers.", "points": 5},
+            {"key": "d", "text": "Discharging vehicle telemetry into the ground chassis.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_elec_motor",
+        "category": "Electric Motors",
+        "domain": "electrical",
+        "skills": ["Motor Control", "EV Motor Design", "Electric Vehicles"],
+        "question": "Why is Field-Oriented Control (FOC) preferred over simple trapezoidal commutation for permanent magnet synchronous motors (PMSM) in EVs?",
+        "options": [
+            {"key": "a", "text": "FOC produces high torque ripple and noisy acoustic vibrations.", "points": 5},
+            {"key": "b", "text": "FOC independently controls torque and magnetic flux components, delivering smooth torque, high efficiency, and dynamic response.", "points": 20},
+            {"key": "c", "text": "FOC requires mechanical carbon brushes that wear down over time.", "points": 5},
+            {"key": "d", "text": "FOC eliminates the need for motor rotor position feedback.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_elec_embedded",
+        "category": "Embedded Systems",
+        "domain": "electrical",
+        "skills": ["Embedded Systems", "Microcontrollers", "IoT"],
+        "question": "Why are hardware interrupt service routines (ISRs) kept as short and non-blocking as possible in real-time embedded controllers?",
+        "options": [
+            {"key": "a", "text": "Longer ISRs increase compiler memory optimization.", "points": 5},
+            {"key": "b", "text": "To prevent blocking lower-priority interrupts and ensure real-time responsiveness to critical system events.", "points": 20},
+            {"key": "c", "text": "To disable serial bus communications permanently.", "points": 5},
+            {"key": "d", "text": "Because microcontrollers cannot execute more than 3 instructions.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sec_auth",
+        "category": "Cybersecurity",
+        "domain": "cybersecurity",
+        "skills": ["Authentication", "Cybersecurity", "Security"],
+        "question": "Why is storing plaintext passwords in a user database considered a critical vulnerability, and what is the standard mitigation?",
+        "options": [
+            {"key": "a", "text": "Plaintext is safe if stored behind an intranet firewall.", "points": 5},
+            {"key": "b", "text": "Passwords must be hashed using adaptive, salted cryptographic functions (e.g. Argon2, bcrypt) with high work factors.", "points": 20},
+            {"key": "c", "text": "Reversing password character order provides sufficient security.", "points": 5},
+            {"key": "d", "text": "Compressing passwords into zip files before database storage.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sec_vuln",
+        "category": "Cybersecurity",
+        "domain": "cybersecurity",
+        "skills": ["Application Security", "OWASP", "Cybersecurity"],
+        "question": "What is the primary defense against SQL Injection vulnerabilities in backend database query handlers?",
+        "options": [
+            {"key": "a", "text": "Concatenating untrusted user input directly into SQL strings.", "points": 5},
+            {"key": "b", "text": "Utilizing parameterized queries (prepared statements) and Object-Relational Mapping (ORM) escaping.", "points": 20},
+            {"key": "c", "text": "Relying exclusively on client-side JavaScript regex validation.", "points": 5},
+            {"key": "d", "text": "Increasing database query timeout limits to 60 seconds.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sec_net",
+        "category": "Cybersecurity",
+        "domain": "cybersecurity",
+        "skills": ["Network Security", "Zero Trust", "Security"],
+        "question": "What is the foundational principle of a Zero Trust Network Architecture?",
+        "options": [
+            {"key": "a", "text": "Automatically trust all traffic originating from within the internal corporate network perimeter.", "points": 5},
+            {"key": "b", "text": "Never trust, always verify: authenticate and authorize every user, device, and request continuously regardless of network location.", "points": 20},
+            {"key": "c", "text": "Disable firewalls and authentication tokens on internal microservices.", "points": 5},
+            {"key": "d", "text": "Assign universal root administrator privileges to all employees.", "points": 5},
+        ],
+    },
+    {
+        "id": "q_sec_crypto",
+        "category": "Cybersecurity",
+        "domain": "cybersecurity",
+        "skills": ["Cryptography", "Data Protection", "Security"],
+        "question": "In TLS 1.3 secure communication, how do symmetric and asymmetric cryptography collaborate?",
+        "options": [
+            {"key": "a", "text": "Asymmetric encryption is used for all payload data transfer throughout the entire session.", "points": 5},
+            {"key": "b", "text": "Asymmetric cryptography securely establishes shared session keys during handshake, and symmetric ciphers encrypt the high-speed data payload.", "points": 20},
+            {"key": "c", "text": "Neither cipher type is used in TLS handshakes.", "points": 5},
+            {"key": "d", "text": "Symmetric keys are sent unencrypted over public DNS queries.", "points": 5},
+        ],
+    },
+]
+
+ALL_DIAGNOSTIC_QUESTIONS = DIAGNOSTIC_QUIZ_QUESTIONS + DOMAIN_QUESTION_BANK
+ALL_DIAGNOSTIC_QUESTIONS_MAP = {q["id"]: q for q in ALL_DIAGNOSTIC_QUESTIONS}
+
+
+def get_personalized_diagnostic_questions(
+    student_id: str,
+    user_email: str | None = None,
+) -> dict[str, Any]:
+    from app.repositories import supabase_repository
+    profile = None
+    try:
+        profile = supabase_repository.get_student_profile(student_id)
+    except Exception as e:
+        logger.warning("[AssessmentPersonalization] Failed fetching student profile %s: %s", student_id, e)
+
+    has_skills = bool(profile and profile.get("skills") and len(profile.get("skills")) > 0)
+    has_role = bool(profile and (profile.get("target_role") or profile.get("desired_role")))
+    has_education = bool(profile and (profile.get("degree") or profile.get("education_level") or profile.get("institution")))
+
+    if not profile or (not has_skills and not has_role and not has_education):
+        return {
+            "status": "profile_incomplete",
+            "message": "Please complete your Skill Passport before taking your personalized assessment.",
+            "questions": [],
+        }
+
+    skills_list = profile.get("skills") or []
+    claimed_skill_names = [
+        (s.get("skill_name") or s.get("name") or "").strip().lower()
+        for s in skills_list
+        if isinstance(s, dict)
+    ]
+    target_role = (profile.get("target_role") or profile.get("desired_role") or "").lower()
+    degree = (profile.get("degree") or "").lower()
+    education_level = (profile.get("education_level") or "").lower()
+    career_interests = [str(i).lower() for i in (profile.get("career_interests") or [])]
+
+    corpus = f"{target_role} {degree} {education_level} {' '.join(career_interests)} {' '.join(claimed_skill_names)}"
+
+    corpus_words = set(corpus.split())
+    if any(k in corpus for k in ("machine learning", "deep learning", "data science", "data analyst", "nlp", "rag", "analytics", "pytorch", "tensorflow", "llm")) or "ai" in corpus_words or "ai_ml" in corpus_words:
+        domain = "ai_ml"
+    elif any(k in corpus for k in ("security", "cyber", "penetration", "soc analyst", "cryptography", "infosec")):
+        domain = "cybersecurity"
+    elif any(k in corpus for k in ("electric", "battery", "circuit", "power system", "electronics", "electrical", "bms", "inverter")) or "ev" in corpus_words:
+        domain = "electrical"
+    elif any(k in corpus for k in ("mechanical", "cad", "cam", "manufacturing", "machining", "cnc", "thermo", "robot")):
+        domain = "mechanical"
+    else:
+        domain = "software"
+
+    domain_pool = [q for q in DOMAIN_QUESTION_BANK if q.get("domain") == domain]
+    selected_questions: list[dict[str, Any]] = []
+    selected_ids: set[str] = set()
+
+    for q in domain_pool:
+        q_skills = [s.lower() for s in q.get("skills", [])]
+        if any(cs in q_skills or any(cs in qs for qs in q_skills) for cs in claimed_skill_names):
+            selected_questions.append(q)
+            selected_ids.add(q["id"])
+            if len(selected_questions) >= 2:
+                break
+
+    for q in domain_pool:
+        if q["id"] not in selected_ids:
+            q_skills = [s.lower() for s in q.get("skills", [])]
+            if any(qs in target_role for qs in q_skills):
+                selected_questions.append(q)
+                selected_ids.add(q["id"])
+                if len(selected_questions) >= 4:
+                    break
+
+    for q in domain_pool:
+        if q["id"] not in selected_ids:
+            selected_questions.append(q)
+            selected_ids.add(q["id"])
+            if len(selected_questions) >= 5:
+                break
+
+    if len(selected_questions) < 5:
+        for q in DIAGNOSTIC_QUIZ_QUESTIONS:
+            if q["id"] not in selected_ids:
+                selected_questions.append(q)
+                selected_ids.add(q["id"])
+                if len(selected_questions) >= 5:
+                    break
+
+    sanitized = [
+        {
+            "id": q["id"],
+            "category": q["category"],
+            "skills": q.get("skills", [q.get("category", "General")]),
+            "question": q["question"],
+            "options": [{"key": opt["key"], "text": opt["text"]} for opt in q["options"]],
+        }
+        for q in selected_questions
+    ]
+
+    return {
+        "status": "success",
+        "domain": domain,
+        "questions": sanitized,
+    }
+
+
 ROLE_REQUIREMENTS_MAP = {
     "ai engineer": ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"],
     "data analyst": ["sk-001", "sk-007", "sk-008", "sk-030"],
@@ -763,7 +1194,6 @@ ROLE_REQUIREMENTS_MAP = {
 
 
 def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate candidate submitted profile, quiz answers, and skill match against grounded dataset."""
     import datetime
     import uuid
     from app.core.data_mode import is_explicit_demo_mode
@@ -800,19 +1230,31 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
         for syn in (s.get("synonyms") or []):
             skills_name_map[syn.lower()] = s
 
-    # 1. Calculate Diagnostic Quiz Score
     quiz_answers = submission_data.get("quiz_answers", {})
     total_quiz_points = 0
-    max_quiz_points = len(DIAGNOSTIC_QUIZ_QUESTIONS) * 20
-
-    question_point_map = {}
-    for q in DIAGNOSTIC_QUIZ_QUESTIONS:
-        question_point_map[q["id"]] = {opt["key"]: opt["points"] for opt in q["options"]}
+    max_quiz_points = 0
+    strong_knowledge_skills: list[str] = []
+    moderate_knowledge_skills: list[str] = []
+    weak_knowledge_skills: list[str] = []
 
     for q_id, opt_key in quiz_answers.items():
-        if q_id in question_point_map:
-            pts = question_point_map[q_id].get(opt_key.lower(), 5)
-            total_quiz_points += pts
+        q_obj = ALL_DIAGNOSTIC_QUESTIONS_MAP.get(q_id)
+        if not q_obj:
+            continue
+        max_quiz_points += 20
+        options_map = {opt["key"].lower(): opt.get("points", 5) for opt in q_obj.get("options", [])}
+        pts = options_map.get(str(opt_key).lower(), 5)
+        total_quiz_points += pts
+        tested_label = (q_obj.get("skills") or [q_obj.get("category", "General")])[0]
+        if pts >= 15:
+            strong_knowledge_skills.append(tested_label)
+        elif pts >= 10:
+            moderate_knowledge_skills.append(tested_label)
+        else:
+            weak_knowledge_skills.append(tested_label)
+
+    if max_quiz_points == 0:
+        max_quiz_points = 100
 
     quiz_score_pct = min(100, max(0, round((total_quiz_points / max(1, max_quiz_points)) * 100)))
 
@@ -952,6 +1394,13 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
     assessment_id = f"ast-demo-{uuid.uuid4().hex[:8]}" if is_demo_sub else f"ast-usr-{uuid.uuid4().hex[:8]}"
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+    knowledge_breakdown = {
+        "strong": strong_knowledge_skills,
+        "moderate": moderate_knowledge_skills,
+        "weak": weak_knowledge_skills,
+        "missing": missing_skills_data,
+    }
+
     assessment_record = {
         "id": assessment_id,
         "name": submission_data.get("name", "").strip(),
@@ -964,10 +1413,16 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
         "quiz_score_pct": quiz_score_pct,
         "skill_match_pct": skill_match_pct,
         "combined_readiness_score": combined_score,
+        "domain_readiness_score": combined_score,
+        "skill_proficiency_score": skill_match_pct,
+        "knowledge_breakdown": knowledge_breakdown,
         "evaluation_summary": {
             "readiness_level": readiness_level,
             "readiness_desc": readiness_desc,
             "target_role": career_goal,
+            "domain_readiness_score": combined_score,
+            "skill_proficiency_score": skill_match_pct,
+            "knowledge_breakdown": knowledge_breakdown,
             "total_target_skills": len(required_skills_data),
             "acquired_count": acquired_target_count,
             "missing_count": len(missing_skills_data),

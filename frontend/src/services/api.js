@@ -137,8 +137,10 @@ export const api = {
   getCourses: () => fetchJSON('/courses'),
   getCourseRecommendations: () => fetchJSON('/courses/recommendations'),
 
-  // Signals & Forecasts
-  getSignals: () => fetchJSON('/signals'),
+  getSignals: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchJSON(`/industry/signals${query ? `?${query}` : ''}`);
+  },
   getForecasts: (skillId) => fetchJSON(skillId ? `/forecast/skill/${skillId}` : '/forecast'),
 
   // Districts & Platform Metrics (§13 & §33)
