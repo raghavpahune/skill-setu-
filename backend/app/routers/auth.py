@@ -181,10 +181,15 @@ async def login(req: LoginRequest):
                             "full_name": meta.get("full_name") or meta.get("name") or clean_email.split("@")[0],
                             "is_active": True,
                         }
-                        await asyncio.wait_for(
-                            asyncio.to_thread(save_user, user),
-                            timeout=5.0,
-                        )
+                        try:
+                            await asyncio.wait_for(
+                                asyncio.to_thread(save_user, user),
+                                timeout=5.0,
+                            )
+                        except Exception as e:
+                            logger.error("[Auth] Failed persisting synthesized Supabase user: %s", e)
+                            authenticated = False
+                            user = None
             except Exception as e:
                 logger.debug("[Auth] Supabase GoTrue authentication failed: %s", e)
 

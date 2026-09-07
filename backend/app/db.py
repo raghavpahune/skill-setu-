@@ -3,6 +3,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import threading
 from typing import Any
 
 from app.config import settings
@@ -11,6 +12,7 @@ logger = logging.getLogger("skillsetu.db")
 
 _cache: dict[str, list] = {}
 _supabase_connected: bool = False
+_save_user_lock = threading.Lock()
 
 
 def _find_data_dir() -> Path:
@@ -1138,39 +1140,40 @@ def list_users() -> list[dict]:
 
 
 def save_user(user_data: dict) -> dict:
-    if not _cache:
-        init_db()
-    now_iso = datetime.now(timezone.utc).isoformat()
-    user_data.setdefault("created_at", now_iso)
-    user_data["updated_at"] = now_iso
-    user_data.setdefault("source", "USER_SUBMITTED")
-    user_data["is_demo"] = False
-    if "full_name" in user_data and "name" not in user_data:
-        user_data["name"] = user_data["full_name"]
-    elif "name" in user_data and "full_name" not in user_data:
-        user_data["full_name"] = user_data["name"]
+    with _save_user_lock:
+        if not _cache:
+            init_db()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        user_data.setdefault("created_at", now_iso)
+        user_data["updated_at"] = now_iso
+        user_data.setdefault("source", "USER_SUBMITTED")
+        user_data["is_demo"] = False
+        if "full_name" in user_data and "name" not in user_data:
+            user_data["name"] = user_data["full_name"]
+        elif "name" in user_data and "full_name" not in user_data:
+            user_data["full_name"] = user_data["name"]
 
-    client = get_supabase_client()
-    if client:
-        try:
-            valid_cols = {"id", "name", "email", "role", "created_at"}
-            clean_supabase_user = {k: v for k, v in user_data.items() if k in valid_cols}
-            client.table("users").upsert(clean_supabase_user, on_conflict="id").execute()
-            logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
-        except Exception as e:
-            logger.error("[DB] Failed persisting user to Supabase: %s", e)
-            from app.repositories.supabase_repository import SupabaseRepositoryError
-            raise SupabaseRepositoryError(f"Database persistence failed for user: {e}") from e
+        client = get_supabase_client()
+        if client:
+            try:
+                valid_cols = {"id", "name", "email", "role", "created_at"}
+                clean_supabase_user = {k: v for k, v in user_data.items() if k in valid_cols}
+                client.table("users").upsert(clean_supabase_user, on_conflict="id").execute()
+                logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
+            except Exception as e:
+                logger.error("[DB] Failed persisting user to Supabase: %s", e)
+                from app.repositories.supabase_repository import SupabaseRepositoryError
+                raise SupabaseRepositoryError(f"Database persistence failed for user: {e}") from e
 
-    users = _cache.setdefault("users", [])
-    existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
-    if existing_idx is not None:
-        users[existing_idx] = user_data
-    else:
-        users.append(user_data)
+        users = _cache.setdefault("users", [])
+        existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
+        if existing_idx is not None:
+            users[existing_idx] = user_data
+        else:
+            users.append(user_data)
 
-    _flush_real_table("users")
-    return user_data
+        _flush_real_table("users")
+        return user_data
 
 
 # Re-export centralized demo student helper for convenience

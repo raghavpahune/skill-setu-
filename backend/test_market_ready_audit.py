@@ -16,16 +16,18 @@ def test_client():
 @pytest.fixture(autouse=True)
 def isolate_users_cache():
     from pathlib import Path
+    from app.db import _save_user_lock
     initial = [dict(u) for u in _cache.get("users", [])]
     runtime_path = Path(__file__).resolve().parent.parent / "data" / "real" / "users_runtime.json"
     initial_file = runtime_path.read_text(encoding="utf-8") if runtime_path.exists() else None
     yield
-    if "users" in _cache:
-        _cache["users"] = initial
-    if initial_file is not None:
-        runtime_path.write_text(initial_file, encoding="utf-8")
-    elif runtime_path.exists():
-        runtime_path.unlink()
+    with _save_user_lock:
+        if "users" in _cache:
+            _cache["users"] = initial
+        if initial_file is not None:
+            runtime_path.write_text(initial_file, encoding="utf-8")
+        elif runtime_path.exists():
+            runtime_path.unlink()
 
 
 def test_auth_all_five_roles_and_admin_uid(test_client, monkeypatch):
@@ -359,3 +361,48 @@ def test_gov_opportunity_rbac_protection(test_client):
 
     no_auth_resp = test_client.post("/api/gov/opportunities", json=opp_payload)
     assert no_auth_resp.status_code == 401
+
+
+def test_auth_save_user_failure_fails_closed(test_client, monkeypatch):
+    import app.routers.auth as auth_router
+
+    class FakeUser:
+        id = "sb-user-timeout-test"
+        user_metadata = {"role": "STUDENT", "name": "Timeout User"}
+
+    class FakeAuthResp:
+        user = FakeUser()
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return FakeAuthResp()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            class FakeQuery:
+                def select(self, *args, **kwargs):
+                    return self
+
+                def eq(self, *args, **kwargs):
+                    return self
+
+                def execute(self):
+                    return type("Resp", (), {"data": [{"role": "STUDENT"}]})()
+
+            return FakeQuery()
+
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: FakeClient())
+
+    def failing_save_user(user):
+        raise TimeoutError("Persistence timed out")
+
+    monkeypatch.setattr(auth_router, "save_user", failing_save_user)
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "timeout.user@example.com",
+        "password": "Password@123",
+    })
+    assert resp.status_code == 401
+    assert "access_token" not in resp.json()
