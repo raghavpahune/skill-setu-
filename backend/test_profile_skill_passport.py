@@ -1,3 +1,4 @@
+import uuid
 import pytest
 from starlette.testclient import TestClient
 
@@ -254,8 +255,9 @@ def test_admin_access_allowed(client):
 
 
 def test_employee_registration_and_login(client):
+    unique_email = f"fresh.employee.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
     reg_payload = {
-        "email": "fresh.employee@skillsetu.gov.in",
+        "email": unique_email,
         "password": "Password@123",
         "full_name": "Fresh Employee Candidate",
         "role": "EMPLOYEE",

@@ -406,3 +406,135 @@ def test_auth_save_user_failure_fails_closed(test_client, monkeypatch):
     })
     assert resp.status_code == 401
     assert "access_token" not in resp.json()
+
+
+def test_admin_login_with_intended_credentials_and_role_resolution(test_client):
+    from app.db import init_demo_users
+    init_demo_users()
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "access_token" in data
+    assert data["user"]["role"] == "ADMIN"
+    assert data["user"]["id"] == "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+    token = data["access_token"]
+    admin_headers = {"Authorization": f"Bearer {token}"}
+    gov_resp = test_client.get("/api/admin/data-governance", headers=admin_headers)
+    assert gov_resp.status_code == 200
+
+
+def test_admin_account_reconciliation_when_preloaded_without_password(test_client):
+    from app.db import _cache, init_demo_users
+    _cache["users"] = [
+        {
+            "id": "73e35d08-a564-4cd2-b503-a641a8a0a5aa",
+            "email": "admin@skillsetu.gov.in",
+            "name": "SkillSetu System Administrator",
+            "role": "ADMIN",
+        }
+    ]
+    init_demo_users()
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 200
+    user = resp.json()["user"]
+    assert user["role"] == "ADMIN"
+    assert user["id"] == "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+
+
+def test_admin_invalid_password_and_nonexistent_fails(test_client):
+    from app.db import init_demo_users
+    init_demo_users()
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "WrongPassword@999",
+    })
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid email or password"
+
+    resp_nonexistent = test_client.post("/api/auth/login", json={
+        "email": "nonexistent.admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp_nonexistent.status_code == 401
+
+
+def test_admin_role_cannot_be_self_assigned_during_registration(test_client):
+    resp = test_client.post("/api/auth/register", json={
+        "email": f"malicious.admin.{uuid.uuid4().hex[:8]}@skillsetu.gov.in",
+        "password": "Password@123",
+        "full_name": "Attacker Admin",
+        "role": "ADMIN",
+    })
+    assert resp.status_code in (400, 422)
+
+
+def test_admin_endpoint_authorization_and_student_forbidden(test_client):
+    from app.db import init_demo_users
+    init_demo_users()
+    unique_student = f"test.student.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
+    reg_resp = test_client.post("/api/auth/register", json={
+        "email": unique_student,
+        "password": "Password@123",
+        "full_name": "Test Student",
+        "role": "STUDENT",
+    })
+    assert reg_resp.status_code == 201
+    student_token = reg_resp.json()["access_token"]
+    forbidden_resp = test_client.get("/api/admin/data-governance", headers={"Authorization": f"Bearer {student_token}"})
+    assert forbidden_resp.status_code == 403
+
+    admin_login = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert admin_login.status_code == 200
+    admin_token = admin_login.json()["access_token"]
+    allowed_resp = test_client.get("/api/admin/data-governance", headers={"Authorization": f"Bearer {admin_token}"})
+    assert allowed_resp.status_code == 200
+
+
+def test_existing_non_admin_account_never_overwritten_to_admin(test_client):
+    from app.db import init_demo_users, get_user_by_email
+    init_demo_users()
+    student = get_user_by_email("student@skillsetu.gov.in")
+    assert student is not None
+    assert student.get("role") == "STUDENT"
+    assert student.get("role") != "ADMIN"
+
+
+def test_real_mode_does_not_silently_fallback_when_demo_auth_disabled(test_client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "demo_auth_enabled", False)
+    monkeypatch.setattr(settings, "use_demo_data", False)
+    resp = test_client.post("/api/auth/login", json={
+        "email": "unprovisioned.user@skillsetu.gov.in",
+        "password": "Password@123",
+    })
+    assert resp.status_code == 401
+
+
+def test_all_standard_demo_logins_functional(test_client):
+    from app.db import init_demo_users
+    init_demo_users()
+    accounts = [
+        ("student@skillsetu.gov.in", "Password@123", "STUDENT"),
+        ("employer@skillsetu.gov.in", "Password@123", "EMPLOYER"),
+        ("institute@skillsetu.gov.in", "Password@123", "INSTITUTE"),
+        ("government@skillsetu.gov.in", "Password@123", "GOVERNMENT"),
+        ("admin@skillsetu.gov.in", "AdminPass@2026", "ADMIN"),
+    ]
+    for email, password, expected_role in accounts:
+        resp = test_client.post("/api/auth/login", json={
+            "email": email,
+            "password": password,
+        })
+        assert resp.status_code == 200, f"Login failed for {email}: {resp.text}"
+        data = resp.json()
+        assert data["user"]["role"] == expected_role
