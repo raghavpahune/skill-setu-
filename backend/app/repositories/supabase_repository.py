@@ -988,7 +988,7 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
         for _ in range(5):
             try:
                 res = client.table("industry_signals").upsert(clean_sig).execute()
-                saved_row = res.data[0] if (res.data and len(res.data) > 0) else sig_record
+                saved_row = res.data[0] if (res.data and len(res.data) > 0) else dict(clean_sig)
                 break
             except Exception as exc:
                 err_str = str(exc)
@@ -1001,7 +1001,7 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
                             continue
                 clean_sig = {k: v for k, v in sig_record.items() if k in base_columns}
                 res = client.table("industry_signals").upsert(clean_sig).execute()
-                saved_row = res.data[0] if (res.data and len(res.data) > 0) else sig_record
+                saved_row = res.data[0] if (res.data and len(res.data) > 0) else dict(clean_sig)
                 break
 
         if not saved_row:
@@ -1009,7 +1009,7 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
 
         _cache.setdefault("industry_signals", [])
         idx = next((i for i, s in enumerate(_cache["industry_signals"]) if s.get("id") == saved_row.get("id")), None)
-        full_merged = {**saved_row, **sig_record}
+        full_merged = dict(saved_row)
         if idx is not None:
             _cache["industry_signals"][idx] = full_merged
         else:

@@ -515,7 +515,7 @@ async def learning_roadmap(
                 break
 
     if p:
-        if p.get("source") in ("USER_SUBMITTED", "FIRST_PARTY") or not p.get("is_demo", True):
+        if _is_private_user_record(p) or not is_demo_student_id(student_id):
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
