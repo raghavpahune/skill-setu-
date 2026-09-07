@@ -1052,6 +1052,29 @@ def init_demo_users():
         existing_ids.add(acc_id)
 
 
+NON_ADMIN_DEMO_EMAILS = {
+    "student@skillsetu.gov.in",
+    "student2@skillsetu.gov.in",
+    "employee@skillsetu.gov.in",
+    "employer@skillsetu.gov.in",
+    "employer2@skillsetu.gov.in",
+    "institute@skillsetu.gov.in",
+    "institute2@skillsetu.gov.in",
+    "government@skillsetu.gov.in",
+}
+
+NON_ADMIN_DEMO_IDS = {
+    "usr-student-001",
+    "usr-student-002",
+    "usr-employee-001",
+    "usr-employer-001",
+    "usr-employer-002",
+    "usr-institute-001",
+    "usr-institute-002",
+    "usr-gov-001",
+}
+
+
 def get_user_by_email(email: str) -> dict | None:
     if not _cache:
         init_db()
@@ -1063,13 +1086,7 @@ def get_user_by_email(email: str) -> dict | None:
         if u.get("email", "").strip().lower() == clean_email:
             return u
     if settings.use_demo_data or settings.demo_auth_enabled:
-        demo_emails = {
-            "student@skillsetu.gov.in",
-            "employer@skillsetu.gov.in",
-            "institute@skillsetu.gov.in",
-            "government@skillsetu.gov.in",
-        }
-        if clean_email in demo_emails:
+        if clean_email in NON_ADMIN_DEMO_EMAILS:
             return None
     client = get_supabase_client()
     if client:
@@ -1098,8 +1115,7 @@ def get_user_by_id(user_id: str) -> dict | None:
         if u.get("id") in target_ids:
             return u
     if settings.use_demo_data or settings.demo_auth_enabled:
-        demo_ids = {"usr-student-001", "usr-employer-001", "usr-institute-001", "usr-gov-001"}
-        if user_id in demo_ids:
+        if user_id in NON_ADMIN_DEMO_IDS:
             return None
     client = get_supabase_client()
     if client:

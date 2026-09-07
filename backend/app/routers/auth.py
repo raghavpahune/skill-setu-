@@ -158,7 +158,12 @@ async def login(req: LoginRequest):
                             user_role = "ADMIN"
                         else:
                             try:
-                                db_role_res = client.table("users").select("role").eq("id", str(sb_user.id)).execute()
+                                db_role_res = await asyncio.wait_for(
+                                    asyncio.to_thread(
+                                        lambda: client.table("users").select("role").eq("id", str(sb_user.id)).execute()
+                                    ),
+                                    timeout=5.0,
+                                )
                                 if db_role_res.data and len(db_role_res.data) > 0:
                                     r_val = str(db_role_res.data[0].get("role", "")).strip().upper()
                                     if r_val in ALL_ROLES:
@@ -176,7 +181,10 @@ async def login(req: LoginRequest):
                             "full_name": meta.get("full_name") or meta.get("name") or clean_email.split("@")[0],
                             "is_active": True,
                         }
-                        save_user(user)
+                        await asyncio.wait_for(
+                            asyncio.to_thread(save_user, user),
+                            timeout=5.0,
+                        )
             except Exception as e:
                 logger.debug("[Auth] Supabase GoTrue authentication failed: %s", e)
 

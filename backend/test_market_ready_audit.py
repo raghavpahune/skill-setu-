@@ -15,10 +15,17 @@ def test_client():
 
 @pytest.fixture(autouse=True)
 def isolate_users_cache():
+    from pathlib import Path
     initial = [dict(u) for u in _cache.get("users", [])]
+    runtime_path = Path(__file__).resolve().parent.parent / "data" / "real" / "users_runtime.json"
+    initial_file = runtime_path.read_text(encoding="utf-8") if runtime_path.exists() else None
     yield
     if "users" in _cache:
         _cache["users"] = initial
+    if initial_file is not None:
+        runtime_path.write_text(initial_file, encoding="utf-8")
+    elif runtime_path.exists():
+        runtime_path.unlink()
 
 
 def test_auth_all_five_roles_and_admin_uid(test_client, monkeypatch):
