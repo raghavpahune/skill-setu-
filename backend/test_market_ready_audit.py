@@ -1,3 +1,4 @@
+import uuid
 import pytest
 from starlette.testclient import TestClient
 
@@ -55,8 +56,9 @@ def test_auth_all_five_roles_and_admin_uid(test_client, monkeypatch):
 
 
 def test_student_profile_skill_passport_persistence(test_client):
+    unique_email = f"market.student.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
     reg_resp = test_client.post("/api/auth/register", json={
-        "email": "market.student@skillsetu.gov.in",
+        "email": unique_email,
         "password": "Password@123",
         "full_name": "Market Verification Student",
         "role": "STUDENT",
@@ -123,8 +125,9 @@ def test_student_profile_skill_passport_persistence(test_client):
 
 
 def test_employee_profile_persistence(test_client):
+    unique_email = f"market.emp.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
     reg_resp = test_client.post("/api/auth/register", json={
-        "email": "market.emp@skillsetu.gov.in",
+        "email": unique_email,
         "password": "Password@123",
         "full_name": "Market Verification Professional",
         "role": "EMPLOYEE",
@@ -171,8 +174,9 @@ def test_employee_profile_persistence(test_client):
 
 
 def test_personalized_assessment_and_readiness_score(test_client):
+    unique_email = f"assessment.student.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
     reg_resp = test_client.post("/api/auth/register", json={
-        "email": "assessment.student@skillsetu.gov.in",
+        "email": unique_email,
         "password": "Password@123",
         "full_name": "Assessment Student",
         "role": "STUDENT",
@@ -239,8 +243,9 @@ def test_personalized_assessment_and_readiness_score(test_client):
 
 
 def test_adaptive_roadmap_recalculation(test_client):
+    unique_email = f"roadmap.student.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
     reg_resp = test_client.post("/api/auth/register", json={
-        "email": "roadmap.student@skillsetu.gov.in",
+        "email": unique_email,
         "password": "Password@123",
         "full_name": "Roadmap Candidate",
         "role": "STUDENT",
@@ -279,3 +284,71 @@ def test_adaptive_roadmap_recalculation(test_client):
     assert recalc_resp.status_code == 200
     roadmap_data = recalc_resp.json()
     assert "has_roadmap" in roadmap_data
+
+
+def test_gov_opportunity_publish_persistence_and_reload(test_client):
+    unique_email = f"gov.publisher.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
+    reg_resp = test_client.post("/api/auth/register", json={
+        "email": unique_email,
+        "password": "Password@123",
+        "full_name": "State Skill Officer",
+        "role": "GOVERNMENT",
+    })
+    assert reg_resp.status_code == 201
+    token = reg_resp.json()["access_token"]
+    gov_headers = {"Authorization": f"Bearer {token}"}
+
+    opp_payload = {
+        "name": "State Green Hydrogen Apprenticeship",
+        "department": "Energy & Skill Development",
+        "description": "Apprenticeship programme for green hydrogen plant operators.",
+        "eligibility_criteria": "ITI or Polytechnic Diploma holders",
+        "target_skills": ["Hydrogen Safety", "Cryogenic Handling"],
+        "district_coverage": ["Pune", "Nagpur"],
+        "opportunity_type": "APPRENTICESHIP",
+        "application_url": "https://mahaswayam.gov.in",
+        "deadline": "2026-12-31",
+        "status": "active",
+    }
+
+    pub_resp = test_client.post("/api/gov/opportunities", json=opp_payload, headers=gov_headers)
+    assert pub_resp.status_code == 201
+    created = pub_resp.json()["opportunity"]
+    assert created["name"] == "State Green Hydrogen Apprenticeship"
+    assert created["department"] == "Energy & Skill Development"
+    opp_id = created["id"]
+
+    list_resp = test_client.get("/api/gov/opportunities")
+    assert list_resp.status_code == 200
+    opps = list_resp.json() if isinstance(list_resp.json(), list) else list_resp.json().get("opportunities", [])
+    matching = [o for o in opps if o.get("id") == opp_id]
+    assert len(matching) == 1
+    assert matching[0]["name"] == "State Green Hydrogen Apprenticeship"
+
+    detail_resp = test_client.get(f"/api/gov/opportunities/{opp_id}")
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["name"] == "State Green Hydrogen Apprenticeship"
+
+
+def test_gov_opportunity_rbac_protection(test_client):
+    unique_email = f"student.unauth.{uuid.uuid4().hex[:8]}@skillsetu.gov.in"
+    reg_resp = test_client.post("/api/auth/register", json={
+        "email": unique_email,
+        "password": "Password@123",
+        "full_name": "Regular Student",
+        "role": "STUDENT",
+    })
+    assert reg_resp.status_code == 201
+    token = reg_resp.json()["access_token"]
+    student_headers = {"Authorization": f"Bearer {token}"}
+
+    opp_payload = {
+        "name": "Unauthorized Scheme",
+        "department": "Fake Dept",
+        "description": "Should fail with 403 Forbidden.",
+    }
+    unauth_resp = test_client.post("/api/gov/opportunities", json=opp_payload, headers=student_headers)
+    assert unauth_resp.status_code == 403
+
+    no_auth_resp = test_client.post("/api/gov/opportunities", json=opp_payload)
+    assert no_auth_resp.status_code == 401

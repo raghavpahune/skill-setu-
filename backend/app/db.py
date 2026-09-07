@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any
 
 from app.config import settings
@@ -662,8 +663,29 @@ def delete_course(course_id: str) -> bool:
     return repo_deleted or deleted
 
 
+VALID_GOV_OPPORTUNITY_COLUMNS = {
+    "id",
+    "name",
+    "department",
+    "description",
+    "eligibility_criteria",
+    "target_skills",
+    "district_coverage",
+    "opportunity_type",
+    "application_url",
+    "deadline",
+    "status",
+    "source",
+    "data_provenance",
+    "is_demo",
+    "user_id",
+    "user_email",
+    "created_at",
+    "updated_at",
+}
+
+
 def save_gov_opportunity(data: dict) -> dict:
-    """Save new government opportunity record to cache, disk storage, and Supabase."""
     if not _cache:
         init_db()
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -672,15 +694,25 @@ def save_gov_opportunity(data: dict) -> dict:
     data.setdefault("source", "USER_SUBMITTED")
     data["is_demo"] = False
 
+    clean_payload = {k: v for k, v in data.items() if k in VALID_GOV_OPPORTUNITY_COLUMNS}
+    current_payload = dict(clean_payload)
     client = get_supabase_client()
     if client:
-        try:
-            client.table("gov_opportunities").upsert(data).execute()
-            logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
-        except Exception as e:
-            logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
-            from app.repositories.supabase_repository import SupabaseRepositoryError
-            raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
+        max_attempts = max(1, len(clean_payload) + 1)
+        for _ in range(max_attempts):
+            try:
+                client.table("gov_opportunities").upsert(current_payload).execute()
+                logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
+                break
+            except Exception as e:
+                err_msg = str(e)
+                match = re.search(r"Could not find the '([^']+)' column", err_msg)
+                if match and match.group(1) in current_payload:
+                    del current_payload[match.group(1)]
+                    continue
+                logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
+                from app.repositories.supabase_repository import SupabaseRepositoryError
+                raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
 
     records = _cache.setdefault("gov_opportunities", [])
     gid = data.get("id")
@@ -1003,16 +1035,15 @@ def init_demo_users():
             continue
         matched_db = next((r for r in existing_users if str(r.get("email", "")).strip().lower() == acc_email), None)
         if matched_db:
-            if acc_email == "admin@skillsetu.gov.in":
-                admin_copy = dict(acc)
-                admin_copy["id"] = str(matched_db.get("id") or acc["id"])
-                admin_copy["is_demo"] = True
-                admin_name = matched_db.get("name") or acc.get("name")
-                admin_copy["name"] = admin_name
-                admin_copy["full_name"] = admin_name
-                users.append(admin_copy)
-                existing_emails.add(acc_email)
-                existing_ids.add(admin_copy["id"])
+            acc_copy = dict(acc)
+            acc_copy["id"] = str(matched_db.get("id") or acc["id"])
+            acc_copy["is_demo"] = True
+            db_name = matched_db.get("name") or acc.get("name")
+            acc_copy["name"] = db_name
+            acc_copy["full_name"] = db_name
+            users.append(acc_copy)
+            existing_emails.add(acc_email)
+            existing_ids.add(acc_copy["id"])
             continue
         if acc_id in db_ids:
             continue
