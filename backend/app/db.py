@@ -850,7 +850,8 @@ def init_demo_users():
     if not (settings.use_demo_data or settings.demo_auth_enabled):
         return
     users = _cache.setdefault("users", [])
-    existing_emails = {u.get("email", "").lower() for u in users if isinstance(u, dict)}
+    existing_emails = {u.get("email", "").strip().lower() for u in users if isinstance(u, dict)}
+    existing_ids = {str(u.get("id")) for u in users if isinstance(u, dict) and u.get("id")}
 
     from app.core.security import hash_password
 
@@ -976,9 +977,12 @@ def init_demo_users():
     client = get_supabase_client()
     if not client:
         for acc in demo_accounts:
-            if acc["email"].strip().lower() not in existing_emails:
+            acc_id = str(acc["id"])
+            acc_email = acc["email"].strip().lower()
+            if acc_email not in existing_emails and acc_id not in existing_ids:
                 users.append(acc)
-                existing_emails.add(acc["email"].strip().lower())
+                existing_emails.add(acc_email)
+                existing_ids.add(acc_id)
         return
 
     try:
@@ -998,13 +1002,14 @@ def init_demo_users():
             str(r.get("id")) == acc_id and str(r.get("email", "")).strip().lower() == acc_email
             for r in existing_users
         )
-        is_collision = (acc_id in db_ids or acc_email in db_emails) and not is_exact_match
+        is_collision = (acc_id in db_ids or acc_email in db_emails or acc_id in existing_ids or acc_email in existing_emails) and not is_exact_match
         if is_collision:
             continue
         if is_exact_match:
-            if acc_email not in existing_emails:
+            if acc_email not in existing_emails and acc_id not in existing_ids:
                 users.append(acc)
                 existing_emails.add(acc_email)
+                existing_ids.add(acc_id)
         else:
             to_insert.append(acc)
 
@@ -1021,9 +1026,12 @@ def init_demo_users():
             ]
             client.table("users").insert(new_supabase_users).execute()
             for acc in to_insert:
-                if acc["email"].strip().lower() not in existing_emails:
+                acc_id = str(acc["id"])
+                acc_email = acc["email"].strip().lower()
+                if acc_email not in existing_emails and acc_id not in existing_ids:
                     users.append(acc)
-                    existing_emails.add(acc["email"].strip().lower())
+                    existing_emails.add(acc_email)
+                    existing_ids.add(acc_id)
         except Exception as e:
             logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
 

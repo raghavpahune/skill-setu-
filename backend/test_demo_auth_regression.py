@@ -104,3 +104,22 @@ def test_init_demo_users_filters_colliding_accounts_from_cache():
     init_demo_users()
     cached_student = next((u for u in _cache["users"] if u.get("id") == "usr-student-001"), None)
     assert cached_student is None
+
+
+def test_init_demo_users_filters_colliding_id_in_no_database_mode(monkeypatch):
+    from app.db import _cache
+    from app.config import settings
+    monkeypatch.setattr("app.db.get_supabase_client", lambda: None)
+    monkeypatch.setattr(settings, "use_demo_data", True)
+    _cache["users"] = [
+        {
+            "id": "usr-student-001",
+            "email": "custom.student@example.com",
+            "name": "Custom Student",
+            "role": "STUDENT",
+        }
+    ]
+    init_demo_users()
+    matches = [u for u in _cache["users"] if u.get("id") == "usr-student-001"]
+    assert len(matches) == 1
+    assert matches[0]["email"] == "custom.student@example.com"
