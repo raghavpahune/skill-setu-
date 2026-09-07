@@ -116,6 +116,8 @@ button:focus-visible,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  button, .btn-interactive, a.btn-interactive, [role="button"] {
     transform: none !important;
   }
 }

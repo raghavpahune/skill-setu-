@@ -974,6 +974,8 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
     ]
+    for acc in demo_accounts:
+        acc.setdefault("is_demo", True)
     client = get_supabase_client()
     if not client:
         for acc in demo_accounts:
@@ -1004,6 +1006,7 @@ def init_demo_users():
             if acc_email == "admin@skillsetu.gov.in":
                 admin_copy = dict(acc)
                 admin_copy["id"] = str(matched_db.get("id") or acc["id"])
+                admin_copy["is_demo"] = True
                 admin_name = matched_db.get("name") or acc.get("name")
                 admin_copy["name"] = admin_name
                 admin_copy["full_name"] = admin_name
@@ -1028,14 +1031,15 @@ def get_user_by_email(email: str) -> dict | None:
     for u in users:
         if u.get("email", "").strip().lower() == clean_email:
             return u
-    demo_emails = {
-        "student@skillsetu.gov.in",
-        "employer@skillsetu.gov.in",
-        "institute@skillsetu.gov.in",
-        "government@skillsetu.gov.in",
-    }
-    if clean_email in demo_emails:
-        return None
+    if settings.use_demo_data or settings.demo_auth_enabled:
+        demo_emails = {
+            "student@skillsetu.gov.in",
+            "employer@skillsetu.gov.in",
+            "institute@skillsetu.gov.in",
+            "government@skillsetu.gov.in",
+        }
+        if clean_email in demo_emails:
+            return None
     client = get_supabase_client()
     if client:
         try:
@@ -1062,9 +1066,10 @@ def get_user_by_id(user_id: str) -> dict | None:
     for u in users:
         if u.get("id") in target_ids:
             return u
-    demo_ids = {"usr-student-001", "usr-employer-001", "usr-institute-001", "usr-gov-001"}
-    if user_id in demo_ids:
-        return None
+    if settings.use_demo_data or settings.demo_auth_enabled:
+        demo_ids = {"usr-student-001", "usr-employer-001", "usr-institute-001", "usr-gov-001"}
+        if user_id in demo_ids:
+            return None
     client = get_supabase_client()
     if client:
         try:

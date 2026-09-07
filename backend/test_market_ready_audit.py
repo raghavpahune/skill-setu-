@@ -12,6 +12,14 @@ def test_client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def isolate_users_cache():
+    initial = [dict(u) for u in _cache.get("users", [])]
+    yield
+    if "users" in _cache:
+        _cache["users"] = initial
+
+
 def test_auth_all_five_roles_and_admin_uid(test_client, monkeypatch):
     monkeypatch.setattr(settings, "use_demo_data", False)
     monkeypatch.setattr(settings, "demo_auth_enabled", True)
@@ -261,7 +269,8 @@ def test_adaptive_roadmap_recalculation(test_client):
         "certifications": [],
         "courses": [],
     }
-    test_client.post("/api/student/profile", json=profile_payload, headers=headers)
+    profile_resp = test_client.post("/api/student/profile", json=profile_payload, headers=headers)
+    assert profile_resp.status_code in (200, 201)
 
     get_resp = test_client.get("/api/student/me/roadmap", headers=headers)
     assert get_resp.status_code == 200

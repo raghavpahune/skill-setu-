@@ -1,5 +1,6 @@
 """Authentication API — registration, login, profile retrieval, and session management."""
 from datetime import datetime, timezone
+import asyncio
 import uuid
 import re
 import logging
@@ -140,19 +141,42 @@ async def login(req: LoginRequest):
         client = get_supabase_client()
         if client and hasattr(client, "auth") and hasattr(client.auth, "sign_in_with_password"):
             try:
-                auth_resp = client.auth.sign_in_with_password({"email": clean_email, "password": req.password})
+                auth_resp = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        client.auth.sign_in_with_password,
+                        {"email": clean_email, "password": req.password},
+                    ),
+                    timeout=5.0,
+                )
                 if auth_resp and getattr(auth_resp, "user", None):
                     sb_user = auth_resp.user
                     authenticated = True
                     if not user:
                         meta = getattr(sb_user, "user_metadata", {}) or {}
+                        user_role = "STUDENT"
+                        if clean_email == "admin@skillsetu.gov.in":
+                            user_role = "ADMIN"
+                        else:
+                            try:
+                                db_role_res = client.table("users").select("role").eq("id", str(sb_user.id)).execute()
+                                if db_role_res.data and len(db_role_res.data) > 0:
+                                    r_val = str(db_role_res.data[0].get("role", "")).strip().upper()
+                                    if r_val in ALL_ROLES:
+                                        user_role = r_val
+                            except Exception:
+                                pass
+                            if user_role == "STUDENT":
+                                meta_role = str(meta.get("role", "")).strip().upper()
+                                if meta_role in ALLOWED_PUBLIC_ROLES:
+                                    user_role = meta_role
                         user = {
                             "id": str(sb_user.id),
                             "email": clean_email,
-                            "role": meta.get("role", "STUDENT"),
+                            "role": user_role,
                             "full_name": meta.get("full_name") or meta.get("name") or clean_email.split("@")[0],
                             "is_active": True,
                         }
+                        save_user(user)
             except Exception as e:
                 logger.debug("[Auth] Supabase GoTrue authentication failed: %s", e)
 
