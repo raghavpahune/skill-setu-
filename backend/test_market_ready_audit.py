@@ -404,7 +404,7 @@ def test_auth_save_user_failure_fails_closed(test_client, monkeypatch):
         "email": "timeout.user@example.com",
         "password": "Password@123",
     })
-    assert resp.status_code == 401
+    assert resp.status_code == 500
     assert "access_token" not in resp.json()
 
 
@@ -588,3 +588,239 @@ def test_admin_provisioning_reuses_existing_auth_uuid_when_present(test_client, 
     assert updated_users[0][0] == "custom-auth-uuid-9999"
     assert len(upserted_rows) == 1
     assert upserted_rows[0]["id"] == "custom-auth-uuid-9999"
+
+
+def test_admin_login_with_gotrue_success_and_public_users_reconciliation(test_client, monkeypatch):
+    import app.routers.auth as auth_router
+    import app.db as db_module
+
+    upserted_records = []
+
+    class FakeUserMetadata:
+        full_name = "SkillSetu System Administrator"
+
+    class FakeGoTrueUser:
+        id = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuthResponse:
+        user = FakeGoTrueUser()
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            if credentials.get("email") == "admin@skillsetu.gov.in" and credentials.get("password") == "AdminPass@2026":
+                return FakeAuthResponse()
+            raise Exception("Invalid credentials")
+
+    class FakeTable:
+        def upsert(self, row, **kwargs):
+            upserted_records.append(row)
+            return self
+
+        def select(self, *args, **kwargs):
+            return self
+
+        def eq(self, *args, **kwargs):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": []})()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client_instance = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client_instance)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client_instance)
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "access_token" in data
+    assert data["user"]["id"] == "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+    assert data["user"]["role"] == "ADMIN"
+    assert len(upserted_records) >= 1
+    assert any(r.get("id") == "73e35d08-a564-4cd2-b503-a641a8a0a5aa" for r in upserted_records)
+
+
+def test_admin_login_incorrect_password_returns_401(test_client, monkeypatch):
+    import app.routers.auth as auth_router
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            raise Exception("Invalid login credentials")
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            raise AssertionError("table access should not occur on failed auth")
+
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: FakeClient())
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "WrongPassword@999",
+    })
+    assert resp.status_code == 401
+    assert "access_token" not in resp.json()
+
+
+def test_admin_login_fails_closed_when_reconciliation_fails(test_client, monkeypatch):
+    import app.routers.auth as auth_router
+    import app.db as db_module
+
+    class FakeGoTrueUser:
+        id = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN"}
+
+    class FakeAuthResponse:
+        user = FakeGoTrueUser()
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return FakeAuthResponse()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            raise RuntimeError("Database connection timeout during user upsert")
+
+    fake_client_instance = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client_instance)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client_instance)
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 500
+    assert "access_token" not in resp.json()
+    assert "reconciliation failed" in resp.json()["detail"].lower()
+
+
+def test_user_cannot_obtain_admin_role_via_request_parameters(test_client):
+    resp = test_client.post("/api/auth/login", json={
+        "email": "student@skillsetu.gov.in",
+        "password": "Password@123",
+        "role": "ADMIN",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["user"]["role"] == "STUDENT"
+
+
+def test_public_registration_cannot_specify_admin_role(test_client):
+    resp = test_client.post("/api/auth/register", json={
+        "email": "malicious@skillsetu.gov.in",
+        "password": "Password@123",
+        "full_name": "Malicious User",
+        "role": "ADMIN",
+    })
+    assert resp.status_code == 422
+
+
+def test_demo_auth_active_when_use_demo_data_is_false(test_client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "use_demo_data", False)
+    monkeypatch.setattr(settings, "demo_auth_enabled", True)
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "student@skillsetu.gov.in",
+        "password": "Password@123",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["user"]["role"] == "STUDENT"
+
+
+def test_real_mode_does_not_silently_fallback_for_unregistered_user(test_client, monkeypatch):
+    from app.config import settings
+    import app.routers.auth as auth_router
+
+    monkeypatch.setattr(settings, "use_demo_data", False)
+    monkeypatch.setattr(settings, "demo_auth_enabled", False)
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: None)
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "nonexistent@skillsetu.gov.in",
+        "password": "Password@123",
+    })
+    assert resp.status_code == 401
+
+
+def test_admin_reconciliation_does_not_overwrite_unrelated_user(test_client, monkeypatch):
+    import app.routers.auth as auth_router
+    import app.db as db_module
+
+    tables_state = {
+        "users": [
+            {
+                "id": "usr-employee-9999",
+                "email": "unrelated.employee@skillsetu.gov.in",
+                "name": "Existing Unrelated Employee",
+                "role": "EMPLOYEE",
+            }
+        ]
+    }
+
+    class FakeGoTrueUser:
+        id = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuthResponse:
+        user = FakeGoTrueUser()
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return FakeAuthResponse()
+
+    class FakeTable:
+        def upsert(self, row, **kwargs):
+            existing_idx = next((i for i, r in enumerate(tables_state["users"]) if r.get("id") == row.get("id")), None)
+            if existing_idx is not None:
+                tables_state["users"][existing_idx] = row
+            else:
+                tables_state["users"].append(row)
+            return self
+
+        def select(self, *args, **kwargs):
+            return self
+
+        def eq(self, *args, **kwargs):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": tables_state["users"]})()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client_instance = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client_instance)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client_instance)
+
+    resp = test_client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 200
+
+    unrelated_user = next((u for u in tables_state["users"] if u.get("id") == "usr-employee-9999"), None)
+    assert unrelated_user is not None
+    assert unrelated_user["email"] == "unrelated.employee@skillsetu.gov.in"
+    assert unrelated_user["role"] == "EMPLOYEE"

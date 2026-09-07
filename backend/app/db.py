@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import threading
@@ -1048,6 +1049,7 @@ def init_demo_users():
     admin_acc = next((a for a in demo_accounts if a.get("email") == "admin@skillsetu.gov.in"), None)
     if admin_acc:
         admin_uid = str(admin_acc["id"])
+        admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
         if hasattr(client, "auth") and hasattr(client.auth, "admin"):
             try:
                 auth_users_resp = client.auth.admin.list_users()
@@ -1061,7 +1063,7 @@ def init_demo_users():
                     client.auth.admin.update_user_by_id(
                         admin_uid,
                         {
-                            "password": "AdminPass@2026",
+                            "password": admin_pw,
                             "email_confirm": True,
                             "user_metadata": {
                                 "role": "ADMIN",
@@ -1073,7 +1075,7 @@ def init_demo_users():
                     client.auth.admin.create_user({
                         "id": admin_uid,
                         "email": admin_acc["email"],
-                        "password": "AdminPass@2026",
+                        "password": admin_pw,
                         "email_confirm": True,
                         "user_metadata": {
                             "role": "ADMIN",
@@ -1081,7 +1083,7 @@ def init_demo_users():
                         },
                     })
             except Exception as e:
-                logger.debug("[DB] GoTrue admin provisioning error: %s", e)
+                logger.warning("[DB] GoTrue admin provisioning error: %s", e)
 
         try:
             client.table("users").upsert({
@@ -1106,7 +1108,7 @@ def init_demo_users():
             existing_user["is_demo"] = True
             if acc_email == "admin@skillsetu.gov.in":
                 existing_user["role"] = "ADMIN"
-                existing_user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                existing_user["id"] = admin_uid
                 existing_user["is_active"] = True
                 existing_user["hashed_password"] = acc["hashed_password"]
             continue
@@ -1115,7 +1117,7 @@ def init_demo_users():
         if matched_db:
             acc_copy = dict(acc)
             if acc_email == "admin@skillsetu.gov.in":
-                acc_copy["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                acc_copy["id"] = admin_uid
                 acc_copy["role"] = "ADMIN"
             else:
                 acc_copy["id"] = str(matched_db.get("id") or acc["id"])
@@ -1130,9 +1132,13 @@ def init_demo_users():
 
         if acc_id in db_ids and acc_email != "admin@skillsetu.gov.in":
             continue
-        users.append(acc)
+        acc_copy = dict(acc)
+        if acc_email == "admin@skillsetu.gov.in":
+            acc_copy["id"] = admin_uid
+            acc_copy["role"] = "ADMIN"
+        users.append(acc_copy)
         existing_emails.add(acc_email)
-        existing_ids.add(acc_id)
+        existing_ids.add(acc_copy["id"])
 
 
 NON_ADMIN_DEMO_EMAILS = {
@@ -1173,7 +1179,8 @@ def get_user_by_email(email: str) -> dict | None:
                 u["is_active"] = True
                 if not u.get("hashed_password"):
                     from app.core.security import hash_password
-                    u["hashed_password"] = hash_password("AdminPass@2026")
+                    admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                    u["hashed_password"] = hash_password(admin_pw)
             return u
     if settings.use_demo_data or settings.demo_auth_enabled:
         if clean_email in NON_ADMIN_DEMO_EMAILS:
@@ -1188,7 +1195,8 @@ def get_user_by_email(email: str) -> dict | None:
                 user.setdefault("full_name", user.get("name", ""))
                 if clean_email == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
                     from app.core.security import hash_password
-                    user["hashed_password"] = hash_password("AdminPass@2026")
+                    admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                    user["hashed_password"] = hash_password(admin_pw)
                     user["role"] = "ADMIN"
                     user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
                     user["is_active"] = True
@@ -1215,7 +1223,8 @@ def get_user_by_id(user_id: str) -> dict | None:
                 u["is_active"] = True
                 if not u.get("hashed_password"):
                     from app.core.security import hash_password
-                    u["hashed_password"] = hash_password("AdminPass@2026")
+                    admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                    u["hashed_password"] = hash_password(admin_pw)
             return u
     if settings.use_demo_data or settings.demo_auth_enabled:
         if user_id in NON_ADMIN_DEMO_IDS:
@@ -1230,7 +1239,8 @@ def get_user_by_id(user_id: str) -> dict | None:
                     user.setdefault("full_name", user.get("name", ""))
                     if str(user.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
                         from app.core.security import hash_password
-                        user["hashed_password"] = hash_password("AdminPass@2026")
+                        admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                        user["hashed_password"] = hash_password(admin_pw)
                         user["role"] = "ADMIN"
                         user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
                         user["is_active"] = True

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     demo_auth_enabled: bool = True
+    admin_password: str = ""
 
     @property
     def effective_refresh_interval_minutes(self) -> int:

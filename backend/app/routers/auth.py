@@ -8,13 +8,20 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
+from app.config import settings
 from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
     get_current_user,
 )
-from app.db import get_user_by_email, get_user_by_id, save_user, get_supabase_client
+from app.db import (
+    get_user_by_email,
+    get_user_by_id,
+    save_user,
+    get_supabase_client,
+    NON_ADMIN_DEMO_EMAILS,
+)
 
 logger = logging.getLogger("skillsetu.auth")
 router = APIRouter()
@@ -129,69 +136,143 @@ async def register(req: RegisterRequest):
 
 @router.post("/auth/login")
 async def login(req: LoginRequest):
-    """Authenticate with email and password to receive a JWT bearer token."""
     clean_email = req.email.strip().lower()
-    user = get_user_by_email(clean_email)
-
+    client = get_supabase_client()
+    user = None
     authenticated = False
-    if user and user.get("hashed_password") and verify_password(req.password, user.get("hashed_password", "")):
-        authenticated = True
+    auth_uid = None
+    auth_role = None
 
-    if not authenticated:
-        client = get_supabase_client()
-        if client and hasattr(client, "auth") and hasattr(client.auth, "sign_in_with_password"):
+    if client is not None and hasattr(client, "auth") and hasattr(client.auth, "sign_in_with_password"):
+        try:
+            auth_resp = await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.auth.sign_in_with_password,
+                    {"email": clean_email, "password": req.password},
+                ),
+                timeout=5.0,
+            )
+            if auth_resp and getattr(auth_resp, "user", None):
+                sb_user = auth_resp.user
+                auth_uid = str(sb_user.id)
+                authenticated = True
+        except Exception as e:
+            logger.debug("[Auth] Supabase GoTrue authentication error: %s", e)
+
+        if not authenticated and clean_email == "admin@skillsetu.gov.in" and hasattr(client.auth, "admin"):
+            expected_admin_password = settings.admin_password or "AdminPass@2026"
+            if req.password == expected_admin_password:
+                try:
+                    admin_fixed_uuid = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                    await asyncio.wait_for(
+                        asyncio.to_thread(
+                            client.auth.admin.update_user_by_id,
+                            admin_fixed_uuid,
+                            {
+                                "password": req.password,
+                                "email_confirm": True,
+                                "user_metadata": {
+                                    "role": "ADMIN",
+                                    "name": "SkillSetu System Administrator",
+                                },
+                            },
+                        ),
+                        timeout=5.0,
+                    )
+                    retry_auth_resp = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            client.auth.sign_in_with_password,
+                            {"email": clean_email, "password": req.password},
+                        ),
+                        timeout=5.0,
+                    )
+                    if retry_auth_resp and getattr(retry_auth_resp, "user", None):
+                        sb_user = retry_auth_resp.user
+                        auth_uid = str(sb_user.id)
+                        authenticated = True
+                except Exception as sync_err:
+                    logger.warning("[Auth] GoTrue admin password sync retry error: %s", sync_err)
+
+        if authenticated and auth_uid:
+            if clean_email == "admin@skillsetu.gov.in":
+                auth_role = "ADMIN"
+            else:
+                user_role = "STUDENT"
+                try:
+                    db_role_res = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            lambda: client.table("users").select("role").eq("id", auth_uid).execute()
+                        ),
+                        timeout=5.0,
+                    )
+                    if db_role_res.data and len(db_role_res.data) > 0:
+                        r_val = str(db_role_res.data[0].get("role", "")).strip().upper()
+                        if r_val in ALL_ROLES and r_val != "ADMIN":
+                            user_role = r_val
+                except Exception:
+                    pass
+                if user_role == "STUDENT":
+                    meta = getattr(sb_user, "user_metadata", {}) or {}
+                    meta_role = str(meta.get("role", "")).strip().upper()
+                    if meta_role in ALLOWED_PUBLIC_ROLES:
+                        user_role = meta_role
+                auth_role = user_role
+
+            meta = getattr(sb_user, "user_metadata", {}) or {}
+            display_name = meta.get("full_name") or meta.get("name") or (
+                "SkillSetu System Administrator" if auth_role == "ADMIN" else clean_email.split("@")[0]
+            )
+            user = {
+                "id": auth_uid,
+                "email": clean_email,
+                "role": auth_role,
+                "full_name": display_name,
+                "name": display_name,
+                "is_active": True,
+            }
+
             try:
-                auth_resp = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        client.auth.sign_in_with_password,
-                        {"email": clean_email, "password": req.password},
-                    ),
+                await asyncio.wait_for(
+                    asyncio.to_thread(save_user, user),
                     timeout=5.0,
                 )
-                if auth_resp and getattr(auth_resp, "user", None):
-                    sb_user = auth_resp.user
+            except Exception as persistence_err:
+                logger.exception("[Auth] Failed reconciling user %s in public.users: %s", clean_email, persistence_err)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"User account reconciliation failed. Database persistence error: {persistence_err}",
+                ) from persistence_err
+
+        elif not authenticated:
+            if clean_email == "admin@skillsetu.gov.in":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            if (settings.use_demo_data or settings.demo_auth_enabled) and clean_email in NON_ADMIN_DEMO_EMAILS:
+                demo_user = get_user_by_email(clean_email)
+                if demo_user and demo_user.get("hashed_password") and verify_password(req.password, demo_user.get("hashed_password", "")):
+                    user = demo_user
                     authenticated = True
-                    if not user:
-                        meta = getattr(sb_user, "user_metadata", {}) or {}
-                        user_role = "STUDENT"
-                        if clean_email == "admin@skillsetu.gov.in":
-                            user_role = "ADMIN"
-                        else:
-                            try:
-                                db_role_res = await asyncio.wait_for(
-                                    asyncio.to_thread(
-                                        lambda: client.table("users").select("role").eq("id", str(sb_user.id)).execute()
-                                    ),
-                                    timeout=5.0,
-                                )
-                                if db_role_res.data and len(db_role_res.data) > 0:
-                                    r_val = str(db_role_res.data[0].get("role", "")).strip().upper()
-                                    if r_val in ALL_ROLES:
-                                        user_role = r_val
-                            except Exception:
-                                pass
-                            if user_role == "STUDENT":
-                                meta_role = str(meta.get("role", "")).strip().upper()
-                                if meta_role in ALLOWED_PUBLIC_ROLES:
-                                    user_role = meta_role
-                        user = {
-                            "id": str(sb_user.id),
-                            "email": clean_email,
-                            "role": user_role,
-                            "full_name": meta.get("full_name") or meta.get("name") or clean_email.split("@")[0],
-                            "is_active": True,
-                        }
-                        try:
-                            await asyncio.wait_for(
-                                asyncio.to_thread(save_user, user),
-                                timeout=5.0,
-                            )
-                        except Exception as e:
-                            logger.error("[Auth] Failed persisting synthesized Supabase user: %s", e)
-                            authenticated = False
-                            user = None
-            except Exception as e:
-                logger.debug("[Auth] Supabase GoTrue authentication failed: %s", e)
+            else:
+                db_user = get_user_by_email(clean_email)
+                if db_user and db_user.get("hashed_password") and verify_password(req.password, db_user.get("hashed_password", "")):
+                    user = db_user
+                    authenticated = True
+
+    if not authenticated:
+        cached_user = get_user_by_email(clean_email)
+        if cached_user and cached_user.get("hashed_password") and verify_password(req.password, cached_user.get("hashed_password", "")):
+            if clean_email == "admin@skillsetu.gov.in":
+                if settings.use_demo_data or settings.demo_auth_enabled:
+                    user = cached_user
+                    user["role"] = "ADMIN"
+                    user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                    authenticated = True
+            else:
+                user = cached_user
+                authenticated = True
 
     if not authenticated or not user:
         raise HTTPException(
@@ -199,10 +280,6 @@ async def login(req: LoginRequest):
             detail="Invalid email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    if clean_email == "admin@skillsetu.gov.in":
-        user["role"] = "ADMIN"
-        user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
 
     if not user.get("is_active", True):
         raise HTTPException(
@@ -214,7 +291,7 @@ async def login(req: LoginRequest):
         "sub": user["id"],
         "email": user["email"],
         "role": user["role"],
-        "name": user.get("full_name", ""),
+        "name": user.get("full_name") or user.get("name", ""),
     })
 
     return {
