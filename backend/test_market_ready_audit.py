@@ -538,3 +538,53 @@ def test_all_standard_demo_logins_functional(test_client):
         assert resp.status_code == 200, f"Login failed for {email}: {resp.text}"
         data = resp.json()
         assert data["user"]["role"] == expected_role
+
+
+def test_admin_provisioning_reuses_existing_auth_uuid_when_present(test_client, monkeypatch):
+    import app.db as db_module
+
+    updated_users = []
+    upserted_rows = []
+
+    class FakeAuthUser:
+        id = "custom-auth-uuid-9999"
+        email = "admin@skillsetu.gov.in"
+
+    class FakeAdminAuth:
+        def list_users(self):
+            return [FakeAuthUser()]
+
+        def update_user_by_id(self, uid, data):
+            updated_users.append((uid, data))
+            return {"id": uid}
+
+        def create_user(self, data):
+            raise AssertionError("create_user should not be called when user exists")
+
+    class FakeAuth:
+        admin = FakeAdminAuth()
+
+    class FakeTable:
+        def upsert(self, row, **kwargs):
+            upserted_rows.append(row)
+            return self
+
+        def select(self, *args, **kwargs):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": []})()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: FakeClient())
+    db_module.init_demo_users()
+
+    assert len(updated_users) == 1
+    assert updated_users[0][0] == "custom-auth-uuid-9999"
+    assert len(upserted_rows) == 1
+    assert upserted_rows[0]["id"] == "custom-auth-uuid-9999"

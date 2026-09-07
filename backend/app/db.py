@@ -1048,31 +1048,28 @@ def init_demo_users():
     admin_acc = next((a for a in demo_accounts if a.get("email") == "admin@skillsetu.gov.in"), None)
     if admin_acc:
         admin_uid = str(admin_acc["id"])
-        try:
-            client.table("users").upsert({
-                "id": admin_uid,
-                "email": admin_acc["email"],
-                "name": admin_acc.get("full_name") or admin_acc.get("name", "SkillSetu System Administrator"),
-                "role": "ADMIN",
-            }, on_conflict="id").execute()
-        except Exception as e:
-            logger.warning("[DB] Failed upserting admin user into Supabase: %s", e)
-
         if hasattr(client, "auth") and hasattr(client.auth, "admin"):
             try:
-                client.auth.admin.update_user_by_id(
-                    admin_uid,
-                    {
-                        "password": "AdminPass@2026",
-                        "email_confirm": True,
-                        "user_metadata": {
-                            "role": "ADMIN",
-                            "name": admin_acc.get("full_name") or "SkillSetu System Administrator",
-                        },
-                    },
+                auth_users_resp = client.auth.admin.list_users()
+                auth_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                existing_auth = next(
+                    (u for u in auth_users if str(getattr(u, "email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                    None,
                 )
-            except Exception:
-                try:
+                if existing_auth:
+                    admin_uid = str(getattr(existing_auth, "id", admin_uid))
+                    client.auth.admin.update_user_by_id(
+                        admin_uid,
+                        {
+                            "password": "AdminPass@2026",
+                            "email_confirm": True,
+                            "user_metadata": {
+                                "role": "ADMIN",
+                                "name": admin_acc.get("full_name") or "SkillSetu System Administrator",
+                            },
+                        },
+                    )
+                else:
                     client.auth.admin.create_user({
                         "id": admin_uid,
                         "email": admin_acc["email"],
@@ -1083,8 +1080,18 @@ def init_demo_users():
                             "name": admin_acc.get("full_name") or "SkillSetu System Administrator",
                         },
                     })
-                except Exception as e:
-                    logger.debug("[DB] GoTrue admin provisioning error: %s", e)
+            except Exception as e:
+                logger.debug("[DB] GoTrue admin provisioning error: %s", e)
+
+        try:
+            client.table("users").upsert({
+                "id": admin_uid,
+                "email": admin_acc["email"],
+                "name": admin_acc.get("full_name") or admin_acc.get("name", "SkillSetu System Administrator"),
+                "role": "ADMIN",
+            }, on_conflict="id").execute()
+        except Exception as e:
+            logger.warning("[DB] Failed upserting admin user into Supabase: %s", e)
 
     for acc in demo_accounts:
         acc_id = str(acc["id"])
