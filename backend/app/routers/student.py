@@ -401,6 +401,7 @@ async def learning_roadmap(
     if student_id == "me" and current_user:
         student_id = current_user.get("id")
     is_demo_id = is_demo_student_id(student_id)
+    is_demo_fixture = False
     if not is_demo_id:
         demo_profiles = get_demo("student_profiles") or []
         is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
@@ -418,10 +419,11 @@ async def learning_roadmap(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: You do not have permission to view another student's learning roadmap.",
                 )
+    is_demo_req = is_demo_id or is_demo_fixture
     from app.services.roadmap_service import compute_adaptive_roadmap
     from app.repositories.supabase_repository import SupabaseRepositoryError
     try:
-        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id, persist=False)
+        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_req, persist=False)
     except SupabaseRepositoryError as e:
         logger.exception("[Student] Supabase repository error retrieving roadmap: %s", e)
         raise HTTPException(
@@ -464,10 +466,13 @@ async def recalculate_student_roadmap(
             detail="Forbidden: You cannot recalculate another student's learning roadmap.",
         )
     is_demo_id = is_demo_student_id(student_id)
+    demo_profiles = get_demo("student_profiles") or []
+    is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
+    is_demo_req = is_demo_id or is_demo_fixture
     from app.services.roadmap_service import compute_adaptive_roadmap
     from app.repositories.supabase_repository import SupabaseRepositoryError
     try:
-        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id, persist=True)
+        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_req, persist=True)
     except SupabaseRepositoryError as e:
         logger.exception("[Student] Supabase repository error recalculating roadmap: %s", e)
         raise HTTPException(

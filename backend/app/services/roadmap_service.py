@@ -322,7 +322,12 @@ def compute_adaptive_roadmap(
 ) -> dict[str, Any]:
     from app.services.student_service import ROLE_REQUIREMENTS_MAP
 
-    is_demo_req = is_demo if is_demo is not None else is_demo_student_id(student_id)
+    if is_demo is not None:
+        is_demo_req = is_demo
+    else:
+        is_demo_req = is_demo_student_id(student_id) or any(
+            (p.get("user_id") or p.get("id")) == student_id for p in (get_demo("student_profiles") or [])
+        )
 
     profile = None
     profile_failed = False
