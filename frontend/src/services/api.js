@@ -152,8 +152,10 @@ export const api = {
   getStudents: () => fetchJSON('/students'),
   getMyPassport: () => fetchJSON('/student/me/passport'),
   getMyRoadmap: () => fetchJSON('/student/me/roadmap'),
+  recalculateMyRoadmap: () => fetchJSON('/student/me/roadmap/recalculate', { method: 'POST' }),
   getStudentPassport: (id) => fetchJSON(`/student/${id}/passport`),
   getStudentRoadmap: (id) => fetchJSON(`/student/${id}/roadmap`),
+  recalculateStudentRoadmap: (id) => fetchJSON(`/student/${id}/roadmap/recalculate`, { method: 'POST' }),
   getStudentAlertDomains: () => fetchJSON('/student/alert-domains'),
 
   getStudentProfile: () => fetchJSON('/student/profile'),

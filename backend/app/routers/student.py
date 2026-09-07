@@ -390,7 +390,6 @@ async def skill_passport(
 async def my_learning_roadmap(
     current_user: dict = Depends(get_current_user),
 ):
-    """Retrieve the authenticated student's personalized learning roadmap."""
     return await learning_roadmap(student_id=current_user.get("id"), current_user=current_user)
 
 
@@ -401,53 +400,11 @@ async def learning_roadmap(
 ):
     if student_id == "me" and current_user:
         student_id = current_user.get("id")
-    if is_demo_student_id(student_id):
-        profiles = get_demo("student_profiles")
-        skills_map = {s["id"]: s for s in get_demo("skills")}
-    else:
-        profiles = []
-        try:
-            from app.repositories.supabase_repository import list_skills
-            repo_skills = list_skills(limit=10000) or []
-            skills_map = {s["id"]: s for s in repo_skills}
-        except Exception:
-            skills_map = {}
-    try:
-        from app.repositories.supabase_repository import list_skill_forecasts
-        forecasts = list_skill_forecasts()
-    except Exception as e:
-        logger.exception("[LearningRoadmap] Supabase error for forecasts: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database query failed for skill forecasts.",
-        ) from e
-
-    forecast_map = {}
-    for f in forecasts:
-        if f.get("skill_id") and f["skill_id"] not in forecast_map:
-            forecast_map[f["skill_id"]] = f
-
-    # First check student_assessments in Supabase
-    a = None
-    try:
-        from app.repositories.supabase_repository import get_student_assessment, get_student_assessment_by_user
-        a = get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
-    except Exception as e:
-        logger.exception("[LearningRoadmap] Supabase error for %s: %s", student_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database query failed for student roadmap.",
-        ) from e
-
-    if not a and is_demo_student_id(student_id):
-        assessments = get_demo("student_assessments")
-        for item in assessments:
-            if item.get("id") == student_id or item.get("user_id") == student_id:
-                a = item
-                break
-
-    if a:
-        if _is_private_user_record(a):
+    is_demo_id = is_demo_student_id(student_id)
+    if not is_demo_id:
+        demo_profiles = get_demo("student_profiles") or []
+        is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
+        if not is_demo_fixture:
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -455,112 +412,50 @@ async def learning_roadmap(
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             user_id = current_user.get("id")
-            user_email = current_user.get("email")
             user_role = (current_user.get("role") or "").upper()
-            is_owner = (
-                (a.get("user_id") and a.get("user_id") == user_id)
-                or (a.get("id") and a.get("id") == user_id)
-                or (user_email and a.get("user_email") == user_email)
-            )
-            if not is_owner and user_role != "ADMIN":
+            if user_id != student_id and user_role != "ADMIN":
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: You do not have permission to view another student's learning roadmap.",
                 )
-        target_role = a.get("career_goal", "AI Engineer")
-        from app.services.student_service import ROLE_REQUIREMENTS_MAP
-        req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-003", "sk-004", "sk-006", "sk-005"])
-        curr_sids = {cs.get("skill_id") for cs in a.get("current_skills", []) if cs.get("skill_id")}
-        roadmap_sids = [sid for sid in req_sids if sid not in curr_sids] or req_sids[:3]
+    from app.services.roadmap_service import compute_adaptive_roadmap
+    return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
 
-        roadmap = []
-        for idx, sid in enumerate(roadmap_sids, start=1):
-            skill = skills_map.get(sid, {"id": sid, "name": "Priority Competency", "category": "General", "nsqf_level": 5})
-            fc = forecast_map.get(sid, {})
-            roadmap.append({
-                "step": idx,
-                "skill_id": sid,
-                "skill_name": skill.get("name", sid),
-                "category": skill.get("category", "General"),
-                "nsqf_level": skill.get("nsqf_level", 5),
-                "future_demand": fc.get("future_demand", "high"),
-                "trend": fc.get("trend", "rising"),
-                "confidence": fc.get("confidence", 85),
-                "timeframe": fc.get("timeframe", "2025-2027"),
-                "key_drivers": fc.get("key_drivers", ["Labour market expansion", "Employer demand"]),
-                "why": f"Recommended because {skill.get('name', 'this skill')} bridges critical gap for {target_role}.",
-            })
-        return {
-            "user_id": a.get("id"),
-            "target_role": target_role,
-            "roadmap": roadmap,
-        }
 
-    # Then check demo profiles
-    p = None
-    try:
-        from app.repositories.supabase_repository import get_student_profile
-        p = get_student_profile(student_id)
-    except Exception as e:
-        logger.exception("[LearningRoadmap] Supabase error for profile %s: %s", student_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database query failed for student profile.",
-        ) from e
+@router.post("/student/me/roadmap/recalculate")
+async def recalculate_my_roadmap(
+    current_user: dict = Depends(get_current_user),
+):
+    return await recalculate_student_roadmap(student_id=current_user.get("id"), current_user=current_user)
 
-    if not p and is_demo_student_id(student_id):
-        for item in profiles:
-            if item.get("user_id") == student_id or item.get("id") == student_id:
-                p = item
-                break
 
-    if p:
-        if _is_private_user_record(p) or not is_demo_student_id(student_id):
+@router.post("/student/{student_id}/roadmap/recalculate")
+async def recalculate_student_roadmap(
+    student_id: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+):
+    if student_id == "me" and current_user:
+        student_id = current_user.get("id")
+    is_demo_id = is_demo_student_id(student_id)
+    if not is_demo_id:
+        demo_profiles = get_demo("student_profiles") or []
+        is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
+        if not is_demo_fixture:
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required to view candidate profile roadmap.",
+                    detail="Authentication required to recalculate learning roadmap.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             user_id = current_user.get("id")
             user_role = (current_user.get("role") or "").upper()
-            if (p.get("user_id") or p.get("id")) != user_id and user_role != "ADMIN":
+            if user_id != student_id and user_role != "ADMIN":
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Forbidden: You cannot access another student's profile roadmap.",
+                    detail="Forbidden: You cannot recalculate another student's learning roadmap.",
                 )
-        roadmap = []
-        for idx, sid in enumerate(p.get("roadmap", []), start=1):
-            skill = skills_map.get(sid, {})
-            fc = forecast_map.get(sid, {})
-            roadmap.append({
-                "step": idx,
-                "skill_id": sid,
-                "skill_name": skill.get("name", ""),
-                "category": skill.get("category", ""),
-                "nsqf_level": skill.get("nsqf_level"),
-                "future_demand": fc.get("future_demand", "high"),
-                "trend": fc.get("trend", "rising"),
-                "confidence": fc.get("confidence", 85),
-                "timeframe": fc.get("timeframe", "2025-2027"),
-                "key_drivers": fc.get("key_drivers", []),
-                "why": f"Recommended because {skill.get('name', 'this skill')} has "
-                       f"{fc.get('future_demand', 'growing')} future demand with "
-                       f"{fc.get('trend', 'rising')} trend and {fc.get('confidence', '85')}% confidence.",
-            })
-        return {
-            "user_id": p.get("user_id") or p.get("id"),
-            "target_role": p["target_role"],
-            "roadmap": roadmap,
-        }
-
-    return {
-        "user_id": student_id,
-        "target_role": None,
-        "has_roadmap": False,
-        "roadmap": [],
-        "message": "No personal assessment completed yet. Complete your diagnostic to view your learning roadmap.",
-    }
+    from app.services.roadmap_service import compute_adaptive_roadmap
+    return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
 
 
 
