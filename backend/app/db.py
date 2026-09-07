@@ -240,7 +240,7 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
-    if settings.use_demo_data:
+    if settings.use_demo_data or settings.demo_auth_enabled:
         init_demo_users()
 
 
@@ -961,7 +961,7 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
         {
-            "id": "usr-admin-001",
+            "id": "73e35d08-a564-4cd2-b503-a641a8a0a5aa",
             "email": "admin@skillsetu.gov.in",
             "hashed_password": hash_password("AdminPass@2026"),
             "name": "SkillSetu System Administrator",
@@ -986,7 +986,7 @@ def init_demo_users():
         return
 
     try:
-        existing_resp = client.table("users").select("id, email").execute()
+        existing_resp = client.table("users").select("id, email, name").execute()
         existing_users = existing_resp.data or []
         db_ids = {str(r["id"]) for r in existing_users if r.get("id")}
         db_emails = {str(r["email"]).strip().lower() for r in existing_users if r.get("email")}
@@ -994,56 +994,48 @@ def init_demo_users():
         logger.warning("[DB] Failed querying users from Supabase: %s", e)
         return
 
-    to_insert = []
     for acc in demo_accounts:
         acc_id = str(acc["id"])
         acc_email = acc["email"].strip().lower()
-        is_exact_match = any(
-            str(r.get("id")) == acc_id and str(r.get("email", "")).strip().lower() == acc_email
-            for r in existing_users
-        )
-        is_collision = (acc_id in db_ids or acc_email in db_emails or acc_id in existing_ids or acc_email in existing_emails) and not is_exact_match
-        if is_collision:
+        if acc_email in existing_emails or acc_id in existing_ids:
             continue
-        if is_exact_match:
-            if acc_email not in existing_emails and acc_id not in existing_ids:
-                users.append(acc)
+        matched_db = next((r for r in existing_users if str(r.get("email", "")).strip().lower() == acc_email), None)
+        if matched_db:
+            if acc_email == "admin@skillsetu.gov.in":
+                admin_copy = dict(acc)
+                admin_copy["id"] = str(matched_db.get("id") or acc["id"])
+                admin_name = matched_db.get("name") or acc.get("name")
+                admin_copy["name"] = admin_name
+                admin_copy["full_name"] = admin_name
+                users.append(admin_copy)
                 existing_emails.add(acc_email)
-                existing_ids.add(acc_id)
-        else:
-            to_insert.append(acc)
-
-    if to_insert:
-        try:
-            new_supabase_users = [
-                {
-                    "id": acc["id"],
-                    "name": acc.get("full_name") or acc.get("name", ""),
-                    "email": acc["email"],
-                    "role": acc["role"],
-                }
-                for acc in to_insert
-            ]
-            client.table("users").insert(new_supabase_users).execute()
-            for acc in to_insert:
-                acc_id = str(acc["id"])
-                acc_email = acc["email"].strip().lower()
-                if acc_email not in existing_emails and acc_id not in existing_ids:
-                    users.append(acc)
-                    existing_emails.add(acc_email)
-                    existing_ids.add(acc_id)
-        except Exception as e:
-            logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
+                existing_ids.add(admin_copy["id"])
+            continue
+        if acc_id in db_ids:
+            continue
+        users.append(acc)
+        existing_emails.add(acc_email)
+        existing_ids.add(acc_id)
 
 
 def get_user_by_email(email: str) -> dict | None:
     if not _cache:
         init_db()
+    if "users" not in _cache:
+        return None
     users = _cache.get("users", [])
     clean_email = email.strip().lower()
     for u in users:
         if u.get("email", "").strip().lower() == clean_email:
             return u
+    demo_emails = {
+        "student@skillsetu.gov.in",
+        "employer@skillsetu.gov.in",
+        "institute@skillsetu.gov.in",
+        "government@skillsetu.gov.in",
+    }
+    if clean_email in demo_emails:
+        return None
     client = get_supabase_client()
     if client:
         try:
@@ -1061,18 +1053,27 @@ def get_user_by_email(email: str) -> dict | None:
 def get_user_by_id(user_id: str) -> dict | None:
     if not _cache:
         init_db()
+    if "users" not in _cache:
+        return None
     users = _cache.get("users", [])
+    target_ids = {user_id}
+    if user_id in ("73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"):
+        target_ids.update({"73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"})
     for u in users:
-        if u.get("id") == user_id:
+        if u.get("id") in target_ids:
             return u
+    demo_ids = {"usr-student-001", "usr-employer-001", "usr-institute-001", "usr-gov-001"}
+    if user_id in demo_ids:
+        return None
     client = get_supabase_client()
     if client:
         try:
-            res = client.table("users").select("*").eq("id", user_id).execute()
-            if res.data and len(res.data) > 0:
-                user = res.data[0]
-                user.setdefault("full_name", user.get("name", ""))
-                return user
+            for tid in target_ids:
+                res = client.table("users").select("*").eq("id", tid).execute()
+                if res.data and len(res.data) > 0:
+                    user = res.data[0]
+                    user.setdefault("full_name", user.get("name", ""))
+                    return user
         except Exception as e:
             logger.warning("[DB] Failed querying user by id from Supabase: %s", e)
     return None

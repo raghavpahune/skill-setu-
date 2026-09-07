@@ -13,7 +13,7 @@ from app.core.security import (
     create_access_token,
     get_current_user,
 )
-from app.db import get_user_by_email, get_user_by_id, save_user
+from app.db import get_user_by_email, get_user_by_id, save_user, get_supabase_client
 
 logger = logging.getLogger("skillsetu.auth")
 router = APIRouter()
@@ -132,7 +132,31 @@ async def login(req: LoginRequest):
     clean_email = req.email.strip().lower()
     user = get_user_by_email(clean_email)
 
-    if not user or not verify_password(req.password, user.get("hashed_password", "")):
+    authenticated = False
+    if user and user.get("hashed_password") and verify_password(req.password, user.get("hashed_password", "")):
+        authenticated = True
+
+    if not authenticated:
+        client = get_supabase_client()
+        if client and hasattr(client, "auth") and hasattr(client.auth, "sign_in_with_password"):
+            try:
+                auth_resp = client.auth.sign_in_with_password({"email": clean_email, "password": req.password})
+                if auth_resp and getattr(auth_resp, "user", None):
+                    sb_user = auth_resp.user
+                    authenticated = True
+                    if not user:
+                        meta = getattr(sb_user, "user_metadata", {}) or {}
+                        user = {
+                            "id": str(sb_user.id),
+                            "email": clean_email,
+                            "role": meta.get("role", "STUDENT"),
+                            "full_name": meta.get("full_name") or meta.get("name") or clean_email.split("@")[0],
+                            "is_active": True,
+                        }
+            except Exception as e:
+                logger.debug("[Auth] Supabase GoTrue authentication failed: %s", e)
+
+    if not authenticated or not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",

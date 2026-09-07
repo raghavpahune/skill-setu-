@@ -524,7 +524,7 @@ def mock_supabase_for_tests():
         jobs_rows=deepcopy(_cache.get("jobs", [])),
         sync_logs_rows=deepcopy(_cache.get("sync_logs", [])),
         employers_rows=deepcopy(_cache.get("employers", [])),
-        users_rows=deepcopy(_cache.get("users", [])),
+        users_rows=[deepcopy(u) for u in _cache.get("users", []) if not u.get("is_demo")],
         difficult_skills_rows=deepcopy(_cache.get("difficult_skills", [])),
     )
     set_supabase_client(mock_client)
