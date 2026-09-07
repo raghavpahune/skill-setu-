@@ -125,3 +125,79 @@ def test_evaluate_assessment_returns_scores_and_knowledge_breakdown():
     assert isinstance(breakdown["strong"], list)
     assert isinstance(breakdown["weak"], list)
     assert len(breakdown["strong"]) >= 1
+
+
+def test_quiz_questions_endpoint_idor_protection(monkeypatch):
+    from starlette.testclient import TestClient
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import save_user
+
+    save_user({"id": "alice-user-456", "email": "alice@test.gov.in", "role": "STUDENT", "full_name": "Alice Student"})
+
+    mock_profile = {
+        "user_id": "victim-user-123",
+        "target_role": "AI Engineer",
+        "degree": "B.Tech AI",
+        "education_level": "Undergraduate",
+        "skills": [{"skill_name": "PyTorch", "proficiency": "advanced"}],
+        "career_interests": ["ai_ml"],
+    }
+    monkeypatch.setattr(supabase_repository, "get_student_profile", lambda student_id: mock_profile if student_id == "victim-user-123" else None)
+
+    with TestClient(app) as c:
+        unauth_resp = c.get("/api/student/assessment/quiz-questions?student_id=victim-user-123")
+        assert unauth_resp.status_code == 200
+        unauth_data = unauth_resp.json()
+        assert unauth_data["status"] == "unauthenticated"
+        assert unauth_data["domain"] == "general"
+
+        alice_token = create_access_token({"sub": "alice-user-456", "email": "alice@test.gov.in", "role": "STUDENT"})
+        alice_resp = c.get(
+            "/api/student/assessment/quiz-questions?student_id=victim-user-123",
+            headers={"Authorization": f"Bearer {alice_token}"},
+        )
+        assert alice_resp.status_code == 200
+        alice_data = alice_resp.json()
+        assert alice_data["status"] == "profile_incomplete"
+
+
+def test_learning_roadmap_endpoint_authorization_protection(monkeypatch):
+    from starlette.testclient import TestClient
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import save_user
+
+    save_user({"id": "bob-user-789", "email": "bob@test.gov.in", "role": "STUDENT", "full_name": "Bob Student"})
+    save_user({"id": "victim-user-123", "email": "victim@test.gov.in", "role": "STUDENT", "full_name": "Victim Student"})
+
+    mock_assessment = {
+        "id": "ast-usr-victim",
+        "user_id": "victim-user-123",
+        "career_goal": "AI Engineer",
+        "current_skills": [{"skill_id": "sk-001"}],
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+    }
+    monkeypatch.setattr(supabase_repository, "get_student_assessment", lambda aid: mock_assessment if aid == "victim-user-123" else None)
+    monkeypatch.setattr(supabase_repository, "get_student_assessment_by_user", lambda uid: mock_assessment if uid == "victim-user-123" else None)
+    monkeypatch.setattr(supabase_repository, "get_student_profile", lambda uid: None)
+
+    with TestClient(app) as c:
+        unauth_resp = c.get("/api/student/victim-user-123/roadmap")
+        assert unauth_resp.status_code == 401
+
+        bob_token = create_access_token({"sub": "bob-user-789", "email": "bob@test.gov.in", "role": "STUDENT"})
+        bob_resp = c.get(
+            "/api/student/victim-user-123/roadmap",
+            headers={"Authorization": f"Bearer {bob_token}"},
+        )
+        assert bob_resp.status_code == 403
+
+        victim_token = create_access_token({"sub": "victim-user-123", "email": "victim@test.gov.in", "role": "STUDENT"})
+        victim_resp = c.get(
+            "/api/student/victim-user-123/roadmap",
+            headers={"Authorization": f"Bearer {victim_token}"},
+        )
+        assert victim_resp.status_code == 200
+        assert victim_resp.json()["target_role"] == "AI Engineer"

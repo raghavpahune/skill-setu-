@@ -981,7 +981,10 @@ def init_demo_users():
     client = get_supabase_client()
     if client:
         try:
-            supabase_users = [
+            existing_resp = client.table("users").select("id, email").execute()
+            db_ids = {r["id"] for r in (existing_resp.data or []) if r.get("id")}
+            db_emails = {r["email"].lower() for r in (existing_resp.data or []) if r.get("email")}
+            new_supabase_users = [
                 {
                     "id": acc["id"],
                     "name": acc.get("full_name") or acc.get("name", ""),
@@ -989,8 +992,10 @@ def init_demo_users():
                     "role": acc["role"],
                 }
                 for acc in demo_accounts
+                if acc["id"] not in db_ids and acc["email"].lower() not in db_emails
             ]
-            client.table("users").upsert(supabase_users, on_conflict="id").execute()
+            if new_supabase_users:
+                client.table("users").insert(new_supabase_users).execute()
         except Exception as e:
             logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
 

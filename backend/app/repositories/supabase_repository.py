@@ -452,13 +452,16 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
         raise SupabaseRepositoryError(f"Database query failed for student profile '{user_id}': {e}") from e
 
     from app.db import _cache
+    from app.config import settings
     cached_profiles = _cache.get("student_profiles", [])
     cached = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     if db_profile and cached:
         return {**cached, **db_profile}
     if db_profile:
         return db_profile
-    return cached
+    if settings.use_demo_data:
+        return cached
+    return None
 
 
 def list_student_profiles() -> list[dict[str, Any]]:
@@ -540,13 +543,16 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
         raise SupabaseRepositoryError(f"Database query failed for employee profile '{user_id}': {e}") from e
 
     from app.db import _cache
+    from app.config import settings
     cached_profiles = _cache.get("employee_profiles", [])
     cached = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     if db_profile and cached:
         return {**cached, **db_profile}
     if db_profile:
         return db_profile
-    return cached
+    if settings.use_demo_data:
+        return cached
+    return None
 
 
 def list_employee_profiles() -> list[dict[str, Any]]:
@@ -952,8 +958,6 @@ def list_industry_signals(
                 enriched_signals.append({**cached_signals[sid], **s})
             else:
                 enriched_signals.append(s)
-        if not enriched_signals and "industry_signals" in _cache:
-            enriched_signals = list(_cache["industry_signals"])
 
         if industry and industry.lower() != "all":
             ind_lower = industry.lower()

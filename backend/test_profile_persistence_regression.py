@@ -136,3 +136,16 @@ def test_database_failure_propagates_clear_error_message(client, monkeypatch):
     detail = resp.json()["detail"]
     assert "Database persistence failed" in detail
     assert "Database connection timed out" in detail
+
+
+def test_real_mode_does_not_fallback_to_stale_cache_when_not_in_database(monkeypatch):
+    from app.config import settings
+    from app.db import _cache
+    from app.repositories.supabase_repository import get_client
+    monkeypatch.setattr(settings, "use_demo_data", False)
+    _cache["student_profiles"] = [{"user_id": "usr-ghost-1", "target_role": "Old Role"}]
+    client_db = get_client()
+    client_db.table("student_profiles").rows = []
+
+    res = supabase_repository.get_student_profile("usr-ghost-1")
+    assert res is None

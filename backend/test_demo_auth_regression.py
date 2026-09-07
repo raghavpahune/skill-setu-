@@ -73,3 +73,18 @@ def test_save_user_populates_both_name_and_full_name():
     saved = save_user(payload)
     assert saved["name"] == "Integrity Candidate"
     assert saved["full_name"] == "Integrity Candidate"
+
+
+def test_init_demo_users_does_not_overwrite_existing_supabase_user():
+    client_db = get_client()
+    existing_user = {
+        "id": "usr-admin-001",
+        "name": "Original Real Admin",
+        "email": "admin@skillsetu.gov.in",
+        "role": "ADMIN",
+    }
+    client_db.table("users").rows = [existing_user]
+    init_demo_users()
+    matched = next((u for u in client_db.table("users").rows if u.get("id") == "usr-admin-001"), None)
+    assert matched is not None
+    assert matched["name"] == "Original Real Admin"
