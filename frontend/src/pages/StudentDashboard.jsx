@@ -124,6 +124,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [passportError, setPassportError] = useState(null);
   const [roadmapError, setRoadmapError] = useState(null);
+  const [recalculatingRoadmap, setRecalculatingRoadmap] = useState(false);
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'acquired' | 'gaps'
 
   const handleTabChange = (newTab) => {
@@ -346,6 +347,21 @@ export default function StudentDashboard() {
   useEffect(() => {
     fetchStudentData();
   }, [selectedStudentId]);
+
+  const handleRecalculateRoadmap = async () => {
+    try {
+      setRecalculatingRoadmap(true);
+      setRoadmapError(null);
+      const res = selectedStudentId === 'me'
+        ? await api.recalculateMyRoadmap()
+        : await api.recalculateStudentRoadmap(selectedStudentId);
+      setRoadmap(res);
+    } catch (err) {
+      setRoadmapError(err?.message || 'Failed to recalculate adaptive roadmap');
+    } finally {
+      setRecalculatingRoadmap(false);
+    }
+  };
 
 
   // Derived calculations for Comparison Flow
@@ -926,28 +942,39 @@ export default function StudentDashboard() {
                 </p>
               </div>
 
-              <div className="text-xs font-mono text-slate-500 dark:text-slate-400 self-start sm:self-auto">
-                Target Horizon: 2025–2027
+              <div className="flex items-center gap-3 self-start sm:self-auto">
+                <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                  Target Horizon: 2025–2027
+                </div>
+                <button
+                  onClick={handleRecalculateRoadmap}
+                  disabled={recalculatingRoadmap}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <svg className={`w-3.5 h-3.5 ${recalculatingRoadmap ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>{recalculatingRoadmap ? 'Recalculating...' : 'Recalculate Roadmap'}</span>
+                </button>
               </div>
             </div>
 
-            {/* Multi-Stage Progression Overview Bar */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-6 text-xs">
               <div className="p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60">
                 <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase font-mono block">
                   Stage 1 • Baseline
                 </span>
                 <p className="font-semibold text-slate-900 dark:text-white text-[11px] mt-0.5">
-                  {comparisonData.acquired.length} Verified Skills
+                  {roadmap?.summary?.skipped ?? comparisonData.acquired.length} Mastered (Skip)
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60">
                 <span className="text-[10px] font-bold text-rose-800 dark:text-rose-300 uppercase font-mono block">
-                  Stage 2 • Priority Gaps
+                  Stage 2 • Core Gaps
                 </span>
                 <p className="font-semibold text-slate-900 dark:text-white text-[11px] mt-0.5">
-                  {comparisonData.gaps.length} Target Deficits
+                  {roadmap?.summary?.to_learn ?? comparisonData.gaps.length} Target Deficits
                 </p>
               </div>
 
@@ -956,16 +983,16 @@ export default function StudentDashboard() {
                   Stage 3 • Learning Track
                 </span>
                 <p className="font-semibold text-slate-900 dark:text-white text-[11px] mt-0.5">
-                  {roadmap?.roadmap?.length || 0} Sequenced Modules
+                  {roadmap?.roadmap?.length || 0} Modules ({roadmap?.total_estimated_hours || 0}h)
                 </p>
               </div>
 
               <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase font-mono block">
-                  Stage 4 • Milestone
+                  Stage 4 • Job Readiness
                 </span>
                 <p className="font-semibold text-slate-900 dark:text-white text-[11px] mt-0.5">
-                  {passport?.target_role || 'Target Role'} Ready
+                  {roadmap?.readiness_score ?? comparisonData?.overall_match_pct ?? 0}% Role Qualified
                 </p>
               </div>
             </div>
@@ -998,6 +1025,26 @@ export default function StudentDashboard() {
                           <h4 className="font-bold text-slate-900 dark:text-white text-sm">
                             {step.skill_name}
                           </h4>
+                          {step.status === 'SKIP' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold uppercase border border-emerald-300 dark:border-emerald-800 font-mono">
+                              Mastered • Skip
+                            </span>
+                          )}
+                          {step.status === 'REVIEW' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold uppercase border border-amber-300 dark:border-amber-800 font-mono">
+                              Refresher • Review
+                            </span>
+                          )}
+                          {step.status === 'LEARN' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-bold uppercase border border-indigo-300 dark:border-indigo-800 font-mono">
+                              Core Target • Learn
+                            </span>
+                          )}
+                          {step.status === 'PROJECT' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold uppercase border border-purple-300 dark:border-purple-800 font-mono">
+                              Capstone Project
+                            </span>
+                          )}
                           {step.category && (
                             <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">
                               {step.category}
@@ -1008,15 +1055,21 @@ export default function StudentDashboard() {
                               NSQF L{step.nsqf_level}
                             </span>
                           )}
+                          {step.estimated_hours > 0 && (
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                              • ~{step.estimated_hours}h
+                            </span>
+                          )}
                           <span className="px-2 py-0.5 rounded text-[10px] bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-semibold uppercase border border-teal-200 dark:border-teal-800 font-mono">
                             Trend: {step.trend || 'rising'}
                           </span>
-                          {step.confidence && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                              • {step.confidence}% Demand Confidence
-                            </span>
-                          )}
                         </div>
+                        {step.prerequisites && step.prerequisites.length > 0 && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1">
+                            <span className="text-slate-400 dark:text-slate-500">Prerequisites:</span>
+                            <span className="text-teal-700 dark:text-teal-300 font-semibold">{step.prerequisites.join(' → ')}</span>
+                          </div>
+                        )}
                         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                           <button
                             onClick={() => handleOpenExplainability(step.skill_id, step.skill_name)}
@@ -1028,10 +1081,20 @@ export default function StudentDashboard() {
                           </button>{' '}
                           {step.why}
                         </p>
+                        {step.deliverables && step.deliverables.length > 0 && (
+                          <div className="mt-2 p-2.5 rounded-lg bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/60 text-xs">
+                            <span className="font-bold text-purple-900 dark:text-purple-200 block mb-1">Key Portfolio Deliverables:</span>
+                            <ul className="list-disc list-inside space-y-0.5 text-purple-800 dark:text-purple-300 font-mono text-[11px]">
+                              {step.deliverables.map((d, dIdx) => (
+                                <li key={dIdx}>{d}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="shrink-0 self-end sm:self-center flex items-center gap-2">
+                    <div className="shrink-0 self-end sm:flex-row sm:items-center flex items-center gap-2">
                       <button
                         onClick={() => handleOpenExplainability(step.skill_id, step.skill_name)}
                         className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100 bg-teal-50 dark:bg-teal-950/60 px-3 py-2 rounded-lg border border-teal-200 dark:border-teal-800 shadow-2xs hover:bg-teal-100 dark:hover:bg-teal-900 transition-colors inline-block cursor-pointer"

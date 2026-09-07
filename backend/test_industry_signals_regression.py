@@ -42,7 +42,7 @@ def test_legacy_signals_endpoint_compatibility():
 
 def test_industry_intelligence_ingestor_executes():
     summary = industry_ingestor.ingest_from_feeds()
-    assert summary["status"] in ("success", "partial_success")
+    assert summary["status"] in ("success", "partial", "partial_success")
     assert summary["records_fetched"] > 0
 
 

@@ -1047,7 +1047,8 @@ def get_user_by_email(email: str) -> dict | None:
     client = get_supabase_client()
     if client:
         try:
-            res = client.table("users").select("*").ilike("email", clean_email).execute()
+            safe_email = clean_email.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            res = client.table("users").select("*").ilike("email", safe_email).execute()
             if res.data and len(res.data) > 0:
                 user = res.data[0]
                 user.setdefault("full_name", user.get("name", ""))

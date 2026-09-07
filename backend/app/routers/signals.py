@@ -95,18 +95,8 @@ async def list_industry_signals(
         raw_signals = get_demo("industry_signals")
     else:
         try:
-            loop = asyncio.get_running_loop()
             repo_signals = list_industry_signals_repo() or []
-            if not repo_signals:
-                from app.ingestion.industry_intelligence import industry_ingestor
-                await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
-                repo_signals = list_industry_signals_repo() or []
             raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
-            if not raw_signals:
-                from app.ingestion.industry_intelligence import industry_ingestor
-                await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
-                repo_signals = list_industry_signals_repo() or []
-                raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed listing industry signals from Supabase: %s", e)
             raise HTTPException(

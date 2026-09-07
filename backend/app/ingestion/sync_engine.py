@@ -183,7 +183,7 @@ class SyncEngine:
                 if not source_successes:
                     status_val = "failed"
                 else:
-                    status_val = "partial_success" if src_norm == "all" else "failed"
+                    status_val = "partial" if src_norm == "all" else "failed"
                 err_msg = "; ".join(source_errors)
             else:
                 status_val = "success"
