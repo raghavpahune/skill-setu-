@@ -314,7 +314,12 @@ def _expand_and_topological_sort(core_skill_ids: list[str], skills_by_id: dict[s
     return sorted_list
 
 
-def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is_demo: bool | None = None) -> dict[str, Any]:
+def compute_adaptive_roadmap(
+    student_id: str,
+    target_role: str | None = None,
+    is_demo: bool | None = None,
+    persist: bool = True,
+) -> dict[str, Any]:
     from app.services.student_service import ROLE_REQUIREMENTS_MAP
 
     is_demo_req = is_demo if is_demo is not None else is_demo_student_id(student_id)
@@ -562,12 +567,12 @@ def compute_adaptive_roadmap(student_id: str, target_role: str | None = None, is
         "is_demo": is_demo_req,
     }
 
-    if is_demo_req:
+    if persist and is_demo_req:
         try:
             supabase_repository.upsert_student_roadmap(result)
         except Exception as e:
             logger.warning("Demo roadmap write suppressed: %s", e)
-    else:
+    elif persist:
         try:
             supabase_repository.upsert_student_roadmap(result)
         except Exception as e:

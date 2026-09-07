@@ -421,7 +421,7 @@ async def learning_roadmap(
     from app.services.roadmap_service import compute_adaptive_roadmap
     from app.repositories.supabase_repository import SupabaseRepositoryError
     try:
-        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
+        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id, persist=False)
     except SupabaseRepositoryError as e:
         logger.exception("[Student] Supabase repository error retrieving roadmap: %s", e)
         raise HTTPException(
@@ -467,7 +467,7 @@ async def recalculate_student_roadmap(
     from app.services.roadmap_service import compute_adaptive_roadmap
     from app.repositories.supabase_repository import SupabaseRepositoryError
     try:
-        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id)
+        return compute_adaptive_roadmap(student_id=student_id, is_demo=is_demo_id, persist=True)
     except SupabaseRepositoryError as e:
         logger.exception("[Student] Supabase repository error recalculating roadmap: %s", e)
         raise HTTPException(
