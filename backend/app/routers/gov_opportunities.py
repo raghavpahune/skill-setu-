@@ -26,18 +26,20 @@ class GovOpportunitySubmission(BaseModel):
     deadline: str | None = None
     status: str = Field(default="active")
 
-    @field_validator("name", "department", "description")
+    @field_validator("name", "department", "description", mode="before")
     @classmethod
-    def validate_non_empty_strings(cls, v: str) -> str:
-        clean = v.strip()
-        if not clean:
-            raise ValueError("Field cannot be empty")
-        return clean
+    def validate_non_empty_strings(cls, v: object) -> object:
+        if isinstance(v, str):
+            clean = v.strip()
+            if not clean:
+                raise ValueError("Field cannot be empty")
+            return clean
+        return v
 
     @field_validator("application_url")
     @classmethod
     def validate_url(cls, v: str | None) -> str | None:
-        if not v:
+        if not v or not v.strip():
             return "https://mahaswayam.gov.in"
         clean = v.strip()
         if not (clean.startswith("http://") or clean.startswith("https://")):

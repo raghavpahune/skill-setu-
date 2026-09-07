@@ -459,7 +459,7 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
         if cached_profile:
             return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if cached_profile:
+    if settings.use_demo_data and cached_profile:
         return cached_profile
     return None
 
@@ -595,7 +595,7 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
         if cached_profile:
             return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if cached_profile:
+    if settings.use_demo_data and cached_profile:
         return cached_profile
     return None
 
