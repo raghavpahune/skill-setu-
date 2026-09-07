@@ -824,3 +824,115 @@ def test_admin_reconciliation_does_not_overwrite_unrelated_user(test_client, mon
     assert unrelated_user is not None
     assert unrelated_user["email"] == "unrelated.employee@skillsetu.gov.in"
     assert unrelated_user["role"] == "EMPLOYEE"
+
+
+def test_init_demo_users_detects_admin_on_later_page_and_does_not_call_create_user(monkeypatch):
+    import app.db as db_module
+
+    updated_ids = []
+    create_called = []
+
+    class FakeGoTrueUser:
+        def __init__(self, uid, email):
+            self.id = uid
+            self.email = email
+
+    class FakeAdminAPI:
+        def list_users(self, page=1, per_page=100):
+            if page == 1:
+                return [FakeGoTrueUser(f"user-{i}", f"user{i}@example.com") for i in range(100)]
+            elif page == 2:
+                return [FakeGoTrueUser("gotrue-page-2-uuid", "admin@skillsetu.gov.in")]
+            return []
+
+        def update_user_by_id(self, uid, attributes):
+            updated_ids.append((uid, attributes))
+            return None
+
+        def create_user(self, attributes):
+            create_called.append(attributes)
+            raise AssertionError("create_user should not be called when user exists on later page")
+
+    class FakeAuth:
+        admin = FakeAdminAPI()
+
+    class FakeTable:
+        def select(self, *args, **kwargs):
+            return self
+
+        def upsert(self, row, **kwargs):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": []})()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client_instance = FakeClient()
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client_instance)
+
+    db_module.init_demo_users()
+
+    assert len(updated_ids) == 1
+    assert updated_ids[0][0] == "gotrue-page-2-uuid"
+    assert len(create_called) == 0
+
+    admin_cached = [u for u in db_module._cache.get("users", []) if u.get("email") == "admin@skillsetu.gov.in"]
+    assert len(admin_cached) >= 1
+    assert all(u.get("id") == "gotrue-page-2-uuid" for u in admin_cached)
+
+
+def test_init_demo_users_synchronizes_admin_uid_across_all_cached_records(monkeypatch):
+    import app.db as db_module
+
+    db_module._cache["users"] = [
+        {
+            "id": "usr-admin-001",
+            "email": "admin@skillsetu.gov.in",
+            "role": "ADMIN",
+            "name": "Old Admin Name",
+        }
+    ]
+
+    class FakeGoTrueUser:
+        id = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+        email = "admin@skillsetu.gov.in"
+
+    class FakeAdminAPI:
+        def list_users(self, page=1, per_page=100):
+            return [FakeGoTrueUser()]
+
+        def update_user_by_id(self, uid, attributes):
+            return None
+
+    class FakeAuth:
+        admin = FakeAdminAPI()
+
+    class FakeTable:
+        def select(self, *args, **kwargs):
+            return self
+
+        def upsert(self, row, **kwargs):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": []})()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client_instance = FakeClient()
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client_instance)
+
+    db_module.init_demo_users()
+
+    admin_cached = [u for u in db_module._cache.get("users", []) if u.get("email") == "admin@skillsetu.gov.in"]
+    assert len(admin_cached) >= 1
+    assert all(u.get("id") == "73e35d08-a564-4cd2-b503-a641a8a0a5aa" for u in admin_cached)

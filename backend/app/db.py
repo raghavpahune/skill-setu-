@@ -1052,12 +1052,45 @@ def init_demo_users():
         admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
         if hasattr(client, "auth") and hasattr(client.auth, "admin"):
             try:
-                auth_users_resp = client.auth.admin.list_users()
-                auth_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
-                existing_auth = next(
-                    (u for u in auth_users if str(getattr(u, "email", "")).strip().lower() == "admin@skillsetu.gov.in"),
-                    None,
-                )
+                existing_auth = None
+                page = 1
+                while page <= 20:
+                    try:
+                        auth_users_resp = client.auth.admin.list_users(page=page, per_page=100)
+                    except TypeError:
+                        auth_users_resp = client.auth.admin.list_users()
+                        page_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                        existing_auth = next(
+                            (u for u in page_users if str(getattr(u, "email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                            None,
+                        )
+                        break
+                    page_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                    if not page_users:
+                        break
+                    existing_auth = next(
+                        (u for u in page_users if str(getattr(u, "email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                        None,
+                    )
+                    if existing_auth:
+                        break
+                    if len(page_users) < 100:
+                        break
+                    page += 1
+
+                if not existing_auth and existing_users:
+                    matched_db_admin = next(
+                        (r for r in existing_users if str(r.get("email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                        None,
+                    )
+                    if matched_db_admin and matched_db_admin.get("id"):
+                        try:
+                            direct_user_resp = client.auth.admin.get_user_by_id(str(matched_db_admin["id"]))
+                            if direct_user_resp and (getattr(direct_user_resp, "user", None) or getattr(direct_user_resp, "id", None)):
+                                existing_auth = getattr(direct_user_resp, "user", None) or direct_user_resp
+                        except Exception:
+                            pass
+
                 if existing_auth:
                     admin_uid = str(getattr(existing_auth, "id", admin_uid))
                     client.auth.admin.update_user_by_id(
@@ -1072,8 +1105,7 @@ def init_demo_users():
                         },
                     )
                 else:
-                    client.auth.admin.create_user({
-                        "id": admin_uid,
+                    create_payload = {
                         "email": admin_acc["email"],
                         "password": admin_pw,
                         "email_confirm": True,
@@ -1081,9 +1113,21 @@ def init_demo_users():
                             "role": "ADMIN",
                             "name": admin_acc.get("full_name") or "SkillSetu System Administrator",
                         },
-                    })
+                    }
+                    if admin_uid:
+                        create_payload["id"] = admin_uid
+                    created_resp = client.auth.admin.create_user(create_payload)
+                    created_user = getattr(created_resp, "user", None) or created_resp
+                    if created_user and getattr(created_user, "id", None):
+                        admin_uid = str(created_user.id)
             except Exception as e:
                 logger.warning("[DB] GoTrue admin provisioning error: %s", e)
+
+        for u in users:
+            if isinstance(u, dict) and (str(u.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" or str(u.get("id")) in ("usr-admin-001", "73e35d08-a564-4cd2-b503-a641a8a0a5aa", admin_uid)):
+                u["id"] = admin_uid
+                u["role"] = "ADMIN"
+                u["is_active"] = True
 
         try:
             client.table("users").upsert({
@@ -1175,7 +1219,8 @@ def get_user_by_email(email: str) -> dict | None:
         if u.get("email", "").strip().lower() == clean_email:
             if clean_email == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
                 u["role"] = "ADMIN"
-                u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                if not u.get("id"):
+                    u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
                 u["is_active"] = True
                 if not u.get("hashed_password"):
                     from app.core.security import hash_password
@@ -1198,7 +1243,7 @@ def get_user_by_email(email: str) -> dict | None:
                     admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
                     user["hashed_password"] = hash_password(admin_pw)
                     user["role"] = "ADMIN"
-                    user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                    user["id"] = str(user.get("id") or "73e35d08-a564-4cd2-b503-a641a8a0a5aa")
                     user["is_active"] = True
                 return user
         except Exception as e:
@@ -1219,7 +1264,8 @@ def get_user_by_id(user_id: str) -> dict | None:
         if u.get("id") in target_ids:
             if str(u.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
                 u["role"] = "ADMIN"
-                u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                if not u.get("id"):
+                    u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
                 u["is_active"] = True
                 if not u.get("hashed_password"):
                     from app.core.security import hash_password
@@ -1242,7 +1288,7 @@ def get_user_by_id(user_id: str) -> dict | None:
                         admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
                         user["hashed_password"] = hash_password(admin_pw)
                         user["role"] = "ADMIN"
-                        user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                        user["id"] = str(user.get("id") or user_id)
                         user["is_active"] = True
                     return user
         except Exception as e:
