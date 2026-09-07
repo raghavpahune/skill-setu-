@@ -44,3 +44,19 @@ def test_industry_intelligence_ingestor_executes():
     summary = industry_ingestor.ingest_from_feeds()
     assert summary["status"] in ("success", "partial_success")
     assert summary["records_fetched"] > 0
+
+
+def test_create_industry_signal_raises_when_retries_exhausted():
+    from app.repositories.supabase_repository import create_industry_signal, SupabaseRepositoryError, get_client
+    client_mock = get_client()
+    original_upsert = client_mock.table("industry_signals").upsert
+
+    def simulated_failing_upsert(*args, **kwargs):
+        raise RuntimeError("Database deadlock")
+
+    client_mock.table("industry_signals").upsert = simulated_failing_upsert
+    try:
+        with pytest.raises(SupabaseRepositoryError):
+            create_industry_signal({"title": "Test Deadlock", "technology": "AI", "summary": "Summary"})
+    finally:
+        client_mock.table("industry_signals").upsert = original_upsert

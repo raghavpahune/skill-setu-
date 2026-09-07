@@ -1104,6 +1104,7 @@ def get_personalized_diagnostic_questions(
         for s in skills_list
         if isinstance(s, dict)
     ]
+    claimed_skill_names = [cs for cs in claimed_skill_names if cs]
     target_role = (profile.get("target_role") or profile.get("desired_role") or "").lower()
     degree = (profile.get("degree") or "").lower()
     education_level = (profile.get("education_level") or "").lower()

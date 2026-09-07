@@ -201,3 +201,21 @@ def test_learning_roadmap_endpoint_authorization_protection(monkeypatch):
         )
         assert victim_resp.status_code == 200
         assert victim_resp.json()["target_role"] == "AI Engineer"
+
+
+def test_personalized_diagnostic_questions_filters_empty_skill_names(monkeypatch):
+    mock_profile = {
+        "user_id": "usr-empty-skill",
+        "target_role": "Cybersecurity Analyst",
+        "degree": "B.Tech Information Security",
+        "education_level": "Undergraduate",
+        "skills": [{"skill_id": "sk-001"}],
+        "career_interests": ["cybersecurity"],
+    }
+    monkeypatch.setattr(supabase_repository, "get_student_profile", lambda uid: mock_profile)
+    res = get_personalized_diagnostic_questions("usr-empty-skill", "test@skillsetu.gov.in")
+    assert res["status"] == "success"
+    assert res["domain"] == "cybersecurity"
+    assert len(res["questions"]) == 5
+    cyber_count = sum(1 for q in res["questions"] if "Cybersecurity" in q.get("skills", []) or q.get("category") == "Cybersecurity")
+    assert cyber_count >= 2

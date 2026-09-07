@@ -135,7 +135,6 @@ def test_database_failure_propagates_clear_error_message(client, monkeypatch):
     assert resp.status_code == 500
     detail = resp.json()["detail"]
     assert "Database persistence failed" in detail
-    assert "Database connection timed out" in detail
 
 
 def test_real_mode_does_not_fallback_to_stale_cache_when_not_in_database(monkeypatch):
@@ -149,3 +148,36 @@ def test_real_mode_does_not_fallback_to_stale_cache_when_not_in_database(monkeyp
 
     res = supabase_repository.get_student_profile("usr-ghost-1")
     assert res is None
+
+
+def test_get_student_profile_does_not_merge_cache_when_in_database():
+    from app.db import _cache
+    client_db = supabase_repository.get_client()
+    client_db.table("student_profiles").rows = [
+        {"user_id": "usr-authoritative-1", "target_role": "Database Role"}
+    ]
+    _cache["student_profiles"] = [
+        {"user_id": "usr-authoritative-1", "target_role": "Cache Role", "ghost_field": "unpersisted"}
+    ]
+    res = supabase_repository.get_student_profile("usr-authoritative-1")
+    assert res is not None
+    assert res["target_role"] == "Database Role"
+    assert "ghost_field" not in res
+
+
+def test_upsert_student_profile_raises_on_pgrst204():
+    client_mock = supabase_repository.get_client()
+    original_upsert = client_mock.table("student_profiles").upsert
+
+    def simulated_upsert(data, *args, **kwargs):
+        raise RuntimeError("PGRST204: schema cache error")
+
+    client_mock.table("student_profiles").upsert = simulated_upsert
+    try:
+        with pytest.raises(supabase_repository.SupabaseRepositoryError):
+            supabase_repository.upsert_student_profile({
+                "user_id": "usr-pgrst-test",
+                "target_role": "DevOps Engineer",
+            })
+    finally:
+        client_mock.table("student_profiles").upsert = original_upsert

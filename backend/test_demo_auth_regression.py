@@ -88,3 +88,19 @@ def test_init_demo_users_does_not_overwrite_existing_supabase_user():
     matched = next((u for u in client_db.table("users").rows if u.get("id") == "usr-admin-001"), None)
     assert matched is not None
     assert matched["name"] == "Original Real Admin"
+
+
+def test_init_demo_users_filters_colliding_accounts_from_cache():
+    from app.db import _cache
+    client_db = get_client()
+    existing_user = {
+        "id": "usr-student-001",
+        "name": "Original Real Student",
+        "email": "student@skillsetu.gov.in",
+        "role": "STUDENT",
+    }
+    client_db.table("users").rows = [existing_user]
+    _cache["users"] = []
+    init_demo_users()
+    cached_student = next((u for u in _cache["users"] if u.get("id") == "usr-student-001"), None)
+    assert cached_student is None

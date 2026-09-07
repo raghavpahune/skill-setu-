@@ -5,6 +5,7 @@ Provides:
 - GET /api/industry/signals/{id} (Public: detail of approved, active signal)
 - GET /api/signals & /api/signals/{id} (Backward compatibility aliases)
 """
+import asyncio
 import logging
 from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
@@ -94,15 +95,16 @@ async def list_industry_signals(
         raw_signals = get_demo("industry_signals")
     else:
         try:
+            loop = asyncio.get_running_loop()
             repo_signals = list_industry_signals_repo() or []
             if not repo_signals:
                 from app.ingestion.industry_intelligence import industry_ingestor
-                industry_ingestor.ingest_from_feeds()
+                await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
                 repo_signals = list_industry_signals_repo() or []
             raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
             if not raw_signals:
                 from app.ingestion.industry_intelligence import industry_ingestor
-                industry_ingestor.ingest_from_feeds()
+                await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
                 repo_signals = list_industry_signals_repo() or []
                 raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:
@@ -195,15 +197,16 @@ async def legacy_list_signals(
         raw_signals = get_demo("industry_signals")
     else:
         try:
+            loop = asyncio.get_running_loop()
             repo_signals = list_industry_signals_repo() or []
             if not repo_signals:
                 from app.ingestion.industry_intelligence import industry_ingestor
-                industry_ingestor.ingest_from_feeds()
+                await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
                 repo_signals = list_industry_signals_repo() or []
             raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
             if not raw_signals:
                 from app.ingestion.industry_intelligence import industry_ingestor
-                industry_ingestor.ingest_from_feeds()
+                await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
                 repo_signals = list_industry_signals_repo() or []
                 raw_signals = [s for s in repo_signals if not s.get("is_demo") and s.get("source") != "DEMO_SYNTHETIC"]
         except SupabaseRepositoryError as e:

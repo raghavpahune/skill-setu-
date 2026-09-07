@@ -288,7 +288,7 @@ async def create_student_profile(
         logger.exception("[Profile] Database failure creating student profile %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database persistence failed for student profile: {e}",
+            detail="Database persistence failed for student profile. Please try again later.",
         ) from e
 
     return {
@@ -344,7 +344,7 @@ async def update_student_profile(
         logger.exception("[Profile] Database failure updating student profile %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database persistence failed for student profile: {e}",
+            detail="Database persistence failed for student profile. Please try again later.",
         ) from e
 
     return {
@@ -405,7 +405,7 @@ async def patch_student_profile(
         logger.exception("[Profile] Database upsert failure on patch %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database persistence failed for student profile patch: {e}",
+            detail="Database persistence failed for student profile patch. Please try again later.",
         ) from e
 
     return {

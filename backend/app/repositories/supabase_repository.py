@@ -453,14 +453,11 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
 
     from app.db import _cache
     from app.config import settings
-    cached_profiles = _cache.get("student_profiles", [])
-    cached = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
-    if db_profile and cached:
-        return {**cached, **db_profile}
     if db_profile:
         return db_profile
     if settings.use_demo_data:
-        return cached
+        cached_profiles = _cache.get("student_profiles", [])
+        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     return None
 
 
@@ -496,25 +493,22 @@ def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
                 del current_payload[match.group(1)]
                 continue
             if "PGRST204" in err_msg:
-                base_cols = {"user_id", "target_role", "skill_match_pct"}
-                reduced = {k: v for k, v in current_payload.items() if k in base_cols}
-                if reduced != current_payload and len(reduced) > 0:
-                    current_payload = reduced
-                    continue
+                logger.error("[SupabaseRepo] Database schema missing columns for student_profile user_id='%s': %s", profile_data.get("user_id"), e)
+                raise SupabaseRepositoryError(f"Database table missing columns for student profile: {e}") from e
             logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
             raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
 
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("student_profiles", [])
     uid = profile_data.get("user_id")
-    merged = {**profile_data, **saved_db}
+    saved_profile = dict(saved_db)
     existing_idx = next((i for i, p in enumerate(profiles) if (p.get("user_id") or p.get("id")) == uid), None)
     if existing_idx is not None:
-        profiles[existing_idx] = merged
+        profiles[existing_idx] = saved_profile
     else:
-        profiles.append(merged)
+        profiles.append(saved_profile)
     _flush_real_table("student_profiles")
-    return merged
+    return saved_profile
 
 
 def delete_student_profile(user_id: str) -> bool:
@@ -544,14 +538,11 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
 
     from app.db import _cache
     from app.config import settings
-    cached_profiles = _cache.get("employee_profiles", [])
-    cached = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
-    if db_profile and cached:
-        return {**cached, **db_profile}
     if db_profile:
         return db_profile
     if settings.use_demo_data:
-        return cached
+        cached_profiles = _cache.get("employee_profiles", [])
+        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     return None
 
 
@@ -587,25 +578,22 @@ def upsert_employee_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
                 del current_payload[match.group(1)]
                 continue
             if "PGRST204" in err_msg:
-                base_cols = {"user_id", "current_role", "years_of_experience"}
-                reduced = {k: v for k, v in current_payload.items() if k in base_cols}
-                if reduced != current_payload and len(reduced) > 0:
-                    current_payload = reduced
-                    continue
+                logger.error("[SupabaseRepo] Database schema missing columns for employee_profile user_id='%s': %s", profile_data.get("user_id"), e)
+                raise SupabaseRepositoryError(f"Database table missing columns for employee profile: {e}") from e
             logger.error("[SupabaseRepo] Failed upserting employee_profile user_id='%s': %s", profile_data.get("user_id"), e)
             raise SupabaseRepositoryError(f"Database upsert failed for employee profile: {e}") from e
 
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("employee_profiles", [])
     uid = profile_data.get("user_id")
-    merged = {**profile_data, **saved_db}
+    saved_profile = dict(saved_db)
     existing_idx = next((i for i, p in enumerate(profiles) if (p.get("user_id") or p.get("id")) == uid), None)
     if existing_idx is not None:
-        profiles[existing_idx] = merged
+        profiles[existing_idx] = saved_profile
     else:
-        profiles.append(merged)
+        profiles.append(saved_profile)
     _flush_real_table("employee_profiles")
-    return merged
+    return saved_profile
 
 
 def delete_employee_profile(user_id: str) -> bool:
@@ -1017,7 +1005,7 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
                 break
 
         if not saved_row:
-            saved_row = sig_record
+            raise SupabaseRepositoryError(f"Database persistence failed for industry signal: all retries exhausted")
 
         _cache.setdefault("industry_signals", [])
         idx = next((i for i, s in enumerate(_cache["industry_signals"]) if s.get("id") == saved_row.get("id")), None)

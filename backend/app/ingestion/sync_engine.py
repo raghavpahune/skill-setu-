@@ -91,7 +91,9 @@ class SyncEngine:
             if src_norm not in valid_sources:
                 raise ValueError(f"Unsupported sync source selector '{source_name}'. Supported selectors: {sorted(valid_sources)}")
 
-            # ----------------------------------------------------------------
+            source_errors = []
+            source_successes = []
+
             if src_norm in ("all", "data.gov.in", "schemes", "ogd"):
                 try:
                     logger.info("[SyncEngine] Ingesting government datasets from data.gov.in...")
@@ -128,8 +130,10 @@ class SyncEngine:
                     added_o, updated_o = self._upsert_jobs(transformed_opps)
                     total_added += added_o
                     total_updated += updated_o
+                    source_successes.append("data.gov.in")
                 except Exception as err:
                     logger.warning("[SyncEngine] Datagov ingestion failed: %s", err)
+                    source_errors.append(f"data.gov.in: {err}")
 
             if src_norm in ("all", "adzuna", "jobs"):
                 try:
@@ -144,8 +148,10 @@ class SyncEngine:
                     total_updated += updated_j
 
                     self._upsert_job_skills(adzuna_jobs)
+                    source_successes.append("adzuna")
                 except Exception as err:
                     logger.warning("[SyncEngine] Adzuna ingestion failed: %s", err)
+                    source_errors.append(f"adzuna: {err}")
 
             if src_norm in ("all", "industry_signals", "industry"):
                 try:
@@ -155,26 +161,41 @@ class SyncEngine:
                     total_added += ind_res.get("added", 0)
                     total_updated += ind_res.get("updated", 0)
                     total_skipped += ind_res.get("skipped", 0)
+                    source_successes.append("industry_signals")
                 except Exception as err:
                     logger.warning("[SyncEngine] Industry signals ingestion failed: %s", err)
+                    source_errors.append(f"industry_signals: {err}")
 
             if src_norm in ("all", "skill_forecasts", "forecasts", "forecast"):
                 try:
                     from app.services.forecast_engine import persist_computed_forecasts
                     fc_res = persist_computed_forecasts()
                     total_added += len(fc_res)
+                    source_successes.append("skill_forecasts")
                 except Exception as err:
                     logger.warning("[SyncEngine] Forecasts persistence failed: %s", err)
+                    source_errors.append(f"skill_forecasts: {err}")
 
             duration_ms = int((time.perf_counter() - start_perf) * 1000)
             completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+            if source_errors:
+                if not source_successes:
+                    status_val = "failed"
+                else:
+                    status_val = "partial_success" if src_norm == "all" else "failed"
+                err_msg = "; ".join(source_errors)
+            else:
+                status_val = "success"
+                err_msg = None
+
             log_entry.update({
-                "status": "success",
+                "status": status_val,
                 "records_fetched": total_fetched,
                 "records_added": total_added,
                 "records_updated": total_updated,
                 "records_skipped": total_skipped,
+                "error_message": err_msg,
                 "completed_at": completed_at,
                 "duration_ms": duration_ms,
             })

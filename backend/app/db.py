@@ -973,17 +973,29 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
     ]
-    for acc in demo_accounts:
-        if acc["email"].lower() not in existing_emails:
-            users.append(acc)
-            existing_emails.add(acc["email"].lower())
-
+    db_ids = set()
+    db_emails = set()
     client = get_supabase_client()
     if client:
         try:
             existing_resp = client.table("users").select("id, email").execute()
-            db_ids = {r["id"] for r in (existing_resp.data or []) if r.get("id")}
-            db_emails = {r["email"].lower() for r in (existing_resp.data or []) if r.get("email")}
+            db_ids = {str(r["id"]) for r in (existing_resp.data or []) if r.get("id")}
+            db_emails = {str(r["email"]).strip().lower() for r in (existing_resp.data or []) if r.get("email")}
+        except Exception as e:
+            logger.warning("[DB] Failed querying users from Supabase: %s", e)
+
+    valid_demo_accounts = [
+        acc for acc in demo_accounts
+        if str(acc["id"]) not in db_ids and acc["email"].strip().lower() not in db_emails
+    ]
+
+    for acc in valid_demo_accounts:
+        if acc["email"].strip().lower() not in existing_emails:
+            users.append(acc)
+            existing_emails.add(acc["email"].strip().lower())
+
+    if client and valid_demo_accounts:
+        try:
             new_supabase_users = [
                 {
                     "id": acc["id"],
@@ -991,11 +1003,9 @@ def init_demo_users():
                     "email": acc["email"],
                     "role": acc["role"],
                 }
-                for acc in demo_accounts
-                if acc["id"] not in db_ids and acc["email"].lower() not in db_emails
+                for acc in valid_demo_accounts
             ]
-            if new_supabase_users:
-                client.table("users").insert(new_supabase_users).execute()
+            client.table("users").insert(new_supabase_users).execute()
         except Exception as e:
             logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
 
