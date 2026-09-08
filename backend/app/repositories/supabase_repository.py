@@ -497,10 +497,10 @@ def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
 
     try:
         res = client.rpc("sync_student_profile_atomic", {"p_profile": clean_profile}).execute()
-        if getattr(res, "data", None):
-            saved_db = res.data if isinstance(res.data, dict) else res.data[0]
-        else:
-            saved_db = clean_profile
+        data = getattr(res, "data", None)
+        if not data:
+            raise RuntimeError(f"Database atomic sync returned empty response for user_id '{uid}'")
+        saved_db = data if isinstance(data, dict) else data[0]
     except Exception as e:
         logger.error("[SupabaseRepo] Failed syncing student profile and skills atomically for user_id='%s': %s", uid, e)
         raise SupabaseRepositoryError(f"Database atomic sync failed for student profile: {e}") from e

@@ -9,13 +9,14 @@ BEGIN
             ON tc.constraint_name = kcu.constraint_name
             AND tc.table_schema = kcu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
           AND (
             (tc.table_name = 'student_profiles' AND kcu.column_name = 'user_id')
             OR (tc.table_name = 'student_skills' AND kcu.column_name = 'user_id')
             OR (tc.table_name = 'employee_profiles' AND kcu.column_name = 'user_id')
           )
     ) LOOP
-        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
     END LOOP;
 
     FOR r IN (
@@ -25,10 +26,11 @@ BEGIN
             ON tc.constraint_name = ccu.constraint_name
             AND tc.table_schema = ccu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
           AND ccu.table_name = 'users'
           AND ccu.column_name = 'id'
     ) LOOP
-        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
     END LOOP;
 
     FOR r IN (
@@ -38,10 +40,11 @@ BEGIN
             ON tc.constraint_name = kcu.constraint_name
             AND tc.table_schema = kcu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
           AND tc.table_name = 'signal_skills'
           AND kcu.column_name = 'signal_id'
     ) LOOP
-        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
     END LOOP;
 
     FOR r IN (
@@ -51,61 +54,62 @@ BEGIN
             ON tc.constraint_name = ccu.constraint_name
             AND tc.table_schema = ccu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
           AND ccu.table_name = 'industry_signals'
           AND ccu.column_name = 'id'
     ) LOOP
-        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
     END LOOP;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'users' AND column_name = 'id' AND data_type = 'uuid'
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id' AND data_type = 'uuid'
     ) THEN
-        ALTER TABLE users ALTER COLUMN id TYPE TEXT USING id::text;
+        ALTER TABLE public.users ALTER COLUMN id TYPE TEXT USING id::text;
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'student_profiles' AND column_name = 'user_id' AND data_type = 'uuid'
+        WHERE table_schema = 'public' AND table_name = 'student_profiles' AND column_name = 'user_id' AND data_type = 'uuid'
     ) THEN
-        ALTER TABLE student_profiles ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+        ALTER TABLE public.student_profiles ALTER COLUMN user_id TYPE TEXT USING user_id::text;
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'student_skills' AND column_name = 'user_id' AND data_type = 'uuid'
+        WHERE table_schema = 'public' AND table_name = 'student_skills' AND column_name = 'user_id' AND data_type = 'uuid'
     ) THEN
-        ALTER TABLE student_skills ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+        ALTER TABLE public.student_skills ALTER COLUMN user_id TYPE TEXT USING user_id::text;
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'employee_profiles' AND column_name = 'user_id' AND data_type = 'uuid'
+        WHERE table_schema = 'public' AND table_name = 'employee_profiles' AND column_name = 'user_id' AND data_type = 'uuid'
     ) THEN
-        ALTER TABLE employee_profiles ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+        ALTER TABLE public.employee_profiles ALTER COLUMN user_id TYPE TEXT USING user_id::text;
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'industry_signals' AND column_name = 'id' AND data_type = 'uuid'
+        WHERE table_schema = 'public' AND table_name = 'industry_signals' AND column_name = 'id' AND data_type = 'uuid'
     ) THEN
-        ALTER TABLE industry_signals ALTER COLUMN id TYPE TEXT USING id::text;
+        ALTER TABLE public.industry_signals ALTER COLUMN id TYPE TEXT USING id::text;
     END IF;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'signal_skills' AND column_name = 'signal_id' AND data_type = 'uuid'
+        WHERE table_schema = 'public' AND table_name = 'signal_skills' AND column_name = 'signal_id' AND data_type = 'uuid'
     ) THEN
-        ALTER TABLE signal_skills ALTER COLUMN signal_id TYPE TEXT USING signal_id::text;
+        ALTER TABLE public.signal_skills ALTER COLUMN signal_id TYPE TEXT USING signal_id::text;
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'
     ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'student_profiles'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_profiles'
     ) THEN
         BEGIN
-            ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+            ALTER TABLE public.student_profiles ADD CONSTRAINT student_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -113,12 +117,12 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'
     ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'student_skills'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_skills'
     ) THEN
         BEGIN
-            ALTER TABLE student_skills ADD CONSTRAINT student_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+            ALTER TABLE public.student_skills ADD CONSTRAINT student_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -126,12 +130,12 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'skills'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'skills'
     ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'student_skills'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_skills'
     ) THEN
         BEGIN
-            ALTER TABLE student_skills ADD CONSTRAINT student_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
+            ALTER TABLE public.student_skills ADD CONSTRAINT student_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES public.skills(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -139,12 +143,12 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'
     ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'employee_profiles'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'employee_profiles'
     ) THEN
         BEGIN
-            ALTER TABLE employee_profiles ADD CONSTRAINT employee_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+            ALTER TABLE public.employee_profiles ADD CONSTRAINT employee_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -152,12 +156,12 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'industry_signals'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'industry_signals'
     ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'signal_skills'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'signal_skills'
     ) THEN
         BEGIN
-            ALTER TABLE signal_skills ADD CONSTRAINT signal_skills_signal_id_fkey FOREIGN KEY (signal_id) REFERENCES industry_signals(id) ON DELETE CASCADE;
+            ALTER TABLE public.signal_skills ADD CONSTRAINT signal_skills_signal_id_fkey FOREIGN KEY (signal_id) REFERENCES public.industry_signals(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -165,12 +169,12 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'skills'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'skills'
     ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_name = 'signal_skills'
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'signal_skills'
     ) THEN
         BEGIN
-            ALTER TABLE signal_skills ADD CONSTRAINT signal_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
+            ALTER TABLE public.signal_skills ADD CONSTRAINT signal_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES public.skills(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;

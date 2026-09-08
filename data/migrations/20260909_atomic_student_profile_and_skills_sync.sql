@@ -160,6 +160,7 @@ BEGIN
             WHERE COALESCE(elem->>'skill_id', elem->>'id', elem->>'skill_name', elem->>'name') IS NOT NULL
         ) sub
         WHERE target_skill_id IS NOT NULL
+        ORDER BY target_skill_id, prof
         ON CONFLICT (user_id, skill_id) DO UPDATE SET
             proficiency = EXCLUDED.proficiency;
     END IF;

@@ -274,16 +274,6 @@ class MockSupabaseRpc:
             prof_table = self.client.table("student_profiles")
             skills_table = self.client.table("student_skills")
 
-            if (
-                prof_table.should_fail
-                or prof_table.should_fail_insert
-                or prof_table.should_fail_update
-                or skills_table.should_fail
-                or skills_table.should_fail_insert
-                or skills_table.should_fail_delete
-            ):
-                raise RuntimeError("Simulated Supabase PostgreSQL database connection error")
-
             prof_snapshot = deepcopy(prof_table.rows)
             skills_snapshot = deepcopy(skills_table.rows)
 
