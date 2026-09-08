@@ -29,6 +29,7 @@ def test_migration_sql_has_no_broken_student_skills_type_alteration():
     assert "signal_skills_signal_id_fkey" in content
     assert "student_skills_skill_id_fkey" in content
     assert "student_skills_user_id_fkey" in content
+    assert "tc.table_name IN ('student_profiles', 'student_skills', 'employee_profiles')" in content
 
 
 def test_schema_sql_types_align_with_migration():

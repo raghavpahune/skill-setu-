@@ -27,6 +27,7 @@ BEGIN
             AND tc.table_schema = ccu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
           AND tc.table_schema = 'public'
+          AND tc.table_name IN ('student_profiles', 'student_skills', 'employee_profiles')
           AND ccu.table_name = 'users'
           AND ccu.column_name = 'id'
     ) LOOP
