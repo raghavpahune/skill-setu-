@@ -29,7 +29,14 @@ def test_migration_sql_has_no_broken_student_skills_type_alteration():
     assert "signal_skills_signal_id_fkey" in content
     assert "student_skills_skill_id_fkey" in content
     assert "student_skills_user_id_fkey" in content
-    assert "tc.table_name IN ('student_profiles', 'student_skills', 'employee_profiles')" in content
+
+    users_fk_drop_loop = re.search(
+        r"FOR\s+r\s+IN\s*\(\s*SELECT.+?ccu\.table_name\s*=\s*'users'.+?\)\s*LOOP",
+        content,
+        re.DOTALL,
+    )
+    assert users_fk_drop_loop is not None
+    assert "tc.table_name IN ('student_profiles', 'student_skills', 'employee_profiles')" in users_fk_drop_loop.group(0)
 
 
 def test_schema_sql_types_align_with_migration():
