@@ -191,12 +191,21 @@ async def verify_admin_access(
             )
         return user
 
-    # 2. X-Admin-Key Auth (Configured Secret or Demo Fallback)
-    expected_key = settings.admin_api_key.strip() if (settings.admin_api_key and settings.admin_api_key.strip()) else (DEFAULT_DEMO_ADMIN_KEY if settings.demo_auth_enabled else "")
+    if settings.is_production:
+        configured_key = (settings.admin_api_key or "").strip()
+        if configured_key and configured_key != DEFAULT_DEMO_ADMIN_KEY:
+            if x_admin_key and x_admin_key.strip() == configured_key:
+                return True
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Admin authorization required (provide Bearer token with ADMIN role or valid X-Admin-Key)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    expected_key = (settings.admin_api_key or "").strip() if (settings.admin_api_key and settings.admin_api_key.strip()) else (DEFAULT_DEMO_ADMIN_KEY if settings.demo_auth_enabled else "")
     if expected_key and x_admin_key and x_admin_key.strip() == expected_key:
         return True
 
-    # 3. Reject if neither valid Bearer token nor valid Admin Key
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Unauthorized: Admin authorization required (provide Bearer token with ADMIN role or valid X-Admin-Key)",

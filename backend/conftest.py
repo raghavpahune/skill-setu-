@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-dedicated-for-pytest-conftest-environment")
+os.environ.setdefault("DEMO_AUTH_ENABLED", "true")
 
 import json
 from copy import deepcopy
@@ -13,6 +14,7 @@ import pytest
 from app.config import settings
 if not settings.jwt_secret_key:
     settings.jwt_secret_key = "test-secret-key-dedicated-for-pytest-conftest-environment"
+settings.demo_auth_enabled = True
 
 from app.repositories.supabase_repository import set_supabase_client, reset_supabase_client
 

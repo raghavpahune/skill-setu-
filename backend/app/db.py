@@ -244,7 +244,7 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
-    if settings.use_demo_data or settings.demo_auth_enabled:
+    if not settings.is_production and settings.demo_auth_enabled:
         init_demo_users()
 
 
@@ -882,7 +882,7 @@ def get_skill_forecast_by_id(forecast_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def init_demo_users():
-    if not (settings.use_demo_data or settings.demo_auth_enabled):
+    if settings.is_production or not settings.demo_auth_enabled:
         return
     users = _cache.setdefault("users", [])
     existing_emails = {u.get("email", "").strip().lower() for u in users if isinstance(u, dict)}
@@ -1217,7 +1217,7 @@ def get_user_by_email(email: str) -> dict | None:
     clean_email = email.strip().lower()
     for u in users:
         if u.get("email", "").strip().lower() == clean_email:
-            if clean_email == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
+            if clean_email == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
                 u["role"] = "ADMIN"
                 if not u.get("id"):
                     u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
@@ -1227,7 +1227,7 @@ def get_user_by_email(email: str) -> dict | None:
                     admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
                     u["hashed_password"] = hash_password(admin_pw)
             return u
-    if settings.use_demo_data or settings.demo_auth_enabled:
+    if not settings.is_production and settings.demo_auth_enabled:
         if clean_email in NON_ADMIN_DEMO_EMAILS:
             return None
     client = get_supabase_client()
@@ -1238,7 +1238,7 @@ def get_user_by_email(email: str) -> dict | None:
             if res.data and len(res.data) > 0:
                 user = res.data[0]
                 user.setdefault("full_name", user.get("name", ""))
-                if clean_email == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
+                if clean_email == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
                     from app.core.security import hash_password
                     admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
                     user["hashed_password"] = hash_password(admin_pw)
@@ -1258,11 +1258,11 @@ def get_user_by_id(user_id: str) -> dict | None:
         return None
     users = _cache.get("users", [])
     target_ids = {user_id}
-    if user_id in ("73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"):
+    if not settings.is_production and settings.demo_auth_enabled and user_id in ("73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"):
         target_ids.update({"73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"})
     for u in users:
         if u.get("id") in target_ids:
-            if str(u.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
+            if str(u.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
                 u["role"] = "ADMIN"
                 if not u.get("id"):
                     u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
@@ -1272,7 +1272,7 @@ def get_user_by_id(user_id: str) -> dict | None:
                     admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
                     u["hashed_password"] = hash_password(admin_pw)
             return u
-    if settings.use_demo_data or settings.demo_auth_enabled:
+    if not settings.is_production and settings.demo_auth_enabled:
         if user_id in NON_ADMIN_DEMO_IDS:
             return None
     client = get_supabase_client()
@@ -1283,7 +1283,7 @@ def get_user_by_id(user_id: str) -> dict | None:
                 if res.data and len(res.data) > 0:
                     user = res.data[0]
                     user.setdefault("full_name", user.get("name", ""))
-                    if str(user.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and (settings.use_demo_data or settings.demo_auth_enabled):
+                    if str(user.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
                         from app.core.security import hash_password
                         admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
                         user["hashed_password"] = hash_password(admin_pw)

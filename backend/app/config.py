@@ -1,4 +1,6 @@
 """Application configuration from environment variables."""
+import os
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +14,7 @@ class Settings(BaseSettings):
     adzuna_app_key: str = ""
     admin_api_key: str = ""
     cors_origins: str = ""
+    environment: str = "development"
     use_demo_data: bool = True
     auto_sync_enabled: bool = True
     sync_interval_hours: int = 24
@@ -21,8 +24,22 @@ class Settings(BaseSettings):
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
-    demo_auth_enabled: bool = True
+    demo_auth_enabled: bool = False
     admin_password: str = ""
+
+    @property
+    def is_production(self) -> bool:
+        render_env = os.getenv("RENDER")
+        if render_env is not None and render_env.strip() != "" and render_env.strip() != "0" and render_env.strip().lower() != "false":
+            return True
+        env_val = (os.getenv("ENVIRONMENT") or self.environment or "").strip().lower()
+        return env_val in ("production", "prod")
+
+    @model_validator(mode="after")
+    def validate_production_demo_auth(self) -> "Settings":
+        if self.is_production and self.demo_auth_enabled:
+            raise ValueError("FATAL: Demo authentication cannot be enabled in production mode (DEMO_AUTH_ENABLED=true).")
+        return self
 
     @property
     def effective_refresh_interval_minutes(self) -> int:

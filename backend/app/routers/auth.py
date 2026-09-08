@@ -1,6 +1,7 @@
 """Authentication API — registration, login, profile retrieval, and session management."""
 from datetime import datetime, timezone
 import asyncio
+import os
 import uuid
 import re
 import logging
@@ -159,45 +160,103 @@ async def login(req: LoginRequest):
         except Exception as e:
             logger.debug("[Auth] Supabase GoTrue authentication error: %s", e)
 
-        if not authenticated and clean_email == "admin@skillsetu.gov.in" and hasattr(client.auth, "admin"):
-            expected_admin_password = settings.admin_password or "AdminPass@2026"
+        if not authenticated and not settings.is_production and settings.demo_auth_enabled and clean_email == "admin@skillsetu.gov.in" and hasattr(client.auth, "admin"):
+            expected_admin_password = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
             if req.password == expected_admin_password:
                 try:
-                    admin_fixed_uuid = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
-                    await asyncio.wait_for(
-                        asyncio.to_thread(
-                            client.auth.admin.update_user_by_id,
-                            admin_fixed_uuid,
-                            {
-                                "password": req.password,
-                                "email_confirm": True,
-                                "user_metadata": {
-                                    "role": "ADMIN",
-                                    "name": "SkillSetu System Administrator",
+                    resolved_admin_id = None
+                    page = 1
+                    while page <= 20:
+                        try:
+                            auth_users_resp = await asyncio.wait_for(
+                                asyncio.to_thread(client.auth.admin.list_users, page=page, per_page=100),
+                                timeout=5.0,
+                            )
+                        except TypeError:
+                            auth_users_resp = await asyncio.wait_for(
+                                asyncio.to_thread(client.auth.admin.list_users),
+                                timeout=5.0,
+                            )
+                            page_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                            matched_u = next(
+                                (u for u in page_users if str(getattr(u, "email", "")).strip().lower() == clean_email),
+                                None,
+                            )
+                            if matched_u and getattr(matched_u, "id", None):
+                                resolved_admin_id = str(matched_u.id)
+                            break
+                        page_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                        if not page_users:
+                            break
+                        matched_u = next(
+                            (u for u in page_users if str(getattr(u, "email", "")).strip().lower() == clean_email),
+                            None,
+                        )
+                        if matched_u and getattr(matched_u, "id", None):
+                            resolved_admin_id = str(matched_u.id)
+                            break
+                        if len(page_users) < 100:
+                            break
+                        page += 1
+
+                    if resolved_admin_id:
+                        await asyncio.wait_for(
+                            asyncio.to_thread(
+                                client.auth.admin.update_user_by_id,
+                                resolved_admin_id,
+                                {
+                                    "password": req.password,
+                                    "email_confirm": True,
+                                    "user_metadata": {
+                                        "role": "ADMIN",
+                                        "name": "SkillSetu System Administrator",
+                                    },
                                 },
-                            },
-                        ),
-                        timeout=5.0,
-                    )
-                    retry_auth_resp = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            client.auth.sign_in_with_password,
-                            {"email": clean_email, "password": req.password},
-                        ),
-                        timeout=5.0,
-                    )
-                    if retry_auth_resp and getattr(retry_auth_resp, "user", None):
-                        sb_user = retry_auth_resp.user
-                        auth_uid = str(sb_user.id)
-                        authenticated = True
+                            ),
+                            timeout=5.0,
+                        )
+                        retry_auth_resp = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                client.auth.sign_in_with_password,
+                                {"email": clean_email, "password": req.password},
+                            ),
+                            timeout=5.0,
+                        )
+                        if retry_auth_resp and getattr(retry_auth_resp, "user", None):
+                            sb_user = retry_auth_resp.user
+                            auth_uid = str(sb_user.id)
+                            authenticated = True
                 except Exception as sync_err:
                     logger.warning("[Auth] GoTrue admin password sync retry error: %s", sync_err)
 
         if authenticated and auth_uid:
             if clean_email == "admin@skillsetu.gov.in":
+                if settings.is_production:
+                    try:
+                        db_role_res = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                lambda: client.table("users").select("role").eq("id", auth_uid).execute()
+                            ),
+                            timeout=5.0,
+                        )
+                        db_rows = getattr(db_role_res, "data", None) or []
+                        if db_rows:
+                            r_val = str(db_rows[0].get("role", "")).strip().upper()
+                            if r_val != "ADMIN":
+                                raise HTTPException(
+                                    status_code=status.HTTP_403_FORBIDDEN,
+                                    detail="Forbidden: Admin role required.",
+                                )
+                    except HTTPException:
+                        raise
+                    except Exception as db_err:
+                        logger.error("[Auth] Database role lookup failed for admin %s: %s", auth_uid, db_err)
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Database error while resolving authoritative user permissions.",
+                        ) from db_err
                 auth_role = "ADMIN"
             else:
-                user_role = "STUDENT"
                 try:
                     db_role_res = await asyncio.wait_for(
                         asyncio.to_thread(
@@ -205,18 +264,28 @@ async def login(req: LoginRequest):
                         ),
                         timeout=5.0,
                     )
-                    if db_role_res.data and len(db_role_res.data) > 0:
-                        r_val = str(db_role_res.data[0].get("role", "")).strip().upper()
-                        if r_val in ALL_ROLES and r_val != "ADMIN":
-                            user_role = r_val
-                except Exception:
-                    pass
-                if user_role == "STUDENT":
-                    meta = getattr(sb_user, "user_metadata", {}) or {}
-                    meta_role = str(meta.get("role", "")).strip().upper()
-                    if meta_role in ALLOWED_PUBLIC_ROLES:
-                        user_role = meta_role
-                auth_role = user_role
+                except Exception as db_err:
+                    logger.error("[Auth] Database role lookup failed for uid %s: %s", auth_uid, db_err)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Database error while resolving authoritative user permissions.",
+                    ) from db_err
+
+                db_rows = getattr(db_role_res, "data", None) or []
+                if not db_rows:
+                    logger.warning("[Auth] No authoritative role found in public.users for uid %s", auth_uid)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: No authoritative role assigned to this account.",
+                    )
+                assigned_role = str(db_rows[0].get("role", "")).strip().upper()
+                if assigned_role not in ALLOWED_PUBLIC_ROLES:
+                    logger.warning("[Auth] Invalid or unauthorized role '%s' for uid %s", assigned_role, auth_uid)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: Insufficient or unauthorized role.",
+                    )
+                auth_role = assigned_role
 
             meta = getattr(sb_user, "user_metadata", {}) or {}
             display_name = meta.get("full_name") or meta.get("name") or (
@@ -250,7 +319,7 @@ async def login(req: LoginRequest):
                     detail="Invalid email or password",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            if (settings.use_demo_data or settings.demo_auth_enabled) and clean_email in NON_ADMIN_DEMO_EMAILS:
+            if not settings.is_production and settings.demo_auth_enabled and clean_email in NON_ADMIN_DEMO_EMAILS:
                 demo_user = get_user_by_email(clean_email)
                 if demo_user and demo_user.get("hashed_password") and verify_password(req.password, demo_user.get("hashed_password", "")):
                     user = demo_user
@@ -265,10 +334,13 @@ async def login(req: LoginRequest):
         cached_user = get_user_by_email(clean_email)
         if cached_user and cached_user.get("hashed_password") and verify_password(req.password, cached_user.get("hashed_password", "")):
             if clean_email == "admin@skillsetu.gov.in":
-                if settings.use_demo_data or settings.demo_auth_enabled:
+                if not settings.is_production and settings.demo_auth_enabled:
                     user = cached_user
                     user["role"] = "ADMIN"
-                    user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                    authenticated = True
+            elif cached_user.get("is_demo") or clean_email in NON_ADMIN_DEMO_EMAILS:
+                if not settings.is_production and settings.demo_auth_enabled:
+                    user = cached_user
                     authenticated = True
             else:
                 user = cached_user
