@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS employer_feedback (
 -- INDUSTRY_SIGNALS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS industry_signals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     source TEXT NOT NULL,
     technology TEXT NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS industry_signals (
 -- SIGNAL_SKILLS (many-to-many: signals <-> skills)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS signal_skills (
-    signal_id UUID REFERENCES industry_signals(id) ON DELETE CASCADE,
+    signal_id TEXT REFERENCES industry_signals(id) ON DELETE CASCADE,
     skill_id UUID REFERENCES skills(id) ON DELETE CASCADE,
     impact_score INT CHECK (impact_score BETWEEN 1 AND 10),
     PRIMARY KEY (signal_id, skill_id)
@@ -232,7 +232,7 @@ ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DE
 -- STUDENT_SKILLS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS student_skills (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
     skill_id UUID REFERENCES skills(id) ON DELETE CASCADE,
     proficiency TEXT CHECK (proficiency IN ('beginner', 'intermediate', 'advanced')) NOT NULL,
     PRIMARY KEY (user_id, skill_id)

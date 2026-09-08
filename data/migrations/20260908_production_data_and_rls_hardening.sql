@@ -31,6 +31,32 @@ BEGIN
         EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
     END LOOP;
 
+    FOR r IN (
+        SELECT tc.table_name, tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = 'signal_skills'
+          AND kcu.column_name = 'signal_id'
+    ) LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+    END LOOP;
+
+    FOR r IN (
+        SELECT tc.table_name, tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+            AND tc.table_schema = ccu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND ccu.table_name = 'industry_signals'
+          AND ccu.column_name = 'id'
+    ) LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+    END LOOP;
+
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'users' AND column_name = 'id' AND data_type = 'uuid'
@@ -53,12 +79,98 @@ BEGIN
     END IF;
 
     IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'employee_profiles' AND column_name = 'user_id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE employee_profiles ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'industry_signals' AND column_name = 'id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE industry_signals ALTER COLUMN id TYPE TEXT USING id::text;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'signal_skills' AND column_name = 'signal_id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE signal_skills ALTER COLUMN signal_id TYPE TEXT USING signal_id::text;
+    END IF;
+
+    IF EXISTS (
         SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
     ) AND EXISTS (
         SELECT 1 FROM information_schema.tables WHERE table_name = 'student_profiles'
     ) THEN
         BEGIN
             ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;
+        END;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'student_skills'
+    ) THEN
+        BEGIN
+            ALTER TABLE student_skills ADD CONSTRAINT student_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;
+        END;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'skills'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'student_skills'
+    ) THEN
+        BEGIN
+            ALTER TABLE student_skills ADD CONSTRAINT student_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;
+        END;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'employee_profiles'
+    ) THEN
+        BEGIN
+            ALTER TABLE employee_profiles ADD CONSTRAINT employee_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;
+        END;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'industry_signals'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'signal_skills'
+    ) THEN
+        BEGIN
+            ALTER TABLE signal_skills ADD CONSTRAINT signal_skills_signal_id_fkey FOREIGN KEY (signal_id) REFERENCES industry_signals(id) ON DELETE CASCADE;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;
+        END;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'skills'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'signal_skills'
+    ) THEN
+        BEGIN
+            ALTER TABLE signal_skills ADD CONSTRAINT signal_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -109,38 +221,19 @@ ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FA
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'student_skills' AND column_name = 'user_id' AND data_type = 'uuid'
-    ) THEN
-        ALTER TABLE student_skills ALTER COLUMN user_id TYPE TEXT USING user_id::text;
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'student_skills' AND column_name = 'skill_id' AND data_type = 'uuid'
-    ) THEN
-        ALTER TABLE student_skills ALTER COLUMN skill_id TYPE TEXT USING skill_id::text;
-    END IF;
-END $$;
-
 CREATE TABLE IF NOT EXISTS student_skills (
-    user_id TEXT NOT NULL,
-    skill_id TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
     proficiency TEXT NOT NULL DEFAULT 'intermediate',
     PRIMARY KEY (user_id, skill_id)
 );
 
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'industry_signals' AND column_name = 'id' AND data_type = 'uuid'
-    ) THEN
-        ALTER TABLE industry_signals ALTER COLUMN id TYPE TEXT USING id::text;
-    END IF;
-END $$;
+CREATE TABLE IF NOT EXISTS signal_skills (
+    signal_id TEXT NOT NULL REFERENCES industry_signals(id) ON DELETE CASCADE,
+    skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    impact_score INT CHECK (impact_score BETWEEN 1 AND 10),
+    PRIMARY KEY (signal_id, skill_id)
+);
 
 ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE industry_signals ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'INDUSTRY_DEMAND';
