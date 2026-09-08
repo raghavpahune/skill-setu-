@@ -60,7 +60,7 @@ BEGIN
         BEGIN
             ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
         EXCEPTION
-            WHEN OTHERS THEN
+            WHEN duplicate_object THEN
                 NULL;
         END;
     END IF;
