@@ -124,10 +124,10 @@ class MockSupabaseQuery:
                         ),
                         None,
                     )
-                if idx is None:
+                if idx is None and not on_conflict_cols:
                     item_id = item.get("id")
                     idx = next((i for i, r in enumerate(self.table.rows) if item_id and r.get("id") == item_id), None)
-                if idx is None:
+                if idx is None and not on_conflict_cols:
                     uid = item.get("user_id")
                     idx = next((i for i, r in enumerate(self.table.rows) if uid and r.get("user_id") == uid), None)
                 if idx is not None:
@@ -253,6 +253,90 @@ class MockSupabaseClient:
         if table_name not in self.tables:
             self.tables[table_name] = MockSupabaseTable([])
         return self.tables[table_name]
+
+    def rpc(self, fn_name: str, params: dict | None = None) -> MockSupabaseRpc:
+        return MockSupabaseRpc(self, fn_name, params)
+
+
+class MockSupabaseRpc:
+    def __init__(self, client: MockSupabaseClient, fn_name: str, params: dict | None = None):
+        self.client = client
+        self.fn_name = fn_name
+        self.params = params or {}
+
+    def execute(self):
+        if self.fn_name == "sync_student_profile_atomic":
+            p_profile = self.params.get("p_profile") or {}
+            uid = p_profile.get("user_id")
+            if not uid:
+                raise RuntimeError("user_id is required in profile payload")
+
+            if "skill_match_pct" in p_profile:
+                smp = p_profile["skill_match_pct"]
+                if smp is None or not isinstance(smp, (int, float, str)):
+                    raise RuntimeError(f"Invalid skill_match_pct: {smp}")
+                try:
+                    smp_int = int(smp)
+                    if smp_int < 0 or smp_int > 100 or str(smp_int) != str(smp).strip():
+                        raise ValueError()
+                except Exception:
+                    raise RuntimeError(f"Invalid skill_match_pct: {smp}")
+
+            prof_table = self.client.table("student_profiles")
+            skills_table = self.client.table("student_skills")
+
+            prof_snapshot = deepcopy(prof_table.rows)
+            skills_snapshot = deepcopy(skills_table.rows)
+
+            try:
+                existing_prof = next((r for r in prof_table.rows if r.get("user_id") == uid), None)
+                payload_to_upsert = deepcopy(p_profile)
+                if existing_prof is None and "skill_match_pct" not in payload_to_upsert:
+                    payload_to_upsert["skill_match_pct"] = 0
+                elif "skill_match_pct" in payload_to_upsert:
+                    payload_to_upsert["skill_match_pct"] = int(payload_to_upsert["skill_match_pct"])
+
+                prof_res = prof_table.upsert(payload_to_upsert, on_conflict="user_id").execute()
+                saved_prof = prof_res.data[0] if getattr(prof_res, "data", None) else payload_to_upsert
+
+                if "skills" in p_profile and isinstance(p_profile["skills"], list):
+                    req_skills = p_profile["skills"]
+                    for sk in req_skills:
+                        if isinstance(sk, dict) and "proficiency" in sk:
+                            p_val = str(sk["proficiency"]).strip().lower()
+                            if p_val not in ("beginner", "intermediate", "advanced", "expert"):
+                                raise RuntimeError(f"Invalid skill proficiency: {sk}")
+                    new_skill_ids = set()
+                    for sk in req_skills:
+                        if isinstance(sk, dict):
+                            sid = str(sk.get("skill_id") or sk.get("id") or "").strip()
+                            raw_prof = str(sk.get("proficiency") or "intermediate").strip().lower()
+                            prof = raw_prof if raw_prof in ("beginner", "intermediate", "advanced", "expert") else "intermediate"
+                            if sid:
+                                new_skill_ids.add(sid)
+                                skills_table.upsert({
+                                    "user_id": uid,
+                                    "skill_id": sid,
+                                    "proficiency": prof,
+                                }, on_conflict="user_id,skill_id").execute()
+
+                    surviving = []
+                    for row in skills_table.rows:
+                        if row.get("user_id") == uid:
+                            row_sid = str(row.get("skill_id") or "").strip()
+                            if row_sid and row_sid in new_skill_ids:
+                                surviving.append(row)
+                        else:
+                            surviving.append(row)
+                    skills_table.rows = surviving
+
+                return type("APIResponse", (), {"data": deepcopy(saved_prof), "count": 1})()
+            except Exception:
+                prof_table.rows = prof_snapshot
+                skills_table.rows = skills_snapshot
+                raise
+
+        return type("APIResponse", (), {"data": None, "count": 0})()
 
 
 def _load_demo_feedback_rows() -> list[dict]:

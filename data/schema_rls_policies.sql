@@ -114,7 +114,15 @@ CREATE POLICY "students_read_own_skills"
   ON student_skills
   FOR SELECT
   TO authenticated
-  USING (auth.uid()::text = student_id);
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "students_modify_own_skills"
+  ON student_skills
+  FOR ALL
+  TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
 
 ALTER TABLE employee_profiles ENABLE ROW LEVEL SECURITY;
 
@@ -161,26 +169,32 @@ CREATE POLICY "service_role_all_feedback"
   USING (true)
   WITH CHECK (true);
 
--- Public / anon may read verified employers and validated demands for labour intelligence
-CREATE POLICY "public_read_verified_employers"
+CREATE POLICY "employers_manage_own"
   ON employers
-  FOR SELECT
-  TO public
-  USING (verification_status = 'VERIFIED');
+  FOR ALL
+  TO authenticated
+  USING (auth.uid()::text = user_id OR auth.uid()::text = id)
+  WITH CHECK (auth.uid()::text = user_id OR auth.uid()::text = id);
 
-CREATE POLICY "public_read_validated_demands"
+CREATE POLICY "deny_anon_employers"
+  ON employers
+  FOR ALL
+  TO anon
+  USING (false);
+
+CREATE POLICY "deny_anon_demands"
   ON employer_demands
-  FOR SELECT
-  TO public
-  USING (validation_status = 'VALIDATED' AND is_active = true);
+  FOR ALL
+  TO anon
+  USING (false);
 
 -- Employers may read/manage only their own demands
 CREATE POLICY "employers_manage_own_demands"
   ON employer_demands
   FOR ALL
   TO authenticated
-  USING (employer_id = auth.uid()::text)
-  WITH CHECK (employer_id = auth.uid()::text);
+  USING (employer_id = auth.uid()::text OR user_id = auth.uid()::text)
+  WITH CHECK (employer_id = auth.uid()::text OR user_id = auth.uid()::text);
 
 -- ----------------------------------------------------------------------------
 -- 5. PUBLIC TAXONOMY & COURSES (READ-ONLY FOR PUBLIC, WRITE BY SERVICE ROLE)

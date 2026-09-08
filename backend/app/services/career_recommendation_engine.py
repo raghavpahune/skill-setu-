@@ -194,7 +194,7 @@ def _match_skills(student_skills: list[dict[str, Any]], required_skill_names: li
     missing = []
     weighted_score = 0.0
 
-    prof_weights = {"advanced": 1.0, "intermediate": 0.8, "beginner": 0.5, "none": 0.0}
+    prof_weights = {"expert": 1.0, "advanced": 1.0, "intermediate": 0.8, "beginner": 0.5, "none": 0.0}
 
     for req in required_skill_names:
         req_clean = req.lower()
