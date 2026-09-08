@@ -67,11 +67,21 @@ export function formatStudentProfilePayload(form) {
       })).filter((co) => co.course_name)
     : [];
 
+  const experience = Array.isArray(form.experience)
+    ? form.experience.map((e) => ({
+        company: (e.company || '').trim(),
+        role: (e.role || '').trim(),
+        duration: e.duration && typeof e.duration === 'string' && e.duration.trim() ? e.duration.trim() : null,
+        description: (e.description || '').trim(),
+      })).filter((e) => e.company && e.role)
+    : [];
+
   const gradYear = form.graduation_year !== undefined && form.graduation_year !== null && form.graduation_year !== ''
     ? (Number.isInteger(Number(form.graduation_year)) ? parseInt(form.graduation_year, 10) : Number(form.graduation_year))
     : null;
 
   return {
+    full_name: form.full_name && typeof form.full_name === 'string' && form.full_name.trim() ? form.full_name.trim() : null,
     institution: form.institution && typeof form.institution === 'string' && form.institution.trim() ? form.institution.trim() : null,
     degree: form.degree && typeof form.degree === 'string' && form.degree.trim() ? form.degree.trim() : null,
     education_level: form.education_level && typeof form.education_level === 'string' && form.education_level.trim() ? form.education_level.trim() : null,
@@ -87,6 +97,7 @@ export function formatStudentProfilePayload(form) {
     projects,
     certifications,
     courses,
+    experience,
   };
 }
 

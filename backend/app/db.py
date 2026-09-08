@@ -698,24 +698,15 @@ def save_gov_opportunity(data: dict) -> dict:
     data["is_demo"] = False
 
     clean_payload = {k: v for k, v in data.items() if k in VALID_GOV_OPPORTUNITY_COLUMNS}
-    current_payload = dict(clean_payload)
     client = get_supabase_client()
     if client:
-        max_attempts = max(1, len(clean_payload) + 1)
-        for _ in range(max_attempts):
-            try:
-                client.table("gov_opportunities").upsert(current_payload).execute()
-                logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
-                break
-            except Exception as e:
-                err_msg = str(e)
-                match = re.search(r"Could not find the '([^']+)' column", err_msg)
-                if match and match.group(1) in current_payload:
-                    del current_payload[match.group(1)]
-                    continue
-                logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
-                from app.repositories.supabase_repository import SupabaseRepositoryError
-                raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
+        try:
+            client.table("gov_opportunities").upsert(clean_payload).execute()
+            logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
+        except Exception as e:
+            logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
+            from app.repositories.supabase_repository import SupabaseRepositoryError
+            raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
 
     records = _cache.setdefault("gov_opportunities", [])
     gid = data.get("id")

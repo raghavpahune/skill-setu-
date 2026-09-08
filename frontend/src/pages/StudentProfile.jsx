@@ -40,6 +40,7 @@ export default function StudentProfile() {
   const [isNewProfile, setIsNewProfile] = useState(false);
 
   const [form, setForm] = useState({
+    full_name: '',
     institution: '',
     degree: '',
     education_level: 'Undergraduate (B.Tech / B.E / B.Sc)',
@@ -52,6 +53,7 @@ export default function StudentProfile() {
     projects: [],
     certifications: [],
     courses: [],
+    experience: [],
   });
 
   const [newSkill, setNewSkill] = useState({ name: '', proficiency: 'intermediate' });
@@ -59,6 +61,7 @@ export default function StudentProfile() {
   const [newProject, setNewProject] = useState({ name: '', description: '', skills: '', url: '' });
   const [newCert, setNewCert] = useState({ name: '', issuer: '', issue_date: '', url: '' });
   const [newCourse, setNewCourse] = useState({ course_name: '', provider: '', status: 'completed' });
+  const [newExp, setNewExp] = useState({ company: '', role: '', duration: '', description: '' });
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -70,6 +73,7 @@ export default function StudentProfile() {
         setProfile(res.profile);
         setIsNewProfile(false);
         setForm({
+          full_name: res.profile.full_name || (user?.full_name || user?.name || ''),
           institution: res.profile.institution || '',
           degree: res.profile.degree || '',
           education_level: res.profile.education_level || 'Undergraduate (B.Tech / B.E / B.Sc)',
@@ -82,6 +86,7 @@ export default function StudentProfile() {
           projects: res.profile.projects || [],
           certifications: res.profile.certifications || [],
           courses: res.profile.courses || [],
+          experience: res.profile.experience || [],
         });
       }
     } catch (err) {
@@ -233,6 +238,31 @@ export default function StudentProfile() {
     }));
   };
 
+  const handleAddExp = (e) => {
+    e.preventDefault();
+    if (!newExp.company.trim() || !newExp.role.trim()) return;
+    setForm((prev) => ({
+      ...prev,
+      experience: [
+        ...prev.experience,
+        {
+          company: newExp.company.trim(),
+          role: newExp.role.trim(),
+          duration: newExp.duration.trim() || null,
+          description: newExp.description.trim() || '',
+        },
+      ],
+    }));
+    setNewExp({ company: '', role: '', duration: '', description: '' });
+  };
+
+  const handleRemoveExp = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      experience: prev.experience.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setApiError(null);
@@ -356,6 +386,37 @@ export default function StudentProfile() {
         ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <span>👤</span> Personal & Account Details
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={form.full_name}
+                  onChange={(e) => handleFieldChange('full_name', e.target.value)}
+                  placeholder="e.g. Aditi Sharma"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-hidden focus:border-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Verified Email
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={user?.email || ''}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
             <h2 className="text-sm font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2">
               <span>🏛️</span> Academic & Education Information
@@ -780,6 +841,79 @@ export default function StudentProfile() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+              <span>💼</span> Work Experience & Internships
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Industry internships, apprenticeships, or relevant employment experience.
+            </p>
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 mb-4 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={newExp.company}
+                  onChange={(e) => setNewExp((prev) => ({ ...prev, company: e.target.value }))}
+                  placeholder="Company / Organization *"
+                  className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+                <input
+                  type="text"
+                  value={newExp.role}
+                  onChange={(e) => setNewExp((prev) => ({ ...prev, role: e.target.value }))}
+                  placeholder="Role / Title *"
+                  className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+                <input
+                  type="text"
+                  value={newExp.duration}
+                  onChange={(e) => setNewExp((prev) => ({ ...prev, duration: e.target.value }))}
+                  placeholder="Duration (e.g. Jun 2025 - Aug 2025)"
+                  className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+              </div>
+              <textarea
+                value={newExp.description}
+                onChange={(e) => setNewExp((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Key responsibilities and achievements..."
+                rows={2}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleAddExp}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 text-white cursor-pointer"
+                >
+                  Add Experience
+                </button>
+              </div>
+            </div>
+            {form.experience.length > 0 && (
+              <div className="space-y-2">
+                {form.experience.map((exp, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-start justify-between"
+                  >
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{exp.role} at {exp.company}</p>
+                      {exp.duration && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{exp.duration}</p>}
+                      {exp.description && <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">{exp.description}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExp(idx)}
+                      className="text-slate-400 hover:text-rose-500 text-sm font-bold cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">

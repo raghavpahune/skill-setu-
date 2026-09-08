@@ -101,6 +101,21 @@ class CourseItem(BaseModel):
         return clean
 
 
+class ExperienceItem(BaseModel):
+    company: str = Field(..., min_length=1, max_length=150)
+    role: str = Field(..., min_length=1, max_length=150)
+    duration: str | None = Field(None, max_length=100)
+    description: str = Field("", max_length=2000)
+
+    @field_validator("company", "role")
+    @classmethod
+    def validate_exp_text(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("Field cannot be empty")
+        return clean
+
+
 class StudentProfilePayload(BaseModel):
     full_name: str | None = Field(None, max_length=150)
     institution: str | None = Field(None, max_length=200)
@@ -116,6 +131,7 @@ class StudentProfilePayload(BaseModel):
     projects: list[ProjectItem] = Field(default_factory=list)
     certifications: list[CertificationItem] = Field(default_factory=list)
     courses: list[CourseItem] = Field(default_factory=list)
+    experience: list[ExperienceItem] = Field(default_factory=list)
 
 
 class StudentProfilePatchPayload(BaseModel):
@@ -133,6 +149,7 @@ class StudentProfilePatchPayload(BaseModel):
     projects: list[ProjectItem] | None = None
     certifications: list[CertificationItem] | None = None
     courses: list[CourseItem] | None = None
+    experience: list[ExperienceItem] | None = None
 
 
 class EmployeeProfilePayload(BaseModel):
@@ -277,6 +294,7 @@ async def create_student_profile(
             "projects": [p.model_dump() for p in payload.projects],
             "certifications": [c.model_dump() for c in payload.certifications],
             "courses": [co.model_dump() for co in payload.courses],
+            "experience": [e.model_dump() for e in payload.experience],
             "skill_match_pct": 0,
             "source": "USER_SUBMITTED",
             "is_demo": False,
@@ -335,6 +353,7 @@ async def update_student_profile(
             "projects": [p.model_dump() for p in payload.projects],
             "certifications": [c.model_dump() for c in payload.certifications],
             "courses": [co.model_dump() for co in payload.courses],
+            "experience": [e.model_dump() for e in payload.experience],
             "source": "USER_SUBMITTED",
             "is_demo": False,
             "updated_at": now_iso,
@@ -393,6 +412,8 @@ async def patch_student_profile(
             patch_data["certifications"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in payload.certifications or []]
         if "courses" in patch_data and patch_data["courses"] is not None:
             patch_data["courses"] = [co.model_dump() if hasattr(co, "model_dump") else co for co in payload.courses or []]
+        if "experience" in patch_data and patch_data["experience"] is not None:
+            patch_data["experience"] = [e.model_dump() if hasattr(e, "model_dump") else e for e in payload.experience or []]
 
         if "desired_role" in patch_data and "target_role" not in patch_data:
             patch_data["target_role"] = patch_data["desired_role"]

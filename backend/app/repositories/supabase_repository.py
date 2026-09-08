@@ -281,6 +281,7 @@ VALID_STUDENT_PROFILE_COLUMNS = {
     "projects",
     "certifications",
     "courses",
+    "experience",
     "skill_match_pct",
     "source",
     "is_demo",
@@ -447,20 +448,34 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
         res = client.table("student_profiles").select("*").eq("user_id", user_id).execute()
         if res.data and len(res.data) > 0:
             db_profile = res.data[0]
+            if not db_profile.get("skills") or len(db_profile.get("skills")) == 0:
+                try:
+                    sk_res = client.table("student_skills").select("skill_id, proficiency").eq("user_id", user_id).execute()
+                    if sk_res.data and len(sk_res.data) > 0:
+                        tax_skills = list_skills(limit=2000) or []
+                        name_map = {str(s.get("id")): s.get("name", "") for s in tax_skills if s.get("id")}
+                        db_profile["skills"] = [
+                            {
+                                "skill_id": r["skill_id"],
+                                "skill_name": name_map.get(str(r["skill_id"]), r["skill_id"]),
+                                "proficiency": r.get("proficiency", "intermediate"),
+                            }
+                            for r in sk_res.data
+                        ]
+                except Exception:
+                    pass
     except Exception as e:
         logger.error("[SupabaseRepo] Failed fetching student_profile user_id='%s': %s", user_id, e)
         raise SupabaseRepositoryError(f"Database query failed for student profile '{user_id}': {e}") from e
 
     from app.db import _cache
     from app.config import settings
-    cached_profiles = _cache.get("student_profiles", [])
-    cached_profile = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
+    from app.core.security import is_demo_student_id
     if db_profile:
-        if cached_profile:
-            return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if settings.use_demo_data and cached_profile:
-        return cached_profile
+    if settings.use_demo_data and is_demo_student_id(user_id):
+        cached_profiles = _cache.get("student_profiles", [])
+        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     return None
 
 
@@ -477,33 +492,45 @@ def list_student_profiles() -> list[dict[str, Any]]:
 def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     client = get_client()
     clean_profile = {k: v for k, v in profile_data.items() if k in VALID_STUDENT_PROFILE_COLUMNS}
-    current_payload = dict(clean_profile)
     saved_db: dict[str, Any] = {}
 
-    max_attempts = max(1, len(clean_profile) + 1)
-    for _ in range(max_attempts):
+    try:
+        res = client.table("student_profiles").upsert(clean_profile, on_conflict="user_id").execute()
+        if res.data and len(res.data) > 0:
+            saved_db = res.data[0]
+        else:
+            saved_db = clean_profile
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
+        raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
+
+    uid = profile_data.get("user_id")
+    if uid and "skills" in clean_profile and isinstance(clean_profile["skills"], list):
         try:
-            res = client.table("student_profiles").upsert(current_payload, on_conflict="user_id").execute()
-            if res.data and len(res.data) > 0:
-                saved_db = res.data[0]
-            else:
-                saved_db = current_payload
-            break
+            current_skills = clean_profile["skills"]
+            new_skill_ids = set()
+            for s in current_skills:
+                if isinstance(s, dict):
+                    sid = str(s.get("skill_id") or s.get("id") or "").strip()
+                    prof = str(s.get("proficiency") or "intermediate").strip().lower()
+                    if sid:
+                        new_skill_ids.add(sid)
+                        client.table("student_skills").upsert({
+                            "user_id": uid,
+                            "skill_id": sid,
+                            "proficiency": prof,
+                        }, on_conflict="user_id,skill_id").execute()
+            existing_skills_res = client.table("student_skills").select("skill_id").eq("user_id", uid).execute()
+            existing_skill_rows = getattr(existing_skills_res, "data", None) or []
+            for row in existing_skill_rows:
+                row_sid = str(row.get("skill_id") or "").strip()
+                if row_sid and row_sid not in new_skill_ids:
+                    client.table("student_skills").delete().eq("user_id", uid).eq("skill_id", row_sid).execute()
         except Exception as e:
-            err_msg = str(e)
-            match = re.search(r"Could not find the '([^']+)' column", err_msg)
-            if match and match.group(1) in current_payload:
-                del current_payload[match.group(1)]
-                continue
-            if "PGRST204" in err_msg:
-                logger.error("[SupabaseRepo] Database schema missing columns for student_profile user_id='%s': %s", profile_data.get("user_id"), e)
-                raise SupabaseRepositoryError(f"Database table missing columns for student profile: {e}") from e
-            logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
-            raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
+            logger.warning("[SupabaseRepo] Failed syncing student_skills normalized rows: %s", e)
 
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("student_profiles", [])
-    uid = profile_data.get("user_id")
     saved_profile = {**clean_profile, **saved_db}
     existing_idx = next((i for i, p in enumerate(profiles) if (p.get("user_id") or p.get("id")) == uid), None)
     if existing_idx is not None:
@@ -518,6 +545,10 @@ def delete_student_profile(user_id: str) -> bool:
     try:
         client = get_client()
         res = client.table("student_profiles").delete().eq("user_id", user_id).execute()
+        try:
+            client.table("student_skills").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
         from app.db import _cache, _flush_real_table
         if "student_profiles" in _cache:
             _cache["student_profiles"] = [p for p in _cache["student_profiles"] if (p.get("user_id") or p.get("id")) != user_id]
@@ -613,29 +644,17 @@ def list_employee_profiles() -> list[dict[str, Any]]:
 def upsert_employee_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     client = get_client()
     clean_profile = {k: v for k, v in profile_data.items() if k in VALID_EMPLOYEE_PROFILE_COLUMNS}
-    current_payload = dict(clean_profile)
     saved_db: dict[str, Any] = {}
 
-    max_attempts = max(1, len(clean_profile) + 1)
-    for _ in range(max_attempts):
-        try:
-            res = client.table("employee_profiles").upsert(current_payload, on_conflict="user_id").execute()
-            if res.data and len(res.data) > 0:
-                saved_db = res.data[0]
-            else:
-                saved_db = current_payload
-            break
-        except Exception as e:
-            err_msg = str(e)
-            match = re.search(r"Could not find the '([^']+)' column", err_msg)
-            if match and match.group(1) in current_payload:
-                del current_payload[match.group(1)]
-                continue
-            if "PGRST204" in err_msg:
-                logger.error("[SupabaseRepo] Database schema missing columns for employee_profile user_id='%s': %s", profile_data.get("user_id"), e)
-                raise SupabaseRepositoryError(f"Database table missing columns for employee profile: {e}") from e
-            logger.error("[SupabaseRepo] Failed upserting employee_profile user_id='%s': %s", profile_data.get("user_id"), e)
-            raise SupabaseRepositoryError(f"Database upsert failed for employee profile: {e}") from e
+    try:
+        res = client.table("employee_profiles").upsert(clean_profile, on_conflict="user_id").execute()
+        if res.data and len(res.data) > 0:
+            saved_db = res.data[0]
+        else:
+            saved_db = clean_profile
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting employee_profile user_id='%s': %s", profile_data.get("user_id"), e)
+        raise SupabaseRepositoryError(f"Database upsert failed for employee profile: {e}") from e
 
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("employee_profiles", [])
@@ -1037,29 +1056,8 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
         sig_record.setdefault("data_provenance", "VERIFIED_EXTERNAL_FEED")
 
         clean_sig = {k: v for k, v in sig_record.items() if k in VALID_INDUSTRY_SIGNAL_COLUMNS}
-        base_columns = {"id", "title", "source", "technology", "summary", "impact_level", "signal_date"}
-        saved_row = None
-        for _ in range(5):
-            try:
-                res = client.table("industry_signals").upsert(clean_sig).execute()
-                saved_row = res.data[0] if (res.data and len(res.data) > 0) else dict(clean_sig)
-                break
-            except Exception as exc:
-                err_str = str(exc)
-                if "PGRST204" in err_str or "Could not find the" in err_str:
-                    col_match = re.search(r"'([^']+)' column", err_str)
-                    if col_match:
-                        bad_col = col_match.group(1)
-                        if bad_col in clean_sig and bad_col != "id":
-                            clean_sig.pop(bad_col, None)
-                            continue
-                clean_sig = {k: v for k, v in sig_record.items() if k in base_columns}
-                res = client.table("industry_signals").upsert(clean_sig).execute()
-                saved_row = res.data[0] if (res.data and len(res.data) > 0) else dict(clean_sig)
-                break
-
-        if not saved_row:
-            raise SupabaseRepositoryError("Database persistence failed for industry signal: all retries exhausted")
+        res = client.table("industry_signals").upsert(clean_sig).execute()
+        saved_row = res.data[0] if (res.data and len(res.data) > 0) else dict(clean_sig)
 
         _cache.setdefault("industry_signals", [])
         idx = next((i for i, s in enumerate(_cache["industry_signals"]) if s.get("id") == saved_row.get("id")), None)

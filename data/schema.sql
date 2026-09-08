@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS student_profiles (
     projects JSONB DEFAULT '[]'::jsonb,
     certifications JSONB DEFAULT '[]'::jsonb,
     courses JSONB DEFAULT '[]'::jsonb,
+    experience JSONB DEFAULT '[]'::jsonb,
     skill_match_pct INT DEFAULT 0,
     source TEXT DEFAULT 'USER_SUBMITTED',
     is_demo BOOLEAN DEFAULT FALSE,
@@ -190,6 +191,7 @@ ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS skills JSONB DEFAULT '[]':
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS projects JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS courses JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS experience JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'USER_SUBMITTED';
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
 ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();

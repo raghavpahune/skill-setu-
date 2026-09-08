@@ -156,38 +156,61 @@ async def my_skill_passport(
         ) from e
 
     if matched_profile:
-        current = [
-            {
+        current = []
+        curr_sids = set()
+        for sk in matched_profile.get("skills", []):
+            sid = sk.get("skill_id")
+            s_name = sk.get("skill_name") or sk.get("name") or ""
+            if not sid and s_name.lower() in skills_name_map:
+                sid = skills_name_map[s_name.lower()]["id"]
+            if sid:
+                curr_sids.add(sid)
+            sk_meta = skills_map.get(sid, {}) if sid else {}
+            current.append({
                 **sk,
-                "skill_name": skills_map.get(sk["skill_id"], {}).get("name", ""),
-                "category": skills_map.get(sk["skill_id"], {}).get("category", ""),
-                "nsqf_level": skills_map.get(sk["skill_id"], {}).get("nsqf_level"),
-            }
-            for sk in matched_profile.get("skills", [])
-        ]
+                "skill_id": sid or sk.get("skill_id") or f"sk-custom-{len(current)+1}",
+                "skill_name": s_name or sk_meta.get("name", "Custom Skill"),
+                "proficiency": sk.get("proficiency", "intermediate"),
+                "category": sk.get("category") or sk_meta.get("category", "General"),
+                "nsqf_level": sk.get("nsqf_level") or sk_meta.get("nsqf_level", 5),
+            })
+
+        from app.services.student_service import ROLE_REQUIREMENTS_MAP
+        target_role = matched_profile.get("target_role") or matched_profile.get("desired_role") or "Software Engineer"
+        role_key = target_role.lower().strip()
+        req_sids = ROLE_REQUIREMENTS_MAP.get(role_key)
+        if not req_sids:
+            for r_k, sids in ROLE_REQUIREMENTS_MAP.items():
+                if r_k in role_key or role_key in r_k:
+                    req_sids = sids
+                    break
+        if not req_sids:
+            req_sids = ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"]
+
         required = [
             {
                 "skill_id": sid,
-                "skill_name": skills_map.get(sid, {}).get("name", ""),
-                "category": skills_map.get(sid, {}).get("category", ""),
-                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level"),
+                "skill_name": skills_map.get(sid, {}).get("name", sid),
+                "category": skills_map.get(sid, {}).get("category", "General"),
+                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
             }
-            for sid in matched_profile.get("required_skills", [])
+            for sid in req_sids
         ]
-        missing = [
-            r for r in required
-            if r["skill_id"] not in {s["skill_id"] for s in matched_profile.get("skills", [])}
-        ]
+        missing = [r for r in required if r["skill_id"] not in curr_sids]
+        match_pct = int((len(required) - len(missing)) / max(1, len(required)) * 100) if required else 0
+        if matched_profile.get("skill_match_pct"):
+            match_pct = matched_profile["skill_match_pct"]
+
         return {
             "user_id": user_id,
-            "name": current_user.get("full_name") or matched_profile.get("full_name") or matched_profile.get("name", "Student Candidate"),
-            "target_role": matched_profile.get("target_role") or matched_profile.get("desired_role", ""),
-            "skill_match_pct": matched_profile["skill_match_pct"],
+            "name": matched_profile.get("full_name") or current_user.get("full_name") or matched_profile.get("name", "Student Candidate"),
+            "target_role": target_role,
+            "skill_match_pct": match_pct,
             "current_skills": current,
             "required_skills": required,
             "missing_skills": missing,
-            "source": matched_profile.get("source", "DEMO_SYNTHETIC"),
-            "is_personalized": False,
+            "source": matched_profile.get("source", "USER_SUBMITTED"),
+            "is_personalized": True,
         }
 
     # 3. Explicit unassessed state for new accounts (no silent fallback to demo student)
@@ -348,38 +371,61 @@ async def skill_passport(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: You cannot access another student's profile.",
                 )
-        current = [
-            {
+        current = []
+        curr_sids = set()
+        for sk in p.get("skills", []):
+            sid = sk.get("skill_id")
+            s_name = sk.get("skill_name") or sk.get("name") or ""
+            if not sid and s_name.lower() in skills_name_map:
+                sid = skills_name_map[s_name.lower()]["id"]
+            if sid:
+                curr_sids.add(sid)
+            sk_meta = skills_map.get(sid, {}) if sid else {}
+            current.append({
                 **sk,
-                "skill_name": skills_map.get(sk["skill_id"], {}).get("name", ""),
-                "category": skills_map.get(sk["skill_id"], {}).get("category", ""),
-                "nsqf_level": skills_map.get(sk["skill_id"], {}).get("nsqf_level"),
-            }
-            for sk in p.get("skills", [])
-        ]
+                "skill_id": sid or sk.get("skill_id") or f"sk-custom-{len(current)+1}",
+                "skill_name": s_name or sk_meta.get("name", "Custom Skill"),
+                "proficiency": sk.get("proficiency", "intermediate"),
+                "category": sk.get("category") or sk_meta.get("category", "General"),
+                "nsqf_level": sk.get("nsqf_level") or sk_meta.get("nsqf_level", 5),
+            })
+
+        from app.services.student_service import ROLE_REQUIREMENTS_MAP
+        target_role = p.get("target_role") or p.get("desired_role") or "Software Engineer"
+        role_key = target_role.lower().strip()
+        req_sids = ROLE_REQUIREMENTS_MAP.get(role_key)
+        if not req_sids:
+            for r_k, sids in ROLE_REQUIREMENTS_MAP.items():
+                if r_k in role_key or role_key in r_k:
+                    req_sids = sids
+                    break
+        if not req_sids:
+            req_sids = ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"]
+
         required = [
             {
                 "skill_id": sid,
-                "skill_name": skills_map.get(sid, {}).get("name", ""),
-                "category": skills_map.get(sid, {}).get("category", ""),
-                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level"),
+                "skill_name": skills_map.get(sid, {}).get("name", sid),
+                "category": skills_map.get(sid, {}).get("category", "General"),
+                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
             }
-            for sid in p.get("required_skills", [])
+            for sid in req_sids
         ]
-        missing = [
-            r for r in required
-            if r["skill_id"] not in {s["skill_id"] for s in p.get("skills", [])}
-        ]
+        missing = [r for r in required if r["skill_id"] not in curr_sids]
+        match_pct = int((len(required) - len(missing)) / max(1, len(required)) * 100) if required else 0
+        if p.get("skill_match_pct"):
+            match_pct = p["skill_match_pct"]
+
         return {
             "user_id": p.get("user_id") or p.get("id"),
-            "name": p["name"],
-            "target_role": p["target_role"],
-            "skill_match_pct": p["skill_match_pct"],
+            "name": p.get("full_name") or p.get("name", "Student Candidate"),
+            "target_role": target_role,
+            "skill_match_pct": match_pct,
             "current_skills": current,
             "required_skills": required,
             "missing_skills": missing,
-            "source": p.get("source", "DEMO_SYNTHETIC"),
-            "is_personalized": False,
+            "source": p.get("source", "USER_SUBMITTED"),
+            "is_personalized": True,
         }
 
     raise HTTPException(status_code=404, detail=f"Student record '{student_id}' not found.")
