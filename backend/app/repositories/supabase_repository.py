@@ -449,21 +449,22 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
         if res.data and len(res.data) > 0:
             db_profile = res.data[0]
             if not db_profile.get("skills") or len(db_profile.get("skills")) == 0:
-                try:
-                    sk_res = client.table("student_skills").select("skill_id, proficiency").eq("user_id", user_id).execute()
-                    if sk_res.data and len(sk_res.data) > 0:
+                sk_res = client.table("student_skills").select("skill_id, proficiency").eq("user_id", user_id).execute()
+                if sk_res.data and len(sk_res.data) > 0:
+                    name_map = {}
+                    try:
                         tax_skills = list_skills(limit=2000) or []
                         name_map = {str(s.get("id")): s.get("name", "") for s in tax_skills if s.get("id")}
-                        db_profile["skills"] = [
-                            {
-                                "skill_id": r["skill_id"],
-                                "skill_name": name_map.get(str(r["skill_id"]), r["skill_id"]),
-                                "proficiency": r.get("proficiency", "intermediate"),
-                            }
-                            for r in sk_res.data
-                        ]
-                except Exception:
-                    pass
+                    except Exception:
+                        name_map = {}
+                    db_profile["skills"] = [
+                        {
+                            "skill_id": r["skill_id"],
+                            "skill_name": name_map.get(str(r["skill_id"]), r["skill_id"]),
+                            "proficiency": r.get("proficiency", "intermediate"),
+                        }
+                        for r in sk_res.data
+                    ]
     except Exception as e:
         logger.error("[SupabaseRepo] Failed fetching student_profile user_id='%s': %s", user_id, e)
         raise SupabaseRepositoryError(f"Database query failed for student profile '{user_id}': {e}") from e
@@ -527,7 +528,8 @@ def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
                 if row_sid and row_sid not in new_skill_ids:
                     client.table("student_skills").delete().eq("user_id", uid).eq("skill_id", row_sid).execute()
         except Exception as e:
-            logger.warning("[SupabaseRepo] Failed syncing student_skills normalized rows: %s", e)
+            logger.error("[SupabaseRepo] Failed syncing student_skills normalized rows: %s", e)
+            raise SupabaseRepositoryError(f"Database sync failed for student skills: {e}") from e
 
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("student_profiles", [])

@@ -1,10 +1,40 @@
 DO $$
+DECLARE
+    r RECORD;
 BEGIN
+    FOR r IN (
+        SELECT tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = 'student_profiles'
+          AND kcu.column_name = 'user_id'
+    ) LOOP
+        EXECUTE 'ALTER TABLE student_profiles DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+    END LOOP;
+
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'student_profiles' AND column_name = 'user_id' AND data_type = 'uuid'
     ) THEN
         ALTER TABLE student_profiles ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'users'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'student_profiles' AND column_name = 'user_id'
+    ) THEN
+        BEGIN
+            ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;
+        END;
     END IF;
 END $$;
 
@@ -184,6 +214,17 @@ BEGIN
 
     DROP POLICY IF EXISTS "service_role_all_sync_logs" ON sync_logs;
     DROP POLICY IF EXISTS "deny_anon_sync_logs" ON sync_logs;
+
+    DROP POLICY IF EXISTS "service_role_all_employers" ON employers;
+    DROP POLICY IF EXISTS "employers_manage_own" ON employers;
+    DROP POLICY IF EXISTS "deny_anon_employers" ON employers;
+
+    DROP POLICY IF EXISTS "service_role_all_demands" ON employer_demands;
+    DROP POLICY IF EXISTS "employers_manage_own_demands" ON employer_demands;
+    DROP POLICY IF EXISTS "deny_anon_demands" ON employer_demands;
+
+    DROP POLICY IF EXISTS "service_role_all_feedback" ON employer_feedback;
+    DROP POLICY IF EXISTS "deny_anon_feedback" ON employer_feedback;
 END $$;
 
 CREATE POLICY "service_role_all_users" ON users FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -202,7 +243,7 @@ CREATE POLICY "deny_anon_student_skills" ON student_skills FOR ALL TO anon USING
 
 CREATE POLICY "service_role_all_assessments" ON student_assessments FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "students_read_own_assessments" ON student_assessments FOR SELECT TO authenticated USING (auth.uid()::text = user_id OR auth.email() = user_email);
-CREATE POLICY "students_insert_own_assessments" ON student_assessments FOR INSERT TO authenticated WITH CHECK (auth.uid()::text = user_id);
+CREATE POLICY "students_insert_own_assessments" ON student_assessments FOR INSERT TO authenticated WITH CHECK (auth.uid()::text = user_id AND (user_email IS NULL OR auth.email() = user_email));
 CREATE POLICY "deny_anon_assessments" ON student_assessments FOR ALL TO anon USING (false);
 
 CREATE POLICY "service_role_all_employee_profiles" ON employee_profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -242,5 +283,16 @@ CREATE POLICY "public_read_schemes" ON schemes FOR SELECT TO public USING (true)
 
 CREATE POLICY "service_role_all_sync_logs" ON sync_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "deny_anon_sync_logs" ON sync_logs FOR ALL TO anon USING (false);
+
+CREATE POLICY "service_role_all_employers" ON employers FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "employers_manage_own" ON employers FOR ALL TO authenticated USING (auth.uid()::text = user_id OR auth.uid()::text = id) WITH CHECK (auth.uid()::text = user_id OR auth.uid()::text = id);
+CREATE POLICY "deny_anon_employers" ON employers FOR ALL TO anon USING (false);
+
+CREATE POLICY "service_role_all_demands" ON employer_demands FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "employers_manage_own_demands" ON employer_demands FOR ALL TO authenticated USING (employer_id = auth.uid()::text OR user_id = auth.uid()::text) WITH CHECK (employer_id = auth.uid()::text OR user_id = auth.uid()::text);
+CREATE POLICY "deny_anon_demands" ON employer_demands FOR ALL TO anon USING (false);
+
+CREATE POLICY "service_role_all_feedback" ON employer_feedback FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "deny_anon_feedback" ON employer_feedback FOR ALL TO anon USING (false);
 
 NOTIFY pgrst, 'reload schema';

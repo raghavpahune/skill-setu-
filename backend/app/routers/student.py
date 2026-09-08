@@ -198,7 +198,7 @@ async def my_skill_passport(
         ]
         missing = [r for r in required if r["skill_id"] not in curr_sids]
         match_pct = int((len(required) - len(missing)) / max(1, len(required)) * 100) if required else 0
-        if matched_profile.get("skill_match_pct"):
+        if matched_profile.get("skill_match_pct") is not None:
             match_pct = matched_profile["skill_match_pct"]
 
         return {
@@ -413,7 +413,7 @@ async def skill_passport(
         ]
         missing = [r for r in required if r["skill_id"] not in curr_sids]
         match_pct = int((len(required) - len(missing)) / max(1, len(required)) * 100) if required else 0
-        if p.get("skill_match_pct"):
+        if p.get("skill_match_pct") is not None:
             match_pct = p["skill_match_pct"]
 
         return {
