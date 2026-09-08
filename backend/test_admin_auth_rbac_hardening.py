@@ -359,3 +359,211 @@ def test_admin_recovery_never_executes_in_production(monkeypatch):
     })
     assert resp.status_code == 401
     assert len(admin_api_called) == 0
+
+
+def test_admin_login_fails_closed_when_public_users_has_no_admin_record(monkeypatch):
+    upserted_records = []
+
+    class FakeGoTrueUser:
+        id = "gotrue-valid-admin-uuid-001"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return type("AuthResp", (), {"user": FakeGoTrueUser()})()
+
+    class FakeTable:
+        def select(self, *args, **kwargs):
+            return self
+
+        def eq(self, col, val):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": []})()
+
+        def upsert(self, row, **kwargs):
+            upserted_records.append(row)
+            return self
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client)
+
+    resp = client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 403
+    assert "access_token" not in resp.json()
+    assert len(upserted_records) == 0
+
+
+def test_admin_login_succeeds_when_public_users_has_admin_role_and_no_upsert(monkeypatch):
+    upserted_records = []
+
+    class FakeGoTrueUser:
+        id = "gotrue-valid-admin-uuid-002"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return type("AuthResp", (), {"user": FakeGoTrueUser()})()
+
+    class FakeTable:
+        def select(self, *args, **kwargs):
+            return self
+
+        def eq(self, col, val):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": [{"id": "gotrue-valid-admin-uuid-002", "role": "ADMIN"}]})()
+
+        def upsert(self, row, **kwargs):
+            upserted_records.append(row)
+            return self
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client)
+
+    resp = client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert data["user"]["role"] == "ADMIN"
+    assert data["user"]["id"] == "gotrue-valid-admin-uuid-002"
+    assert len(upserted_records) == 0
+
+
+def test_admin_login_fails_closed_when_public_users_role_is_student(monkeypatch):
+    class FakeGoTrueUser:
+        id = "gotrue-valid-admin-uuid-003"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return type("AuthResp", (), {"user": FakeGoTrueUser()})()
+
+    class FakeTable:
+        def select(self, *args, **kwargs):
+            return self
+
+        def eq(self, col, val):
+            return self
+
+        def execute(self):
+            return type("Resp", (), {"data": [{"id": "gotrue-valid-admin-uuid-003", "role": "STUDENT"}]})()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client)
+
+    resp = client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 403
+    assert "access_token" not in resp.json()
+
+
+def test_admin_login_fails_closed_when_public_users_role_is_missing_or_invalid(monkeypatch):
+    class FakeGoTrueUser:
+        id = "gotrue-valid-admin-uuid-004"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return type("AuthResp", (), {"user": FakeGoTrueUser()})()
+
+    for invalid_role in ("", "UNKNOWN", "SUPERADMIN", None):
+        class FakeTable:
+            def select(self, *args, **kwargs):
+                return self
+
+            def eq(self, col, val):
+                return self
+
+            def execute(self):
+                return type("Resp", (), {"data": [{"id": "gotrue-valid-admin-uuid-004", "role": invalid_role}]})()
+
+        class FakeClient:
+            auth = FakeAuth()
+
+            def table(self, name):
+                return FakeTable()
+
+        fake_client = FakeClient()
+        monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client)
+        monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client)
+
+        resp = client.post("/api/auth/login", json={
+            "email": "admin@skillsetu.gov.in",
+            "password": "AdminPass@2026",
+        })
+        assert resp.status_code == 403
+        assert "access_token" not in resp.json()
+
+
+def test_admin_login_fails_closed_on_database_role_query_exception(monkeypatch):
+    class FakeGoTrueUser:
+        id = "gotrue-valid-admin-uuid-005"
+        email = "admin@skillsetu.gov.in"
+        user_metadata = {"role": "ADMIN", "name": "SkillSetu System Administrator"}
+
+    class FakeAuth:
+        def sign_in_with_password(self, credentials):
+            return type("AuthResp", (), {"user": FakeGoTrueUser()})()
+
+    class FakeTable:
+        def select(self, *args, **kwargs):
+            return self
+
+        def eq(self, col, val):
+            return self
+
+        def execute(self):
+            raise RuntimeError("Database connection timed out during role resolution")
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        def table(self, name):
+            return FakeTable()
+
+    fake_client = FakeClient()
+    monkeypatch.setattr(auth_router, "get_supabase_client", lambda: fake_client)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_client)
+
+    resp = client.post("/api/auth/login", json={
+        "email": "admin@skillsetu.gov.in",
+        "password": "AdminPass@2026",
+    })
+    assert resp.status_code == 500
+    assert "access_token" not in resp.json()

@@ -231,30 +231,38 @@ async def login(req: LoginRequest):
 
         if authenticated and auth_uid:
             if clean_email == "admin@skillsetu.gov.in":
-                if settings.is_production:
-                    try:
-                        db_role_res = await asyncio.wait_for(
-                            asyncio.to_thread(
-                                lambda: client.table("users").select("role").eq("id", auth_uid).execute()
-                            ),
-                            timeout=5.0,
-                        )
-                        db_rows = getattr(db_role_res, "data", None) or []
-                        if db_rows:
-                            r_val = str(db_rows[0].get("role", "")).strip().upper()
-                            if r_val != "ADMIN":
-                                raise HTTPException(
-                                    status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="Forbidden: Admin role required.",
-                                )
-                    except HTTPException:
-                        raise
-                    except Exception as db_err:
-                        logger.error("[Auth] Database role lookup failed for admin %s: %s", auth_uid, db_err)
-                        raise HTTPException(
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Database error while resolving authoritative user permissions.",
-                        ) from db_err
+                try:
+                    db_role_res = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            lambda: client.table("users").select("role").eq("id", auth_uid).execute()
+                        ),
+                        timeout=5.0,
+                    )
+                except HTTPException:
+                    raise
+                except Exception as db_err:
+                    logger.error("[Auth] Database role lookup failed for admin %s: %s", auth_uid, db_err)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Database error while resolving authoritative user permissions. User account reconciliation failed.",
+                    ) from db_err
+
+                db_rows = getattr(db_role_res, "data", None) or []
+                if not db_rows:
+                    logger.warning("[Auth] No authoritative admin record found in public.users for uid %s", auth_uid)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: No authoritative Admin role record found in database.",
+                    )
+
+                assigned_role = str(db_rows[0].get("role", "")).strip().upper()
+                if assigned_role != "ADMIN":
+                    logger.warning("[Auth] Authoritative role '%s' in public.users is not ADMIN for uid %s", assigned_role, auth_uid)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: Admin role required to access this resource.",
+                    )
+
                 auth_role = "ADMIN"
             else:
                 try:
@@ -300,17 +308,18 @@ async def login(req: LoginRequest):
                 "is_active": True,
             }
 
-            try:
-                await asyncio.wait_for(
-                    asyncio.to_thread(save_user, user),
-                    timeout=5.0,
-                )
-            except Exception as persistence_err:
-                logger.exception("[Auth] Failed reconciling user %s in public.users: %s", clean_email, persistence_err)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"User account reconciliation failed. Database persistence error: {persistence_err}",
-                ) from persistence_err
+            if auth_role != "ADMIN":
+                try:
+                    await asyncio.wait_for(
+                        asyncio.to_thread(save_user, user),
+                        timeout=5.0,
+                    )
+                except Exception as persistence_err:
+                    logger.exception("[Auth] Failed reconciling user %s in public.users: %s", clean_email, persistence_err)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"User account reconciliation failed. Database persistence error: {persistence_err}",
+                    ) from persistence_err
 
         elif not authenticated:
             if clean_email == "admin@skillsetu.gov.in":

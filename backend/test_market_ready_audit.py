@@ -625,7 +625,7 @@ def test_admin_login_with_gotrue_success_and_public_users_reconciliation(test_cl
             return self
 
         def execute(self):
-            return type("Resp", (), {"data": []})()
+            return type("Resp", (), {"data": [{"id": "73e35d08-a564-4cd2-b503-a641a8a0a5aa", "role": "ADMIN"}]})()
 
     class FakeClient:
         auth = FakeAuth()
@@ -647,8 +647,7 @@ def test_admin_login_with_gotrue_success_and_public_users_reconciliation(test_cl
     assert "access_token" in data
     assert data["user"]["id"] == "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
     assert data["user"]["role"] == "ADMIN"
-    assert len(upserted_records) >= 1
-    assert any(r.get("id") == "73e35d08-a564-4cd2-b503-a641a8a0a5aa" for r in upserted_records)
+    assert len(upserted_records) == 0
 
 
 def test_admin_login_incorrect_password_returns_401(test_client, monkeypatch):
@@ -766,6 +765,11 @@ def test_admin_reconciliation_does_not_overwrite_unrelated_user(test_client, mon
     tables_state = {
         "users": [
             {
+                "id": "73e35d08-a564-4cd2-b503-a641a8a0a5aa",
+                "email": "admin@skillsetu.gov.in",
+                "role": "ADMIN",
+            },
+            {
                 "id": "usr-employee-9999",
                 "email": "unrelated.employee@skillsetu.gov.in",
                 "name": "Existing Unrelated Employee",
@@ -798,11 +802,16 @@ def test_admin_reconciliation_does_not_overwrite_unrelated_user(test_client, mon
         def select(self, *args, **kwargs):
             return self
 
-        def eq(self, *args, **kwargs):
+        def eq(self, col, val):
+            self._eq_filter = (col, val)
             return self
 
         def execute(self):
-            return type("Resp", (), {"data": tables_state["users"]})()
+            filtered = tables_state["users"]
+            if hasattr(self, "_eq_filter"):
+                c, v = self._eq_filter
+                filtered = [r for r in filtered if str(r.get(c)) == str(v)]
+            return type("Resp", (), {"data": filtered})()
 
     class FakeClient:
         auth = FakeAuth()
