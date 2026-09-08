@@ -34,7 +34,7 @@ def test_migration_sql_has_no_broken_student_skills_type_alteration():
 def test_schema_sql_types_align_with_migration():
     schema_file = _get_project_root() / "data" / "schema.sql"
     content = schema_file.read_text(encoding="utf-8")
-    
+
     signals_match = re.search(r"CREATE TABLE IF NOT EXISTS industry_signals\s*\(\s*id\s+(\w+)", content, re.IGNORECASE)
     assert signals_match is not None
     assert signals_match.group(1).upper() == "TEXT"
