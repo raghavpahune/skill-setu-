@@ -147,7 +147,7 @@ def list_employer_feedback(
 
 def update_employer_feedback(feedback_id: str, updates: dict[str, Any]) -> dict[str, Any]:
     """Perform authoritative update on Supabase employer_feedback record.
-    
+
     Returns the updated record on confirmed success.
     Raises FeedbackNotFoundError if no matching row was updated.
     Raises SupabaseRepositoryError on database failure.
@@ -159,7 +159,7 @@ def update_employer_feedback(feedback_id: str, updates: dict[str, Any]) -> dict[
         res = client.table("employer_feedback").update(updates).eq("id", feedback_id).execute()
         if not res.data or len(res.data) == 0:
             raise FeedbackNotFoundError(f"Employer feedback record '{feedback_id}' not found in Supabase.")
-        
+
         updated_row = res.data[0]
         logger.info("[SupabaseRepo] Confirmed Supabase update for employer_feedback '%s' (status=%s)",
                     feedback_id, updated_row.get("status"))
@@ -493,43 +493,17 @@ def list_student_profiles() -> list[dict[str, Any]]:
 def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     client = get_client()
     clean_profile = {k: v for k, v in profile_data.items() if k in VALID_STUDENT_PROFILE_COLUMNS}
-    saved_db: dict[str, Any] = {}
+    uid = profile_data.get("user_id")
 
     try:
-        res = client.table("student_profiles").upsert(clean_profile, on_conflict="user_id").execute()
-        if res.data and len(res.data) > 0:
-            saved_db = res.data[0]
+        res = client.rpc("sync_student_profile_atomic", {"p_profile": clean_profile}).execute()
+        if getattr(res, "data", None):
+            saved_db = res.data if isinstance(res.data, dict) else res.data[0]
         else:
             saved_db = clean_profile
     except Exception as e:
-        logger.error("[SupabaseRepo] Failed upserting student_profile user_id='%s': %s", profile_data.get("user_id"), e)
-        raise SupabaseRepositoryError(f"Database upsert failed for student profile: {e}") from e
-
-    uid = profile_data.get("user_id")
-    if uid and "skills" in clean_profile and isinstance(clean_profile["skills"], list):
-        try:
-            current_skills = clean_profile["skills"]
-            new_skill_ids = set()
-            for s in current_skills:
-                if isinstance(s, dict):
-                    sid = str(s.get("skill_id") or s.get("id") or "").strip()
-                    prof = str(s.get("proficiency") or "intermediate").strip().lower()
-                    if sid:
-                        new_skill_ids.add(sid)
-                        client.table("student_skills").upsert({
-                            "user_id": uid,
-                            "skill_id": sid,
-                            "proficiency": prof,
-                        }, on_conflict="user_id,skill_id").execute()
-            existing_skills_res = client.table("student_skills").select("skill_id").eq("user_id", uid).execute()
-            existing_skill_rows = getattr(existing_skills_res, "data", None) or []
-            for row in existing_skill_rows:
-                row_sid = str(row.get("skill_id") or "").strip()
-                if row_sid and row_sid not in new_skill_ids:
-                    client.table("student_skills").delete().eq("user_id", uid).eq("skill_id", row_sid).execute()
-        except Exception as e:
-            logger.error("[SupabaseRepo] Failed syncing student_skills normalized rows: %s", e)
-            raise SupabaseRepositoryError(f"Database sync failed for student skills: {e}") from e
+        logger.error("[SupabaseRepo] Failed syncing student profile and skills atomically for user_id='%s': %s", uid, e)
+        raise SupabaseRepositoryError(f"Database atomic sync failed for student profile: {e}") from e
 
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("student_profiles", [])
