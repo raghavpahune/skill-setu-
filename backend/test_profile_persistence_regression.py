@@ -43,7 +43,7 @@ def client():
         yield c
 
 
-def test_adaptive_column_pruning_on_schema_cache_mismatch():
+def test_no_column_pruning_on_schema_cache_mismatch_fails_closed():
     delete_student_profile("usr-student-reg-001")
 
     profile_data = {
@@ -70,9 +70,8 @@ def test_adaptive_column_pruning_on_schema_cache_mismatch():
     client_mock.table("student_profiles").upsert = simulated_upsert
 
     try:
-        saved = upsert_student_profile(profile_data)
-        assert saved["user_id"] == "usr-student-reg-001"
-        assert saved["target_role"] == "DevOps Engineer"
+        with pytest.raises(SupabaseRepositoryError):
+            upsert_student_profile(profile_data)
         assert failed_once is True
     finally:
         client_mock.table("student_profiles").upsert = original_upsert
