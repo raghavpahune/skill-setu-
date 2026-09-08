@@ -3,17 +3,40 @@ DECLARE
     r RECORD;
 BEGIN
     FOR r IN (
-        SELECT tc.constraint_name
+        SELECT tc.table_name, tc.constraint_name
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage kcu
             ON tc.constraint_name = kcu.constraint_name
             AND tc.table_schema = kcu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
-          AND tc.table_name = 'student_profiles'
-          AND kcu.column_name = 'user_id'
+          AND (
+            (tc.table_name = 'student_profiles' AND kcu.column_name = 'user_id')
+            OR (tc.table_name = 'student_skills' AND kcu.column_name = 'user_id')
+            OR (tc.table_name = 'employee_profiles' AND kcu.column_name = 'user_id')
+          )
     ) LOOP
-        EXECUTE 'ALTER TABLE student_profiles DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
     END LOOP;
+
+    FOR r IN (
+        SELECT tc.table_name, tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+            AND tc.table_schema = ccu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND ccu.table_name = 'users'
+          AND ccu.column_name = 'id'
+    ) LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name);
+    END LOOP;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE users ALTER COLUMN id TYPE TEXT USING id::text;
+    END IF;
 
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -23,16 +46,21 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_name = 'users'
-    ) AND EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'student_profiles' AND column_name = 'user_id'
+        WHERE table_name = 'student_skills' AND column_name = 'user_id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE student_skills ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'student_profiles'
     ) THEN
         BEGIN
             ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
         EXCEPTION
-            WHEN duplicate_object THEN
+            WHEN OTHERS THEN
                 NULL;
         END;
     END IF;

@@ -123,32 +123,6 @@ CREATE POLICY "students_modify_own_skills"
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
-ALTER TABLE student_assessments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "service_role_all_assessments"
-  ON student_assessments
-  FOR ALL
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
-
-CREATE POLICY "students_read_own_assessments"
-  ON student_assessments
-  FOR SELECT
-  TO authenticated
-  USING (auth.uid()::text = user_id OR auth.email() = user_email);
-
-CREATE POLICY "students_insert_own_assessments"
-  ON student_assessments
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid()::text = user_id AND (user_email IS NULL OR auth.email() = user_email));
-
-CREATE POLICY "deny_anon_assessments"
-  ON student_assessments
-  FOR ALL
-  TO anon
-  USING (false);
 
 ALTER TABLE employee_profiles ENABLE ROW LEVEL SECURITY;
 
