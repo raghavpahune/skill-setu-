@@ -1314,7 +1314,7 @@ def evaluate_student_assessment(submission_data: dict[str, Any]) -> dict[str, An
     acquired_target_count = 0
     weighted_score = 0.0
 
-    prof_weights = {"beginner": 0.4, "intermediate": 0.75, "advanced": 1.0}
+    prof_weights = {"beginner": 0.4, "intermediate": 0.75, "advanced": 1.0, "expert": 1.0}
 
     for sid in required_skill_ids:
         sk = skills_map.get(sid, {"id": sid, "name": "Required Skill", "category": "General", "nsqf_level": 5})

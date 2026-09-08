@@ -293,9 +293,232 @@ def test_migration_and_schema_rpc_contract():
     assert "DELETE FROM public.student_skills" in mig_content
     assert "INSERT INTO public.student_skills" in mig_content
     assert "ON CONFLICT (user_id, skill_id) DO UPDATE SET" in mig_content
+    assert "'beginner', 'intermediate', 'advanced', 'expert'" in mig_content
+    assert "p_profile ? 'skill_match_pct'" in mig_content
 
     schema_file = _get_project_root() / "data" / "schema.sql"
     schema_content = schema_file.read_text(encoding="utf-8")
     assert "CREATE OR REPLACE FUNCTION public.sync_student_profile_atomic" in schema_content
     assert "SECURITY DEFINER" in schema_content
     assert "GRANT EXECUTE ON FUNCTION public.sync_student_profile_atomic(JSONB) TO authenticated, service_role" in schema_content
+    assert "proficiency TEXT CHECK (proficiency IN ('beginner', 'intermediate', 'advanced', 'expert')) NOT NULL" in schema_content
+    assert "'beginner', 'intermediate', 'advanced', 'expert'" in schema_content
+    assert "p_profile ? 'skill_match_pct'" in schema_content
+
+
+def test_expert_proficiency_persists_in_both_jsonb_and_normalized_student_skills():
+    client = get_client()
+    user_id = f"usr-expert-{uuid.uuid4().hex[:8]}"
+    skill_expert = str(uuid.uuid4())
+
+    payload = {
+        "user_id": user_id,
+        "full_name": "Expert Student",
+        "target_role": "AI Specialist",
+        "skills": [
+            {"skill_id": skill_expert, "skill_name": "PyTorch", "proficiency": "expert"},
+        ],
+        "is_demo": False,
+    }
+    saved = upsert_student_profile(payload)
+    assert len(saved["skills"]) == 1
+    assert saved["skills"][0]["proficiency"] == "expert"
+
+    prof_rows = [r for r in client.table("student_profiles").rows if r.get("user_id") == user_id]
+    assert len(prof_rows) == 1
+    assert prof_rows[0]["skills"][0]["proficiency"] == "expert"
+
+    skill_rows = [r for r in client.table("student_skills").rows if r.get("user_id") == user_id]
+    assert len(skill_rows) == 1
+    assert skill_rows[0]["skill_id"] == skill_expert
+    assert skill_rows[0]["proficiency"] == "expert"
+
+
+def test_canonical_proficiencies_agreement():
+    client = get_client()
+    user_id = f"usr-canonical-{uuid.uuid4().hex[:8]}"
+    s_beg = str(uuid.uuid4())
+    s_int = str(uuid.uuid4())
+    s_adv = str(uuid.uuid4())
+    s_exp = str(uuid.uuid4())
+
+    payload = {
+        "user_id": user_id,
+        "full_name": "Canonical Student",
+        "target_role": "Fullstack Architect",
+        "skills": [
+            {"skill_id": s_beg, "skill_name": "HTML", "proficiency": "beginner"},
+            {"skill_id": s_int, "skill_name": "CSS", "proficiency": "intermediate"},
+            {"skill_id": s_adv, "skill_name": "JavaScript", "proficiency": "advanced"},
+            {"skill_id": s_exp, "skill_name": "Python", "proficiency": "expert"},
+        ],
+        "is_demo": False,
+    }
+    saved = upsert_student_profile(payload)
+    assert len(saved["skills"]) == 4
+
+    saved_map = {s["skill_id"]: s["proficiency"] for s in saved["skills"]}
+    assert saved_map[s_beg] == "beginner"
+    assert saved_map[s_int] == "intermediate"
+    assert saved_map[s_adv] == "advanced"
+    assert saved_map[s_exp] == "expert"
+
+    skill_rows = [r for r in client.table("student_skills").rows if r.get("user_id") == user_id]
+    assert len(skill_rows) == 4
+    norm_map = {r["skill_id"]: r["proficiency"] for r in skill_rows}
+
+    assert norm_map[s_beg] == "beginner"
+    assert norm_map[s_int] == "intermediate"
+    assert norm_map[s_adv] == "advanced"
+    assert norm_map[s_exp] == "expert"
+    assert saved_map == norm_map
+
+
+def test_omitted_skill_match_pct_preserves_existing_score():
+    client = get_client()
+    user_id = f"usr-preserve-score-{uuid.uuid4().hex[:8]}"
+
+    initial = {
+        "user_id": user_id,
+        "full_name": "Match Student",
+        "target_role": "Backend Lead",
+        "skill_match_pct": 82,
+        "skills": [],
+        "is_demo": False,
+    }
+    saved_initial = upsert_student_profile(initial)
+    assert saved_initial["skill_match_pct"] == 82
+
+    prof_rows = [r for r in client.table("student_profiles").rows if r.get("user_id") == user_id]
+    assert prof_rows[0]["skill_match_pct"] == 82
+
+    update_payload = {
+        "user_id": user_id,
+        "full_name": "Match Student Updated",
+        "target_role": "VP Engineering",
+        "skills": [],
+        "is_demo": False,
+    }
+    saved_update = upsert_student_profile(update_payload)
+    assert saved_update["skill_match_pct"] == 82
+
+    prof_rows_after = [r for r in client.table("student_profiles").rows if r.get("user_id") == user_id]
+    assert prof_rows_after[0]["skill_match_pct"] == 82
+    assert prof_rows_after[0]["target_role"] == "VP Engineering"
+
+
+def test_omitted_skill_match_pct_preserves_score_via_put_endpoint():
+    user_id = f"usr-api-preserve-{uuid.uuid4().hex[:8]}"
+    save_user({
+        "id": user_id,
+        "email": f"{user_id}@skillsetu.gov.in",
+        "role": "STUDENT",
+        "full_name": "Endpoint Student",
+        "name": "Endpoint Student",
+    })
+    token = create_access_token(data={"sub": user_id, "role": "STUDENT", "email": f"{user_id}@skillsetu.gov.in"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    upsert_student_profile({
+        "user_id": user_id,
+        "full_name": "Endpoint Student",
+        "target_role": "Data Analyst",
+        "skill_match_pct": 77,
+        "skills": [],
+        "is_demo": False,
+    })
+
+    api_client = TestClient(app)
+    resp = api_client.put(
+        "/api/student/profile",
+        json={
+            "target_role": "Senior Data Analyst",
+            "skills": [],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    updated_profile = resp.json()["profile"]
+    assert updated_profile["target_role"] == "Senior Data Analyst"
+    assert updated_profile["skill_match_pct"] == 77
+
+    fetched = get_student_profile(user_id)
+    assert fetched["skill_match_pct"] == 77
+
+
+def test_explicit_skill_match_pct_updates_score():
+    user_id = f"usr-update-score-{uuid.uuid4().hex[:8]}"
+
+    initial = {
+        "user_id": user_id,
+        "full_name": "Score Update Student",
+        "target_role": "DevOps Engineer",
+        "skill_match_pct": 60,
+        "skills": [],
+        "is_demo": False,
+    }
+    upsert_student_profile(initial)
+
+    updated = upsert_student_profile({
+        "user_id": user_id,
+        "full_name": "Score Update Student",
+        "target_role": "Senior DevOps Engineer",
+        "skill_match_pct": 95,
+        "skills": [],
+        "is_demo": False,
+    })
+    assert updated["skill_match_pct"] == 95
+
+    fetched = get_student_profile(user_id)
+    assert fetched["skill_match_pct"] == 95
+
+
+def test_new_profile_with_omitted_score_defaults_to_zero():
+    user_id = f"usr-default-score-{uuid.uuid4().hex[:8]}"
+
+    payload = {
+        "user_id": user_id,
+        "full_name": "New Student",
+        "target_role": "Security Analyst",
+        "skills": [],
+        "is_demo": False,
+    }
+    saved = upsert_student_profile(payload)
+    assert saved["skill_match_pct"] == 0
+
+    fetched = get_student_profile(user_id)
+    assert fetched["skill_match_pct"] == 0
+
+
+def test_invalid_skill_match_pct_fails_closed():
+    user_id = f"usr-invalid-score-{uuid.uuid4().hex[:8]}"
+
+    upsert_student_profile({
+        "user_id": user_id,
+        "full_name": "Safe Student",
+        "target_role": "Cloud Admin",
+        "skill_match_pct": 50,
+        "skills": [],
+        "is_demo": False,
+    })
+
+    with pytest.raises(SupabaseRepositoryError):
+        upsert_student_profile({
+            "user_id": user_id,
+            "skill_match_pct": -10,
+        })
+
+    with pytest.raises(SupabaseRepositoryError):
+        upsert_student_profile({
+            "user_id": user_id,
+            "skill_match_pct": 105,
+        })
+
+    with pytest.raises(SupabaseRepositoryError):
+        upsert_student_profile({
+            "user_id": user_id,
+            "skill_match_pct": "not-a-number",
+        })
+
+    fetched = get_student_profile(user_id)
+    assert fetched["skill_match_pct"] == 50

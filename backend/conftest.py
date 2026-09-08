@@ -271,6 +271,17 @@ class MockSupabaseRpc:
             if not uid:
                 raise RuntimeError("user_id is required in profile payload")
 
+            if "skill_match_pct" in p_profile:
+                smp = p_profile["skill_match_pct"]
+                if smp is None or not isinstance(smp, (int, float, str)):
+                    raise RuntimeError(f"Invalid skill_match_pct: {smp}")
+                try:
+                    smp_int = int(smp)
+                    if smp_int < 0 or smp_int > 100 or str(smp_int) != str(smp).strip():
+                        raise ValueError()
+                except Exception:
+                    raise RuntimeError(f"Invalid skill_match_pct: {smp}")
+
             prof_table = self.client.table("student_profiles")
             skills_table = self.client.table("student_skills")
 
@@ -278,16 +289,29 @@ class MockSupabaseRpc:
             skills_snapshot = deepcopy(skills_table.rows)
 
             try:
-                prof_res = prof_table.upsert(p_profile, on_conflict="user_id").execute()
-                saved_prof = prof_res.data[0] if getattr(prof_res, "data", None) else p_profile
+                existing_prof = next((r for r in prof_table.rows if r.get("user_id") == uid), None)
+                payload_to_upsert = deepcopy(p_profile)
+                if existing_prof is None and "skill_match_pct" not in payload_to_upsert:
+                    payload_to_upsert["skill_match_pct"] = 0
+                elif "skill_match_pct" in payload_to_upsert:
+                    payload_to_upsert["skill_match_pct"] = int(payload_to_upsert["skill_match_pct"])
+
+                prof_res = prof_table.upsert(payload_to_upsert, on_conflict="user_id").execute()
+                saved_prof = prof_res.data[0] if getattr(prof_res, "data", None) else payload_to_upsert
 
                 if "skills" in p_profile and isinstance(p_profile["skills"], list):
                     req_skills = p_profile["skills"]
+                    for sk in req_skills:
+                        if isinstance(sk, dict) and "proficiency" in sk:
+                            p_val = str(sk["proficiency"]).strip().lower()
+                            if p_val not in ("beginner", "intermediate", "advanced", "expert"):
+                                raise RuntimeError(f"Invalid skill proficiency: {sk}")
                     new_skill_ids = set()
                     for sk in req_skills:
                         if isinstance(sk, dict):
                             sid = str(sk.get("skill_id") or sk.get("id") or "").strip()
-                            prof = str(sk.get("proficiency") or "intermediate").strip().lower()
+                            raw_prof = str(sk.get("proficiency") or "intermediate").strip().lower()
+                            prof = raw_prof if raw_prof in ("beginner", "intermediate", "advanced", "expert") else "intermediate"
                             if sid:
                                 new_skill_ids.add(sid)
                                 skills_table.upsert({

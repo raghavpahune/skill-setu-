@@ -1,3 +1,14 @@
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'student_skills'
+    ) THEN
+        ALTER TABLE public.student_skills DROP CONSTRAINT IF EXISTS student_skills_proficiency_check;
+        ALTER TABLE public.student_skills ADD CONSTRAINT student_skills_proficiency_check CHECK (proficiency IN ('beginner', 'intermediate', 'advanced', 'expert'));
+    END IF;
+END $$;
+
 CREATE OR REPLACE FUNCTION public.sync_student_profile_atomic(p_profile JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -26,6 +37,15 @@ BEGIN
         END IF;
     END IF;
 
+    IF p_profile ? 'skill_match_pct' THEN
+        IF p_profile->>'skill_match_pct' IS NULL
+           OR (p_profile->>'skill_match_pct') !~ '^[0-9]+$'
+           OR (p_profile->>'skill_match_pct')::INT < 0
+           OR (p_profile->>'skill_match_pct')::INT > 100 THEN
+            RAISE EXCEPTION 'Invalid skill_match_pct: %', p_profile->>'skill_match_pct';
+        END IF;
+    END IF;
+
     IF p_profile ? 'skills' AND jsonb_typeof(p_profile->'skills') = 'array' THEN
         SELECT elem INTO v_invalid_skill
         FROM jsonb_array_elements(p_profile->'skills') AS elem
@@ -39,6 +59,10 @@ BEGIN
             END,
             (SELECT s.id FROM public.skills s WHERE lower(s.name) = lower(COALESCE(elem->>'skill_name', elem->>'name', '')) LIMIT 1)
         ) IS NULL
+        OR (
+            elem ? 'proficiency'
+            AND lower(elem->>'proficiency') NOT IN ('beginner', 'intermediate', 'advanced', 'expert')
+        )
         LIMIT 1;
 
         IF v_invalid_skill IS NOT NULL THEN
@@ -88,7 +112,10 @@ BEGIN
         COALESCE(p_profile->'certifications', '[]'::jsonb),
         COALESCE(p_profile->'courses', '[]'::jsonb),
         COALESCE(p_profile->'experience', '[]'::jsonb),
-        COALESCE(NULLIF(p_profile->>'skill_match_pct', '')::INT, 0),
+        CASE
+            WHEN p_profile ? 'skill_match_pct' THEN (p_profile->>'skill_match_pct')::INT
+            ELSE 0
+        END,
         COALESCE(p_profile->>'source', 'USER_SUBMITTED'),
         COALESCE((p_profile->>'is_demo')::BOOLEAN, FALSE),
         COALESCE(NULLIF(p_profile->>'created_at', '')::TIMESTAMPTZ, now()),
@@ -110,7 +137,10 @@ BEGIN
         certifications = CASE WHEN p_profile ? 'certifications' THEN EXCLUDED.certifications ELSE student_profiles.certifications END,
         courses = CASE WHEN p_profile ? 'courses' THEN EXCLUDED.courses ELSE student_profiles.courses END,
         experience = CASE WHEN p_profile ? 'experience' THEN EXCLUDED.experience ELSE student_profiles.experience END,
-        skill_match_pct = COALESCE(EXCLUDED.skill_match_pct, student_profiles.skill_match_pct),
+        skill_match_pct = CASE
+            WHEN p_profile ? 'skill_match_pct' THEN EXCLUDED.skill_match_pct
+            ELSE student_profiles.skill_match_pct
+        END,
         source = COALESCE(EXCLUDED.source, student_profiles.source),
         is_demo = COALESCE(EXCLUDED.is_demo, student_profiles.is_demo),
         updated_at = now()
@@ -152,7 +182,7 @@ BEGIN
                     (SELECT s.id FROM public.skills s WHERE lower(s.name) = lower(COALESCE(elem->>'skill_name', elem->>'name', '')) LIMIT 1)
                 ) AS target_skill_id,
                 CASE
-                    WHEN lower(COALESCE(elem->>'proficiency', 'intermediate')) IN ('beginner', 'intermediate', 'advanced')
+                    WHEN lower(COALESCE(elem->>'proficiency', 'intermediate')) IN ('beginner', 'intermediate', 'advanced', 'expert')
                     THEN lower(COALESCE(elem->>'proficiency', 'intermediate'))
                     ELSE 'intermediate'
                 END AS prof
