@@ -156,9 +156,75 @@ CREATE TABLE IF NOT EXISTS skill_forecasts (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS student_profiles (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    full_name TEXT,
+    institution TEXT,
+    degree TEXT,
+    education_level TEXT,
+    academic_year TEXT,
+    graduation_year INT,
     target_role TEXT NOT NULL,
-    skill_match_pct INT DEFAULT 0
+    desired_role TEXT,
+    preferred_location TEXT,
+    career_interests TEXT[] DEFAULT '{}',
+    skills JSONB DEFAULT '[]'::jsonb,
+    projects JSONB DEFAULT '[]'::jsonb,
+    certifications JSONB DEFAULT '[]'::jsonb,
+    courses JSONB DEFAULT '[]'::jsonb,
+    skill_match_pct INT DEFAULT 0,
+    source TEXT DEFAULT 'USER_SUBMITTED',
+    is_demo BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS institution TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS degree TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS education_level TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS academic_year TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS graduation_year INT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS desired_role TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS preferred_location TEXT;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS career_interests TEXT[] DEFAULT '{}';
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS skills JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS projects JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS courses JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'USER_SUBMITTED';
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+CREATE TABLE IF NOT EXISTS employee_profiles (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    full_name TEXT,
+    "current_role" TEXT NOT NULL,
+    years_of_experience NUMERIC(4,1) DEFAULT 0,
+    industry TEXT,
+    education TEXT,
+    target_role TEXT,
+    preferred_location TEXT,
+    skills JSONB DEFAULT '[]'::jsonb,
+    certifications JSONB DEFAULT '[]'::jsonb,
+    source TEXT DEFAULT 'USER_SUBMITTED',
+    is_demo BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS years_of_experience NUMERIC(4,1) DEFAULT 0;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS industry TEXT;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS education TEXT;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS target_role TEXT;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS preferred_location TEXT;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS skills JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'USER_SUBMITTED';
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE employee_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
 -- ============================================================
 -- STUDENT_SKILLS

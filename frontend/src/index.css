@@ -83,3 +83,41 @@
 html, body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+button, .btn-interactive, a.btn-interactive, [role="button"] {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+button:not(:disabled):not([aria-disabled="true"]):hover,
+.btn-interactive:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+button:not(:disabled):not([aria-disabled="true"]):active,
+.btn-interactive:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+button:focus-visible,
+.btn-interactive:focus-visible {
+  outline: 2px solid var(--color-teal-500, #0d9488);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root, :root :where(*, ::before, ::after) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button, .btn-interactive, a.btn-interactive, [role="button"] {
+    transform: none !important;
+  }
+}

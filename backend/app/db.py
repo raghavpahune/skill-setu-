@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
+import re
+import threading
 from typing import Any
 
 from app.config import settings
@@ -10,6 +13,7 @@ logger = logging.getLogger("skillsetu.db")
 
 _cache: dict[str, list] = {}
 _supabase_connected: bool = False
+_save_user_lock = threading.Lock()
 
 
 def _find_data_dir() -> Path:
@@ -240,7 +244,7 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
-    if settings.use_demo_data:
+    if not settings.is_production and settings.demo_auth_enabled:
         init_demo_users()
 
 
@@ -662,8 +666,29 @@ def delete_course(course_id: str) -> bool:
     return repo_deleted or deleted
 
 
+VALID_GOV_OPPORTUNITY_COLUMNS = {
+    "id",
+    "name",
+    "department",
+    "description",
+    "eligibility_criteria",
+    "target_skills",
+    "district_coverage",
+    "opportunity_type",
+    "application_url",
+    "deadline",
+    "status",
+    "source",
+    "data_provenance",
+    "is_demo",
+    "user_id",
+    "user_email",
+    "created_at",
+    "updated_at",
+}
+
+
 def save_gov_opportunity(data: dict) -> dict:
-    """Save new government opportunity record to cache, disk storage, and Supabase."""
     if not _cache:
         init_db()
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -672,15 +697,25 @@ def save_gov_opportunity(data: dict) -> dict:
     data.setdefault("source", "USER_SUBMITTED")
     data["is_demo"] = False
 
+    clean_payload = {k: v for k, v in data.items() if k in VALID_GOV_OPPORTUNITY_COLUMNS}
+    current_payload = dict(clean_payload)
     client = get_supabase_client()
     if client:
-        try:
-            client.table("gov_opportunities").upsert(data).execute()
-            logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
-        except Exception as e:
-            logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
-            from app.repositories.supabase_repository import SupabaseRepositoryError
-            raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
+        max_attempts = max(1, len(clean_payload) + 1)
+        for _ in range(max_attempts):
+            try:
+                client.table("gov_opportunities").upsert(current_payload).execute()
+                logger.info("[DB] Persisted gov opportunity '%s' to Supabase.", data.get("id"))
+                break
+            except Exception as e:
+                err_msg = str(e)
+                match = re.search(r"Could not find the '([^']+)' column", err_msg)
+                if match and match.group(1) in current_payload:
+                    del current_payload[match.group(1)]
+                    continue
+                logger.error("[DB] Failed persisting gov opportunity to Supabase: %s", e)
+                from app.repositories.supabase_repository import SupabaseRepositoryError
+                raise SupabaseRepositoryError(f"Database insertion failed for gov opportunity: {e}") from e
 
     records = _cache.setdefault("gov_opportunities", [])
     gid = data.get("id")
@@ -847,7 +882,7 @@ def get_skill_forecast_by_id(forecast_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def init_demo_users():
-    if not (settings.use_demo_data or settings.demo_auth_enabled):
+    if settings.is_production or not settings.demo_auth_enabled:
         return
     users = _cache.setdefault("users", [])
     existing_emails = {u.get("email", "").strip().lower() for u in users if isinstance(u, dict)}
@@ -961,7 +996,7 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
         {
-            "id": "usr-admin-001",
+            "id": "73e35d08-a564-4cd2-b503-a641a8a0a5aa",
             "email": "admin@skillsetu.gov.in",
             "hashed_password": hash_password("AdminPass@2026"),
             "name": "SkillSetu System Administrator",
@@ -974,76 +1009,227 @@ def init_demo_users():
             "updated_at": "2026-01-15T09:00:00Z",
         },
     ]
+    for acc in demo_accounts:
+        acc.setdefault("is_demo", True)
     client = get_supabase_client()
     if not client:
         for acc in demo_accounts:
             acc_id = str(acc["id"])
             acc_email = acc["email"].strip().lower()
-            if acc_email not in existing_emails and acc_id not in existing_ids:
+            existing_user = next(
+                (u for u in users if isinstance(u, dict) and (u.get("email", "").strip().lower() == acc_email or str(u.get("id")) == acc_id)),
+                None,
+            )
+            if existing_user:
+                if not existing_user.get("hashed_password"):
+                    existing_user["hashed_password"] = acc["hashed_password"]
+                existing_user["is_demo"] = True
+                if acc_email == "admin@skillsetu.gov.in":
+                    existing_user["role"] = "ADMIN"
+                    existing_user["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                    existing_user["is_active"] = True
+                    existing_user["hashed_password"] = acc["hashed_password"]
+            else:
                 users.append(acc)
                 existing_emails.add(acc_email)
                 existing_ids.add(acc_id)
         return
 
+    existing_users = []
+    db_ids = set()
+    db_emails = set()
     try:
-        existing_resp = client.table("users").select("id, email").execute()
+        existing_resp = client.table("users").select("id, email, name, role").execute()
         existing_users = existing_resp.data or []
         db_ids = {str(r["id"]) for r in existing_users if r.get("id")}
         db_emails = {str(r["email"]).strip().lower() for r in existing_users if r.get("email")}
     except Exception as e:
         logger.warning("[DB] Failed querying users from Supabase: %s", e)
-        return
 
-    to_insert = []
+    admin_acc = next((a for a in demo_accounts if a.get("email") == "admin@skillsetu.gov.in"), None)
+    if admin_acc:
+        admin_uid = str(admin_acc["id"])
+        admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+        if hasattr(client, "auth") and hasattr(client.auth, "admin"):
+            try:
+                existing_auth = None
+                page = 1
+                while page <= 20:
+                    try:
+                        auth_users_resp = client.auth.admin.list_users(page=page, per_page=100)
+                    except TypeError:
+                        auth_users_resp = client.auth.admin.list_users()
+                        page_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                        existing_auth = next(
+                            (u for u in page_users if str(getattr(u, "email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                            None,
+                        )
+                        break
+                    page_users = getattr(auth_users_resp, "users", None) or (auth_users_resp if isinstance(auth_users_resp, list) else [])
+                    if not page_users:
+                        break
+                    existing_auth = next(
+                        (u for u in page_users if str(getattr(u, "email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                        None,
+                    )
+                    if existing_auth:
+                        break
+                    if len(page_users) < 100:
+                        break
+                    page += 1
+
+                if not existing_auth and existing_users:
+                    matched_db_admin = next(
+                        (r for r in existing_users if str(r.get("email", "")).strip().lower() == "admin@skillsetu.gov.in"),
+                        None,
+                    )
+                    if matched_db_admin and matched_db_admin.get("id"):
+                        try:
+                            direct_user_resp = client.auth.admin.get_user_by_id(str(matched_db_admin["id"]))
+                            if direct_user_resp and (getattr(direct_user_resp, "user", None) or getattr(direct_user_resp, "id", None)):
+                                existing_auth = getattr(direct_user_resp, "user", None) or direct_user_resp
+                        except Exception:
+                            pass
+
+                if existing_auth:
+                    admin_uid = str(getattr(existing_auth, "id", admin_uid))
+                    client.auth.admin.update_user_by_id(
+                        admin_uid,
+                        {
+                            "password": admin_pw,
+                            "email_confirm": True,
+                            "user_metadata": {
+                                "role": "ADMIN",
+                                "name": admin_acc.get("full_name") or "SkillSetu System Administrator",
+                            },
+                        },
+                    )
+                else:
+                    create_payload = {
+                        "email": admin_acc["email"],
+                        "password": admin_pw,
+                        "email_confirm": True,
+                        "user_metadata": {
+                            "role": "ADMIN",
+                            "name": admin_acc.get("full_name") or "SkillSetu System Administrator",
+                        },
+                    }
+                    if admin_uid:
+                        create_payload["id"] = admin_uid
+                    created_resp = client.auth.admin.create_user(create_payload)
+                    created_user = getattr(created_resp, "user", None) or created_resp
+                    if created_user and getattr(created_user, "id", None):
+                        admin_uid = str(created_user.id)
+            except Exception as e:
+                logger.warning("[DB] GoTrue admin provisioning error: %s", e)
+
+        for u in users:
+            if isinstance(u, dict) and (str(u.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" or str(u.get("id")) in ("usr-admin-001", "73e35d08-a564-4cd2-b503-a641a8a0a5aa", admin_uid)):
+                u["id"] = admin_uid
+                u["role"] = "ADMIN"
+                u["is_active"] = True
+
+        try:
+            client.table("users").upsert({
+                "id": admin_uid,
+                "email": admin_acc["email"],
+                "name": admin_acc.get("full_name") or admin_acc.get("name", "SkillSetu System Administrator"),
+                "role": "ADMIN",
+            }, on_conflict="id").execute()
+        except Exception as e:
+            logger.warning("[DB] Failed upserting admin user into Supabase: %s", e)
+
     for acc in demo_accounts:
         acc_id = str(acc["id"])
         acc_email = acc["email"].strip().lower()
-        is_exact_match = any(
-            str(r.get("id")) == acc_id and str(r.get("email", "")).strip().lower() == acc_email
-            for r in existing_users
+        existing_user = next(
+            (u for u in users if isinstance(u, dict) and (u.get("email", "").strip().lower() == acc_email or str(u.get("id")) == acc_id)),
+            None,
         )
-        is_collision = (acc_id in db_ids or acc_email in db_emails or acc_id in existing_ids or acc_email in existing_emails) and not is_exact_match
-        if is_collision:
+        if existing_user:
+            if not existing_user.get("hashed_password"):
+                existing_user["hashed_password"] = acc["hashed_password"]
+            existing_user["is_demo"] = True
+            if acc_email == "admin@skillsetu.gov.in":
+                existing_user["role"] = "ADMIN"
+                existing_user["id"] = admin_uid
+                existing_user["is_active"] = True
+                existing_user["hashed_password"] = acc["hashed_password"]
             continue
-        if is_exact_match:
-            if acc_email not in existing_emails and acc_id not in existing_ids:
-                users.append(acc)
-                existing_emails.add(acc_email)
-                existing_ids.add(acc_id)
-        else:
-            to_insert.append(acc)
 
-    if to_insert:
-        try:
-            new_supabase_users = [
-                {
-                    "id": acc["id"],
-                    "name": acc.get("full_name") or acc.get("name", ""),
-                    "email": acc["email"],
-                    "role": acc["role"],
-                }
-                for acc in to_insert
-            ]
-            client.table("users").insert(new_supabase_users).execute()
-            for acc in to_insert:
-                acc_id = str(acc["id"])
-                acc_email = acc["email"].strip().lower()
-                if acc_email not in existing_emails and acc_id not in existing_ids:
-                    users.append(acc)
-                    existing_emails.add(acc_email)
-                    existing_ids.add(acc_id)
-        except Exception as e:
-            logger.warning("[DB] Failed provisioning demo users into Supabase: %s", e)
+        matched_db = next((r for r in existing_users if str(r.get("email", "")).strip().lower() == acc_email), None)
+        if matched_db:
+            acc_copy = dict(acc)
+            if acc_email == "admin@skillsetu.gov.in":
+                acc_copy["id"] = admin_uid
+                acc_copy["role"] = "ADMIN"
+            else:
+                acc_copy["id"] = str(matched_db.get("id") or acc["id"])
+            acc_copy["is_demo"] = True
+            db_name = matched_db.get("name") or acc.get("name")
+            acc_copy["name"] = db_name
+            acc_copy["full_name"] = db_name
+            users.append(acc_copy)
+            existing_emails.add(acc_email)
+            existing_ids.add(acc_copy["id"])
+            continue
+
+        if acc_id in db_ids and acc_email != "admin@skillsetu.gov.in":
+            continue
+        acc_copy = dict(acc)
+        if acc_email == "admin@skillsetu.gov.in":
+            acc_copy["id"] = admin_uid
+            acc_copy["role"] = "ADMIN"
+        users.append(acc_copy)
+        existing_emails.add(acc_email)
+        existing_ids.add(acc_copy["id"])
+
+
+NON_ADMIN_DEMO_EMAILS = {
+    "student@skillsetu.gov.in",
+    "student2@skillsetu.gov.in",
+    "employee@skillsetu.gov.in",
+    "employer@skillsetu.gov.in",
+    "employer2@skillsetu.gov.in",
+    "institute@skillsetu.gov.in",
+    "institute2@skillsetu.gov.in",
+    "government@skillsetu.gov.in",
+}
+
+NON_ADMIN_DEMO_IDS = {
+    "usr-student-001",
+    "usr-student-002",
+    "usr-employee-001",
+    "usr-employer-001",
+    "usr-employer-002",
+    "usr-institute-001",
+    "usr-institute-002",
+    "usr-gov-001",
+}
 
 
 def get_user_by_email(email: str) -> dict | None:
     if not _cache:
         init_db()
+    if "users" not in _cache:
+        return None
     users = _cache.get("users", [])
     clean_email = email.strip().lower()
     for u in users:
         if u.get("email", "").strip().lower() == clean_email:
+            if clean_email == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
+                u["role"] = "ADMIN"
+                if not u.get("id"):
+                    u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                u["is_active"] = True
+                if not u.get("hashed_password"):
+                    from app.core.security import hash_password
+                    admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                    u["hashed_password"] = hash_password(admin_pw)
             return u
+    if not settings.is_production and settings.demo_auth_enabled:
+        if clean_email in NON_ADMIN_DEMO_EMAILS:
+            return None
     client = get_supabase_client()
     if client:
         try:
@@ -1052,6 +1238,13 @@ def get_user_by_email(email: str) -> dict | None:
             if res.data and len(res.data) > 0:
                 user = res.data[0]
                 user.setdefault("full_name", user.get("name", ""))
+                if clean_email == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
+                    from app.core.security import hash_password
+                    admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                    user["hashed_password"] = hash_password(admin_pw)
+                    user["role"] = "ADMIN"
+                    user["id"] = str(user.get("id") or "73e35d08-a564-4cd2-b503-a641a8a0a5aa")
+                    user["is_active"] = True
                 return user
         except Exception as e:
             logger.warning("[DB] Failed querying user by email from Supabase: %s", e)
@@ -1061,18 +1254,43 @@ def get_user_by_email(email: str) -> dict | None:
 def get_user_by_id(user_id: str) -> dict | None:
     if not _cache:
         init_db()
+    if "users" not in _cache:
+        return None
     users = _cache.get("users", [])
+    target_ids = {user_id}
+    if not settings.is_production and settings.demo_auth_enabled and user_id in ("73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"):
+        target_ids.update({"73e35d08-a564-4cd2-b503-a641a8a0a5aa", "usr-admin-001"})
     for u in users:
-        if u.get("id") == user_id:
+        if u.get("id") in target_ids:
+            if str(u.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
+                u["role"] = "ADMIN"
+                if not u.get("id"):
+                    u["id"] = "73e35d08-a564-4cd2-b503-a641a8a0a5aa"
+                u["is_active"] = True
+                if not u.get("hashed_password"):
+                    from app.core.security import hash_password
+                    admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                    u["hashed_password"] = hash_password(admin_pw)
             return u
+    if not settings.is_production and settings.demo_auth_enabled:
+        if user_id in NON_ADMIN_DEMO_IDS:
+            return None
     client = get_supabase_client()
     if client:
         try:
-            res = client.table("users").select("*").eq("id", user_id).execute()
-            if res.data and len(res.data) > 0:
-                user = res.data[0]
-                user.setdefault("full_name", user.get("name", ""))
-                return user
+            for tid in target_ids:
+                res = client.table("users").select("*").eq("id", tid).execute()
+                if res.data and len(res.data) > 0:
+                    user = res.data[0]
+                    user.setdefault("full_name", user.get("name", ""))
+                    if str(user.get("email", "")).strip().lower() == "admin@skillsetu.gov.in" and not settings.is_production and settings.demo_auth_enabled:
+                        from app.core.security import hash_password
+                        admin_pw = getattr(settings, "admin_password", "") or os.getenv("ADMIN_PASSWORD") or "AdminPass@2026"
+                        user["hashed_password"] = hash_password(admin_pw)
+                        user["role"] = "ADMIN"
+                        user["id"] = str(user.get("id") or user_id)
+                        user["is_active"] = True
+                    return user
         except Exception as e:
             logger.warning("[DB] Failed querying user by id from Supabase: %s", e)
     return None
@@ -1085,39 +1303,40 @@ def list_users() -> list[dict]:
 
 
 def save_user(user_data: dict) -> dict:
-    if not _cache:
-        init_db()
-    now_iso = datetime.now(timezone.utc).isoformat()
-    user_data.setdefault("created_at", now_iso)
-    user_data["updated_at"] = now_iso
-    user_data.setdefault("source", "USER_SUBMITTED")
-    user_data["is_demo"] = False
-    if "full_name" in user_data and "name" not in user_data:
-        user_data["name"] = user_data["full_name"]
-    elif "name" in user_data and "full_name" not in user_data:
-        user_data["full_name"] = user_data["name"]
+    with _save_user_lock:
+        if not _cache:
+            init_db()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        user_data.setdefault("created_at", now_iso)
+        user_data["updated_at"] = now_iso
+        user_data.setdefault("source", "USER_SUBMITTED")
+        user_data["is_demo"] = False
+        if "full_name" in user_data and "name" not in user_data:
+            user_data["name"] = user_data["full_name"]
+        elif "name" in user_data and "full_name" not in user_data:
+            user_data["full_name"] = user_data["name"]
 
-    client = get_supabase_client()
-    if client:
-        try:
-            valid_cols = {"id", "name", "email", "role", "created_at"}
-            clean_supabase_user = {k: v for k, v in user_data.items() if k in valid_cols}
-            client.table("users").upsert(clean_supabase_user, on_conflict="id").execute()
-            logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
-        except Exception as e:
-            logger.error("[DB] Failed persisting user to Supabase: %s", e)
-            from app.repositories.supabase_repository import SupabaseRepositoryError
-            raise SupabaseRepositoryError(f"Database persistence failed for user: {e}") from e
+        client = get_supabase_client()
+        if client:
+            try:
+                valid_cols = {"id", "name", "email", "role", "created_at"}
+                clean_supabase_user = {k: v for k, v in user_data.items() if k in valid_cols}
+                client.table("users").upsert(clean_supabase_user, on_conflict="id").execute()
+                logger.info("[DB] Persisted user '%s' (%s) to Supabase.", user_data.get("email"), user_data.get("role"))
+            except Exception as e:
+                logger.error("[DB] Failed persisting user to Supabase: %s", e)
+                from app.repositories.supabase_repository import SupabaseRepositoryError
+                raise SupabaseRepositoryError(f"Database persistence failed for user: {e}") from e
 
-    users = _cache.setdefault("users", [])
-    existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
-    if existing_idx is not None:
-        users[existing_idx] = user_data
-    else:
-        users.append(user_data)
+        users = _cache.setdefault("users", [])
+        existing_idx = next((i for i, u in enumerate(users) if u.get("id") == user_data.get("id") or u.get("email", "").lower() == user_data.get("email", "").lower()), None)
+        if existing_idx is not None:
+            users[existing_idx] = user_data
+        else:
+            users.append(user_data)
 
-    _flush_real_table("users")
-    return user_data
+        _flush_real_table("users")
+        return user_data
 
 
 # Re-export centralized demo student helper for convenience

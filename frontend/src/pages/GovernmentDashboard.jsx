@@ -274,6 +274,7 @@ export default function GovernmentDashboard() {
   });
 
   const [platformMetrics, setPlatformMetrics] = useState(null);
+  const [govOpportunities, setGovOpportunities] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -291,23 +292,30 @@ export default function GovernmentDashboard() {
 
   const handleGovSubmit = async (e) => {
     e.preventDefault();
-    if (!govForm.name.trim() || !govForm.description.trim()) {
+    if (submitting) return;
+    const name = govForm.name.trim();
+    const description = govForm.description.trim();
+    if (!name || !description) {
       setToastMessage({ type: 'error', text: 'Please provide both opportunity name and description.' });
       return;
+    }
+    let appUrl = govForm.application_url.trim();
+    if (appUrl && !appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
+      appUrl = `https://${appUrl}`;
     }
     setSubmitting(true);
     try {
       const skillsArray = govForm.target_skills.split(',').map((s) => s.trim()).filter(Boolean);
       const districtsArray = govForm.district_coverage.split(',').map((d) => d.trim()).filter(Boolean);
       const payload = {
-        name: govForm.name.trim(),
+        name,
         department: govForm.department.trim(),
-        description: govForm.description.trim(),
+        description,
         eligibility_criteria: govForm.eligibility_criteria.trim() || null,
         target_skills: skillsArray,
         district_coverage: districtsArray.length > 0 ? districtsArray : ['Maharashtra'],
         opportunity_type: govForm.opportunity_type,
-        application_url: govForm.application_url.trim() || 'https://mahaswayam.gov.in',
+        application_url: appUrl || 'https://mahaswayam.gov.in',
         deadline: govForm.deadline.trim() || null,
         status: 'active',
       };
@@ -342,8 +350,8 @@ export default function GovernmentDashboard() {
       api.getCourseRecommendations(),
       api.getJobDemand('skill'),
       api.getPlatformMetrics(),
-    ]).then(([jobsRes, gapsRes, sigRes, fcRes, recRes, demRes, metRes]) => {
-      // Jobs count normalization
+      api.getGovOpportunities(),
+    ]).then(([jobsRes, gapsRes, sigRes, fcRes, recRes, demRes, metRes, oppsRes]) => {
       if (jobsRes.status === 'fulfilled') {
         const jobsArr = extractArray(jobsRes.value, ['jobs', 'data']);
         if (jobsArr.length > 0) {
@@ -357,7 +365,6 @@ export default function GovernmentDashboard() {
         setErrors((prev) => ({ ...prev, jobs: true }));
       }
 
-      // Gaps normalization
       if (gapsRes.status === 'fulfilled') {
         const gapsArr = extractArray(gapsRes.value, ['gaps', 'items', 'data']);
         const normalizedGaps = gapsArr.map((g, idx) => ({
@@ -375,7 +382,6 @@ export default function GovernmentDashboard() {
         setErrors((prev) => ({ ...prev, gaps: true }));
       }
 
-      // Signals normalization
       if (sigRes.status === 'fulfilled') {
         const sigArr = extractArray(sigRes.value, ['signals', 'data', 'items']);
         const normalizedSignals = sigArr.map((s, idx) => ({
@@ -392,7 +398,6 @@ export default function GovernmentDashboard() {
         setErrors((prev) => ({ ...prev, signals: true }));
       }
 
-      // Forecasts normalization
       if (fcRes.status === 'fulfilled') {
         const fcArr = extractArray(fcRes.value, ['forecasts', 'data', 'items']);
         const normalizedForecasts = fcArr.map((f, idx) => ({
@@ -408,7 +413,6 @@ export default function GovernmentDashboard() {
         setErrors((prev) => ({ ...prev, forecasts: true }));
       }
 
-      // Recommendations normalization
       if (recRes.status === 'fulfilled') {
         const recArr = extractArray(recRes.value, ['recommendations', 'data', 'items']);
         const normalizedRecs = recArr.map((r, idx) => ({
@@ -427,7 +431,6 @@ export default function GovernmentDashboard() {
         setErrors((prev) => ({ ...prev, recommendations: true }));
       }
 
-      // Demand Stats normalization
       if (demRes.status === 'fulfilled') {
         const demArr = extractArray(demRes.value, ['demand', 'skills', 'data', 'items']);
         const normalizedDemand = demArr.map((d, idx) => ({
@@ -439,9 +442,13 @@ export default function GovernmentDashboard() {
         setErrors((prev) => ({ ...prev, demand: true }));
       }
 
-      // Platform Success Metrics (§33)
       if (metRes.status === 'fulfilled' && metRes.value && (metRes.value.status === 'success' || metRes.value.placement_rate_pct !== undefined)) {
         setPlatformMetrics(metRes.value);
+      }
+
+      if (oppsRes && oppsRes.status === 'fulfilled') {
+        const oppsArr = extractArray(oppsRes.value, ['opportunities', 'data', 'items']);
+        setGovOpportunities(oppsArr);
       }
 
       setLoading(false);
@@ -1304,6 +1311,101 @@ export default function GovernmentDashboard() {
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Youth completing assessments & following verified roadmaps</div>
             </div>
           </div>
+        </div>
+      </SectionErrorBoundary>
+
+      <SectionErrorBoundary sectionName="Published Government Opportunities & Schemes">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Active Government Opportunities & Schemes
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold rounded border border-emerald-200 dark:border-emerald-800">
+                  {govOpportunities.length} Active
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Official schemes, apprenticeships, and vocational training initiatives published to the state registry.
+              </p>
+            </div>
+            {canPublish && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer self-start flex items-center gap-1.5"
+              >
+                <span>+</span>
+                <span>Publish New Scheme</span>
+              </button>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="py-8 text-center text-xs text-slate-400">Loading published opportunities...</div>
+          ) : govOpportunities.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {govOpportunities.map((opp) => (
+                <div
+                  key={opp.id}
+                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-teal-500/40 transition-colors flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                        {opp.opportunity_type || 'APPRENTICESHIP'}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {opp.deadline ? `Deadline: ${opp.deadline}` : 'Open Enrollment'}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2">
+                      {opp.name}
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {opp.department}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 line-clamp-3">
+                      {opp.description}
+                    </p>
+                    {Array.isArray(opp.target_skills) && opp.target_skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {opp.target_skills.slice(0, 4).map((sk, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] px-2 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium"
+                          >
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      📍 {Array.isArray(opp.district_coverage) ? opp.district_coverage.join(', ') : (opp.district_coverage || 'Maharashtra')}
+                    </span>
+                    {opp.application_url && (
+                      <a
+                        href={opp.application_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>Apply</span>
+                        <span>↗</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No Active Opportunities Published"
+              message="Published government opportunities and schemes will appear here once submitted through the state console."
+            />
+          )}
         </div>
       </SectionErrorBoundary>
 

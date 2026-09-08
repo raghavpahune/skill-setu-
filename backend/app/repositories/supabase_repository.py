@@ -453,11 +453,14 @@ def get_student_profile(user_id: str) -> dict[str, Any] | None:
 
     from app.db import _cache
     from app.config import settings
+    cached_profiles = _cache.get("student_profiles", [])
+    cached_profile = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     if db_profile:
+        if cached_profile:
+            return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if settings.use_demo_data:
-        cached_profiles = _cache.get("student_profiles", [])
-        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
+    if settings.use_demo_data and cached_profile:
+        return cached_profile
     return None
 
 
@@ -501,7 +504,7 @@ def upsert_student_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("student_profiles", [])
     uid = profile_data.get("user_id")
-    saved_profile = dict(saved_db)
+    saved_profile = {**clean_profile, **saved_db}
     existing_idx = next((i for i, p in enumerate(profiles) if (p.get("user_id") or p.get("id")) == uid), None)
     if existing_idx is not None:
         profiles[existing_idx] = saved_profile
@@ -586,11 +589,14 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
 
     from app.db import _cache
     from app.config import settings
+    cached_profiles = _cache.get("employee_profiles", [])
+    cached_profile = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     if db_profile:
+        if cached_profile:
+            return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if settings.use_demo_data:
-        cached_profiles = _cache.get("employee_profiles", [])
-        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
+    if settings.use_demo_data and cached_profile:
+        return cached_profile
     return None
 
 
@@ -634,7 +640,7 @@ def upsert_employee_profile(profile_data: dict[str, Any]) -> dict[str, Any]:
     from app.db import _cache, _flush_real_table
     profiles = _cache.setdefault("employee_profiles", [])
     uid = profile_data.get("user_id")
-    saved_profile = dict(saved_db)
+    saved_profile = {**clean_profile, **saved_db}
     existing_idx = next((i for i, p in enumerate(profiles) if (p.get("user_id") or p.get("id")) == uid), None)
     if existing_idx is not None:
         profiles[existing_idx] = saved_profile

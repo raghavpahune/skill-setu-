@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from app.core.data_mode import is_explicit_demo_mode
 from app.core.security import require_roles, get_optional_current_user, is_demo_student_id
 from app.db import get_demo, save_gov_opportunity
@@ -15,16 +15,36 @@ router = APIRouter()
 
 
 class GovOpportunitySubmission(BaseModel):
-    name: str = Field(..., min_length=3, max_length=250, description="Name of the scheme or opportunity")
-    department: str = Field(..., min_length=2, max_length=200, description="Government department or agency")
-    description: str = Field(..., min_length=5, max_length=3000, description="Description of the opportunity")
+    name: str = Field(..., min_length=3, max_length=250)
+    department: str = Field(..., min_length=2, max_length=200)
+    description: str = Field(..., min_length=5, max_length=3000)
     eligibility_criteria: str | None = Field(None, max_length=1000)
     target_skills: list[str] = Field(default_factory=list)
     district_coverage: list[str] | str = Field(default="Maharashtra")
-    opportunity_type: str = Field(default="APPRENTICESHIP", description="APPRENTICESHIP, VOCATIONAL_TRAINING, EMPLOYMENT_SCHEME, SUBSIDY")
+    opportunity_type: str = Field(default="APPRENTICESHIP")
     application_url: str | None = None
     deadline: str | None = None
     status: str = Field(default="active")
+
+    @field_validator("name", "department", "description", mode="before")
+    @classmethod
+    def validate_non_empty_strings(cls, v: object) -> object:
+        if isinstance(v, str):
+            clean = v.strip()
+            if not clean:
+                raise ValueError("Field cannot be empty")
+            return clean
+        return v
+
+    @field_validator("application_url")
+    @classmethod
+    def validate_url(cls, v: str | None) -> str | None:
+        if not v or not v.strip():
+            return "https://mahaswayam.gov.in"
+        clean = v.strip()
+        if not (clean.startswith("http://") or clean.startswith("https://")):
+            return f"https://{clean}"
+        return clean
 
 
 @router.post("/gov/opportunities", status_code=status.HTTP_201_CREATED)
@@ -32,10 +52,8 @@ async def create_gov_opportunity(
     data: GovOpportunitySubmission,
     current_user: dict = Depends(require_roles(["GOVERNMENT", "ADMIN"])),
 ):
-    """Create a new government scheme or opportunity record. Accessible to GOVERNMENT and ADMIN roles."""
     opp_id = f"gov-{uuid.uuid4().hex[:8]}"
     now_iso = datetime.now(timezone.utc).isoformat()
-    now_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     coverage = data.district_coverage
     if isinstance(coverage, str):
@@ -56,14 +74,21 @@ async def create_gov_opportunity(
         "source": "USER_SUBMITTED",
         "data_provenance": "GOVERNMENT_OFFICIAL",
         "is_demo": False,
-        "last_updated": now_date,
         "created_at": now_iso,
         "updated_at": now_iso,
         "user_id": current_user.get("id"),
         "user_email": current_user.get("email"),
     }
 
-    saved = save_gov_opportunity(record)
+    try:
+        saved = save_gov_opportunity(record)
+    except Exception as e:
+        logger.exception("[Gov] Failed persisting government opportunity: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database persistence failed for government opportunity.",
+        ) from e
+
     return {
         "status": "created",
         "message": f"Government opportunity '{saved['id']}' created successfully.",
@@ -200,10 +225,17 @@ async def list_gov_opportunities(
             if opportunity_type:
                 query = query.eq("opportunity_type", opportunity_type.upper())
             res = query.execute()
-            records = [r for r in (res.data or []) if _is_authoritative_gov_opp(r)]
+            db_records = [r for r in (res.data or []) if _is_authoritative_gov_opp(r)]
         except Exception as e:
             logger.warning("[GovOpps] Supabase unavailable: %s", e)
-            records = []
+            db_records = []
+        from app.db import _cache
+        cached_real = [r for r in _cache.get("gov_opportunities", []) if _is_authoritative_gov_opp(r)]
+        records_map = {r["id"]: r for r in cached_real if r.get("id")}
+        for r in db_records:
+            if r.get("id"):
+                records_map[r["id"]] = r
+        records = list(records_map.values())
 
     filtered = []
     for r in records:

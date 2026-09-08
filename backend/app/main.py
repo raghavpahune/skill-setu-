@@ -15,9 +15,11 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import os
-    is_prod = bool(os.getenv("RENDER") or os.getenv("ENVIRONMENT") == "production" or not settings.use_demo_data)
-    if is_prod and not (settings.jwt_secret_key and settings.jwt_secret_key.strip()):
+    if settings.is_production and settings.demo_auth_enabled:
+        raise RuntimeError(
+            "FATAL: Demo authentication cannot be enabled in production mode (DEMO_AUTH_ENABLED=true)."
+        )
+    if settings.is_production and not (settings.jwt_secret_key and settings.jwt_secret_key.strip()):
         raise RuntimeError(
             "FATAL: Production JWT secret is mandatory. Set JWT_SECRET_KEY in production environment variables."
         )

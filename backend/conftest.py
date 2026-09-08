@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-dedicated-for-pytest-conftest-environment")
+os.environ.setdefault("DEMO_AUTH_ENABLED", "true")
 
 import json
 from copy import deepcopy
@@ -13,6 +14,7 @@ import pytest
 from app.config import settings
 if not settings.jwt_secret_key:
     settings.jwt_secret_key = "test-secret-key-dedicated-for-pytest-conftest-environment"
+settings.demo_auth_enabled = True
 
 from app.repositories.supabase_repository import set_supabase_client, reset_supabase_client
 
@@ -524,7 +526,7 @@ def mock_supabase_for_tests():
         jobs_rows=deepcopy(_cache.get("jobs", [])),
         sync_logs_rows=deepcopy(_cache.get("sync_logs", [])),
         employers_rows=deepcopy(_cache.get("employers", [])),
-        users_rows=deepcopy(_cache.get("users", [])),
+        users_rows=[deepcopy(u) for u in _cache.get("users", []) if not u.get("is_demo")],
         difficult_skills_rows=deepcopy(_cache.get("difficult_skills", [])),
     )
     set_supabase_client(mock_client)
