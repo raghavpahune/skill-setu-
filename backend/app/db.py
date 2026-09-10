@@ -248,7 +248,7 @@ def init_db():
             skills_res = client.table("skills").select("id").limit(1).execute()
             if not getattr(skills_res, "data", None):
                 from app.repositories.supabase_repository import upsert_skills
-                authoritative_skills = get_demo("skills")
+                authoritative_skills = _cache.get("skills", [])
                 if authoritative_skills:
                     upsert_skills(authoritative_skills)
                     logger.info("[DB] Seeded %d authoritative skills into Supabase", len(authoritative_skills))
