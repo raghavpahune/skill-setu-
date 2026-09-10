@@ -596,14 +596,12 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
 
     from app.db import _cache
     from app.config import settings
-    cached_profiles = _cache.get("employee_profiles", [])
-    cached_profile = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
+    from app.core.security import is_demo_student_id
     if db_profile:
-        if cached_profile:
-            return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if settings.use_demo_data and cached_profile:
-        return cached_profile
+    if settings.use_demo_data and (is_demo_student_id(user_id) or str(user_id).startswith(("demo-", "emp-demo-"))):
+        cached_profiles = _cache.get("employee_profiles", [])
+        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     return None
 
 
@@ -1515,3 +1513,26 @@ def list_skills(limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed listing skills: %s", e)
         raise SupabaseRepositoryError(f"Database listing failed for skills: {e}") from e
+
+
+def upsert_skills(skills_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not skills_data:
+        return []
+    try:
+        client = get_client()
+        clean_skills = []
+        for s in skills_data:
+            clean = {
+                "name": s["name"],
+                "category": s["category"],
+                "nsqf_level": s.get("nsqf_level", 5),
+                "synonyms": s.get("synonyms", []),
+            }
+            clean_skills.append(clean)
+        res = client.table("skills").upsert(clean_skills, on_conflict="name").execute()
+        return getattr(res, "data", []) or clean_skills
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting skills: %s", e)
+        raise SupabaseRepositoryError(f"Database upsert failed for skills: {e}") from e

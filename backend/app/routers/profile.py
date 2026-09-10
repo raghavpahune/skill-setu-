@@ -698,6 +698,7 @@ async def create_employee_profile(
             detail="Forbidden: Employee profile creation requires EMPLOYEE, EMPLOYER, or ADMIN role.",
         )
     user_id = current_user["id"]
+    ensure_user_in_supabase(user_id, current_user, role)
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
@@ -747,6 +748,7 @@ async def update_employee_profile(
             detail="Forbidden: Employee profile update requires EMPLOYEE, EMPLOYER, or ADMIN role.",
         )
     user_id = current_user["id"]
+    ensure_user_in_supabase(user_id, current_user, role)
     now_iso = datetime.now(timezone.utc).isoformat()
     raw_skills = [s.model_dump() for s in payload.skills]
     deduped_skills = deduplicate_skills(raw_skills)
@@ -795,6 +797,7 @@ async def patch_employee_profile(
             detail="Forbidden: Employee profile patch requires EMPLOYEE, EMPLOYER, or ADMIN role.",
         )
     user_id = current_user["id"]
+    ensure_user_in_supabase(user_id, current_user, role)
     try:
         existing = supabase_repository.get_employee_profile(user_id)
     except SupabaseRepositoryError as e:

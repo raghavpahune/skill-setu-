@@ -244,6 +244,17 @@ def init_db():
             except Exception as e:
                 logger.warning("[DB] Supabase table '%s' query error: %s", tbl, e)
 
+        try:
+            skills_res = client.table("skills").select("id").limit(1).execute()
+            if not getattr(skills_res, "data", None):
+                from app.repositories.supabase_repository import upsert_skills
+                authoritative_skills = get_demo("skills")
+                if authoritative_skills:
+                    upsert_skills(authoritative_skills)
+                    logger.info("[DB] Seeded %d authoritative skills into Supabase", len(authoritative_skills))
+        except Exception as e:
+            logger.warning("[DB] Failed seeding skills to Supabase: %s", e)
+
     if not settings.is_production and settings.demo_auth_enabled:
         init_demo_users()
 

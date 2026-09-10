@@ -714,7 +714,7 @@ export default function StudentAssessmentForm({ onOpenExplainability, onAssessme
             </div>
           ) : loadingQuestions ? (
             <div className="py-12 text-center text-xs text-slate-500 animate-pulse">
-              Loading diagnostic questions from SkillSetu intelligence engine...
+              Loading diagnostic questions from SkillSetuAI intelligence engine...
             </div>
           ) : (
             <div className="space-y-6">

@@ -380,7 +380,7 @@ export default function StudentProfile() {
               Initialize Your Skill Passport
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
-              No authenticated profile was found for your account. Complete your educational details and skills below to generate your official SkillSetu passport.
+              No authenticated profile was found for your account. Complete your educational details and skills below to generate your official SkillSetuAI passport.
             </p>
           </div>
         ) : null}

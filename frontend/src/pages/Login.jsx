@@ -74,7 +74,7 @@ export default function Login() {
               S
             </div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Sign In to SkillSetu
+              Sign In to SkillSetuAI
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Labour-Market Intelligence & Curriculum Alignment Platform
