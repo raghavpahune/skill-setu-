@@ -47,8 +47,21 @@ def _find_real_data_dir() -> Path:
     return real_dir
 
 
+def _row_identity(row: dict) -> Any:
+    if not isinstance(row, dict):
+        return None
+    if row.get("id"):
+        return row["id"]
+    if row.get("user_id"):
+        return row["user_id"]
+    if row.get("job_id") and row.get("skill_id"):
+        return (row["job_id"], row["skill_id"])
+    if row.get("course_id") and row.get("skill_id"):
+        return (row["course_id"], row["skill_id"])
+    return None
+
+
 def _flush_real_table(table: str):
-    """Write all user-submitted and real ingested records for a table to data/real/{table}.json."""
     try:
         real_dir = _find_real_data_dir()
         records = _cache.get(table, [])
@@ -59,13 +72,19 @@ def _flush_real_table(table: str):
                 or (r.get("is_demo") is False and r.get("source") != "DEMO_SYNTHETIC")
             )
         ]
-
-        # ponytail: runtime users persist to users_runtime.json (not users.json)
-        # so load_real_data can skip the fixture file while still loading persisted users
+        deduped_real: list[dict] = []
+        seen_identities: set[Any] = set()
+        for r in real_records:
+            ident = _row_identity(r)
+            if ident is not None:
+                if ident in seen_identities:
+                    continue
+                seen_identities.add(ident)
+            deduped_real.append(r)
         filename = "users_runtime" if table == "users" else table
         out_file = real_dir / f"{filename}.json"
-        out_file.write_text(json.dumps(real_records, indent=2, ensure_ascii=False), encoding="utf-8")
-        logger.info("[DB] Flushed %d real records to %s", len(real_records), out_file)
+        out_file.write_text(json.dumps(deduped_real, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info("[DB] Flushed %d real records to %s", len(deduped_real), out_file)
     except Exception as e:
         logger.warning("[DB] Failed flushing real table '%s' to disk: %s", table, e)
 
@@ -145,19 +164,13 @@ def load_demo_data() -> int:
 
 
 def load_real_data() -> int:
-    """Load and overlay real user-submitted records from data/real directory into _cache."""
     real_dir = _find_real_data_dir()
     loaded_count = 0
     if not real_dir.is_dir():
         return 0
 
     for f in real_dir.glob("*.json"):
-        if f.name == "README.md":
-            continue
-        # SECURITY: skip users.json fixture file — test fixture accounts must not become
-        # valid production login identities. Runtime-persisted users live in
-        # users_runtime.json (written by save_user/_flush_real_table) and load normally.
-        if f.name == "users.json":
+        if f.name == "README.md" or f.name == "users.json":
             continue
         try:
             records = json.loads(f.read_text(encoding="utf-8"))
@@ -166,21 +179,23 @@ def load_real_data() -> int:
                 if table == "users_runtime":
                     table = "users"
                 existing = _cache.setdefault(table, [])
-                existing_ids = {r.get("id") for r in existing if isinstance(r, dict) and r.get("id")}
-                # Prepend / merge real records
+                existing_map = {}
+                for idx, item in enumerate(existing):
+                    ident = _row_identity(item)
+                    if ident is not None:
+                        existing_map[ident] = idx
                 for r in records:
                     if not isinstance(r, dict):
                         continue
                     r["source"] = r.get("source") or "USER_SUBMITTED"
                     r["is_demo"] = False
-                    rid = r.get("id")
-                    if rid and rid in existing_ids:
-                        for idx, item in enumerate(existing):
-                            if isinstance(item, dict) and item.get("id") == rid:
-                                existing[idx] = r
-                                break
+                    rid = _row_identity(r)
+                    if rid is not None and rid in existing_map:
+                        existing[existing_map[rid]] = r
                     else:
-                        existing.insert(0, r)
+                        if rid is not None:
+                            existing_map[rid] = len(existing)
+                        existing.append(r)
                 loaded_count += len(records)
         except Exception as e:
             logger.warning("[DB] Failed loading real data file %s: %s", f.name, e)
@@ -188,18 +203,6 @@ def load_real_data() -> int:
     if loaded_count > 0:
         logger.info("[DB] Loaded %d real user records across tables from %s", loaded_count, real_dir)
     return loaded_count
-
-
-def _row_identity(row: dict) -> Any:
-    if not isinstance(row, dict):
-        return None
-    if row.get("id"):
-        return row["id"]
-    if row.get("job_id") and row.get("skill_id"):
-        return (row["job_id"], row["skill_id"])
-    if row.get("course_id") and row.get("skill_id"):
-        return (row["course_id"], row["skill_id"])
-    return None
 
 
 def init_db():
