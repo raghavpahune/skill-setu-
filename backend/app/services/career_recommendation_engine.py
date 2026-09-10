@@ -113,11 +113,13 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
     )
     try:
         a = get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
+        p = get_student_profile(student_id)
+        p_time = (p.get("updated_at") or p.get("created_at") or "") if p else ""
+        a_time = (a.get("updated_at") or a.get("created_at") or "") if a else ""
+        if p and (p.get("skills") or not a or p_time >= a_time):
+            return p
         if a:
             return a
-        p = get_student_profile(student_id)
-        if p:
-            return p
     except SupabaseRepositoryError as e:
         logger.warning("[RecommendationEngine] Supabase repository unavailable resolving student '%s': %s", student_id, e)
         if not is_demo_student_id(student_id):
@@ -264,10 +266,10 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
                 "proficiency": "intermediate",
             })
 
-    candidate_name = profile.get("name", "Candidate")
-    target_career_raw = profile.get("target_role") or profile.get("career_goal") or "AI Engineer"
-    candidate_district = profile.get("district") or "Maharashtra"
-    candidate_education = profile.get("education") or "Diploma / Degree"
+    candidate_name = profile.get("full_name") or profile.get("name") or "Candidate"
+    target_career_raw = profile.get("target_role") or profile.get("desired_role") or profile.get("career_goal") or "AI Engineer"
+    candidate_district = profile.get("preferred_location") or profile.get("district") or "Maharashtra"
+    candidate_education = profile.get("education") or profile.get("degree") or profile.get("education_level") or "Diploma / Degree"
     quiz_score_pct = profile.get("quiz_score_pct", 75)
 
     # 2. Extract strictly VALIDATED Employer Demands
@@ -626,6 +628,7 @@ def compute_career_recommendations(student_id: str, is_demo: bool | None = None)
         "candidate_name": candidate_name,
         "education": candidate_education,
         "district": candidate_district,
+        "candidate_district": candidate_district,
         "target_career_goal": target_career_raw,
         "overall_readiness": {
             "score": overall_readiness_score,

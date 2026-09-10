@@ -239,24 +239,19 @@ def _extract_student_skills(profile: dict[str, Any] | None, assessment: dict[str
             if new_rank > current_rank:
                 claimed[resolved_id]["proficiency"] = clean_prof
 
-    if profile:
-        raw_skills = profile.get("skills") or []
+    prof_time = (profile.get("updated_at") or profile.get("created_at") or "") if profile else ""
+    asst_time = (assessment.get("updated_at") or assessment.get("created_at") or "") if assessment else ""
+    prof_skills = (profile.get("skills") or []) if profile else []
+    asst_skills = (assessment.get("current_skills") or []) if assessment else []
+    sources = [(assessment, asst_skills), (profile, prof_skills)] if prof_time >= asst_time else [(profile, prof_skills), (assessment, asst_skills)]
+    for src_obj, raw_skills in sources:
+        if not src_obj:
+            continue
         for sk in raw_skills:
             if isinstance(sk, dict):
                 sid = sk.get("skill_id") or sk.get("id")
-                name = sk.get("name") or sk.get("skill_name")
-                prof = sk.get("proficiency") or sk.get("level")
-                record_skill(sid, name, prof)
-            elif isinstance(sk, str):
-                record_skill(None, sk, "intermediate")
-
-    if assessment:
-        raw_current = assessment.get("current_skills") or []
-        for sk in raw_current:
-            if isinstance(sk, dict):
-                sid = sk.get("skill_id") or sk.get("id")
                 name = sk.get("skill_name") or sk.get("name")
-                prof = sk.get("level") or sk.get("proficiency")
+                prof = sk.get("proficiency") or sk.get("level")
                 record_skill(sid, name, prof)
             elif isinstance(sk, str):
                 record_skill(None, sk, "intermediate")
@@ -267,10 +262,18 @@ def _extract_student_skills(profile: dict[str, Any] | None, assessment: dict[str
 def _get_target_role(student_id: str, requested_role: str | None, profile: dict[str, Any] | None, assessment: dict[str, Any] | None) -> str:
     if requested_role and requested_role.strip():
         return requested_role.strip()
-    if profile and profile.get("target_role"):
-        return str(profile["target_role"]).strip()
-    if assessment and assessment.get("career_goal"):
-        return str(assessment["career_goal"]).strip()
+    prof_time = (profile.get("updated_at") or profile.get("created_at") or "") if profile else ""
+    asst_time = (assessment.get("updated_at") or assessment.get("created_at") or "") if assessment else ""
+    if prof_time >= asst_time:
+        if profile and (profile.get("target_role") or profile.get("desired_role")):
+            return str(profile.get("target_role") or profile.get("desired_role")).strip()
+        if assessment and assessment.get("career_goal"):
+            return str(assessment["career_goal"]).strip()
+    else:
+        if assessment and assessment.get("career_goal"):
+            return str(assessment["career_goal"]).strip()
+        if profile and (profile.get("target_role") or profile.get("desired_role")):
+            return str(profile.get("target_role") or profile.get("desired_role")).strip()
     return "AI Engineer"
 
 
