@@ -156,8 +156,13 @@ def get_personalized_industry_alerts(
     student_acquired_ids = set()
     if student_id:
         try:
-            from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
-            student_profile = get_student_profile(student_id) or get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
+            from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user, get_employee_profile
+            student_profile = (
+                get_student_profile(student_id)
+                or get_student_assessment(student_id)
+                or get_student_assessment_by_user(student_id)
+                or get_employee_profile(student_id)
+            )
         except Exception as e:
             logger.error("[StudentService] Supabase error resolving student %s: %s", student_id, e)
             student_profile = None
@@ -169,7 +174,16 @@ def get_personalized_industry_alerts(
                     student_profile = p
                     break
         if student_profile:
-            student_acquired_ids = {sk["skill_id"] for sk in student_profile.get("skills", []) if isinstance(sk, dict) and "skill_id" in sk}
+            student_acquired_ids = set()
+            for sk in student_profile.get("skills", []):
+                if isinstance(sk, dict):
+                    if "skill_id" in sk and sk["skill_id"]:
+                        student_acquired_ids.add(sk["skill_id"])
+                    s_name = (sk.get("skill_name") or sk.get("name") or "").strip().lower()
+                    if s_name:
+                        for s_id, s_obj in skills_map.items():
+                            if (s_obj.get("name") or "").strip().lower() == s_name:
+                                student_acquired_ids.add(s_id)
 
     # Determine domains to evaluate
     domains_to_process = []

@@ -408,6 +408,37 @@ def _build_context(
                         context["student_profiles"] = []
                 else:
                     context["student_profiles"] = []
+        elif role == "employee":
+            caller_id = (current_user and current_user.get("id")) or student_id
+            if caller_id:
+                from app.repositories import supabase_repository
+                try:
+                    ep = supabase_repository.get_employee_profile(caller_id)
+                    if ep:
+                        context["employee_profile"] = {
+                            "name": ep.get("full_name") or ep.get("name", ""),
+                            "current_role": ep.get("current_role", ""),
+                            "years_of_experience": ep.get("years_of_experience", 0),
+                            "industry": ep.get("industry", ""),
+                            "target_role": ep.get("target_role", ""),
+                            "preferred_location": ep.get("preferred_location", ""),
+                            "skills": [
+                                (s.get("skill_name") or s.get("name", ""))
+                                for s in ep.get("skills", [])
+                                if isinstance(s, dict)
+                            ],
+                            "certifications": [
+                                (c.get("name") or "")
+                                for c in ep.get("certifications", [])
+                                if isinstance(c, dict)
+                            ],
+                        }
+                    else:
+                        context["employee_profile"] = None
+                except Exception:
+                    context["employee_profile"] = None
+            else:
+                context["employee_profile"] = None
         elif role == "government":
             from app.services.district_service import get_all_districts
             context["districts"] = get_all_districts(is_demo=is_demo)
@@ -478,7 +509,7 @@ async def handle_question(
     logger.info(f"[Copilot] Request role={role}, district={district}, provider={provider.__class__.__name__ if provider else 'None'}, is_live={is_live_ai}, is_demo={is_demo_mode}")
 
     if not is_demo_mode:
-        if context.get("authoritative_data_status") == "empty_or_unindexed" and not context.get("student_profiles") and not context.get("student_recommendation_context"):
+        if context.get("authoritative_data_status") == "empty_or_unindexed" and not context.get("student_profiles") and not context.get("student_recommendation_context") and not context.get("employee_profile"):
             return {
                 "answer": "Authoritative labour market intelligence is currently unavailable or unindexed in Real Data mode. Live AI generation without verified data is restricted to prevent inaccurate guidance.",
                 "role": role,

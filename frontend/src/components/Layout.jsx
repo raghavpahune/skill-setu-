@@ -160,6 +160,8 @@ export default function Layout({ children }) {
           col3Title: 'Workforce Intelligence',
           col3Links: [
             { path: '/student/copilot?role=employee', label: 'Skill Intelligence' },
+            { path: '/student?tab=signals', label: 'Industry & Technology Alerts' },
+            { path: '/student?tab=forecast', label: 'Future Skill Forecasts' },
           ],
         };
       case 'EMPLOYER':

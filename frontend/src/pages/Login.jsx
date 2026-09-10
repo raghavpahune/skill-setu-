@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const DEMO_USERS = [
   { label: 'Student', email: 'student@skillsetu.gov.in', pass: 'Password@123', role: 'STUDENT', icon: '🎓' },
+  { label: 'Employee', email: 'employee@skillsetu.gov.in', pass: 'Password@123', role: 'EMPLOYEE', icon: '💼' },
   { label: 'Employer', email: 'employer@skillsetu.gov.in', pass: 'Password@123', role: 'EMPLOYER', icon: '🏢' },
   { label: 'Institute', email: 'institute@skillsetu.gov.in', pass: 'Password@123', role: 'INSTITUTE', icon: '🏛️' },
   { label: 'Government', email: 'government@skillsetu.gov.in', pass: 'Password@123', role: 'GOVERNMENT', icon: '🇮🇳' },
@@ -39,6 +40,7 @@ export default function Login() {
       const roleDefaultRoute =
         {
           STUDENT: '/student',
+          EMPLOYEE: '/employee/profile',
           EMPLOYER: '/employer',
           INSTITUTE: '/institute',
           GOVERNMENT: '/government',

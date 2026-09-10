@@ -106,8 +106,8 @@ async def my_skill_passport(
 
     matched_profile = None
     try:
-        from app.repositories.supabase_repository import get_student_profile
-        matched_profile = get_student_profile(user_id)
+        from app.repositories.supabase_repository import get_student_profile, get_employee_profile
+        matched_profile = get_student_profile(user_id) or get_employee_profile(user_id)
     except Exception as e:
         logger.exception("[StudentPassport] Supabase error fetching profile for %s: %s", user_id, e)
         raise HTTPException(
@@ -248,7 +248,11 @@ async def skill_passport(
 
     demo_profiles = get_demo("student_profiles") or []
     demo_assessments = get_demo("student_assessments") or []
-    is_demo_fixture = any((item.get("user_id") or item.get("id")) == student_id for item in (demo_profiles + demo_assessments))
+    is_demo_fixture = any(
+        (item.get("user_id") or item.get("id")) == student_id
+        for item in (demo_profiles + demo_assessments)
+        if item.get("source") in ("DEMO_SYNTHETIC", "BENCHMARK_NATIONAL") or item.get("is_demo") is True or is_demo_student_id(item.get("user_id") or item.get("id"))
+    )
     is_demo_req = is_demo_student_id(student_id) or is_demo_fixture
 
     if is_demo_req:
@@ -285,8 +289,8 @@ async def skill_passport(
 
     p = None
     try:
-        from app.repositories.supabase_repository import get_student_profile
-        p = get_student_profile(student_id)
+        from app.repositories.supabase_repository import get_student_profile, get_employee_profile
+        p = get_student_profile(student_id) or get_employee_profile(student_id)
     except Exception as e:
         logger.exception("[StudentPassport] Supabase error for profile %s: %s", student_id, e)
         raise HTTPException(
@@ -305,7 +309,7 @@ async def skill_passport(
     use_p = bool(p and (p.get("skills") or not a or p_time >= a_time))
 
     if use_p and p:
-        if _is_private_user_record(p) and not is_demo_req:
+        if _is_private_user_record(p):
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -377,7 +381,7 @@ async def skill_passport(
         }
 
     if a:
-        if _is_private_user_record(a) and not is_demo_req:
+        if _is_private_user_record(a):
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -465,7 +469,11 @@ async def learning_roadmap(
     is_demo_fixture = False
     if not is_demo_id:
         demo_profiles = get_demo("student_profiles") or []
-        is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
+        is_demo_fixture = any(
+            (p.get("user_id") or p.get("id")) == student_id
+            for p in demo_profiles
+            if p.get("source") in ("DEMO_SYNTHETIC", "BENCHMARK_NATIONAL") or p.get("is_demo") is True or is_demo_student_id(p.get("user_id") or p.get("id"))
+        )
         if not is_demo_fixture:
             if not current_user:
                 raise HTTPException(
@@ -528,7 +536,11 @@ async def recalculate_student_roadmap(
         )
     is_demo_id = is_demo_student_id(student_id)
     demo_profiles = get_demo("student_profiles") or []
-    is_demo_fixture = any((p.get("user_id") or p.get("id")) == student_id for p in demo_profiles)
+    is_demo_fixture = any(
+        (p.get("user_id") or p.get("id")) == student_id
+        for p in demo_profiles
+        if p.get("source") in ("DEMO_SYNTHETIC", "BENCHMARK_NATIONAL") or p.get("is_demo") is True or is_demo_student_id(p.get("user_id") or p.get("id"))
+    )
     is_demo_req = is_demo_id or is_demo_fixture
     from app.services.roadmap_service import compute_adaptive_roadmap
     from app.repositories.supabase_repository import SupabaseRepositoryError
@@ -817,8 +829,14 @@ def _verify_student_recommendations_access(target_id: str, current_user: dict | 
             get_student_assessment,
             get_student_assessment_by_user,
             get_student_profile,
+            get_employee_profile,
         )
-        a = get_student_assessment(target_id) or get_student_assessment_by_user(target_id) or get_student_profile(target_id)
+        a = (
+            get_student_assessment(target_id)
+            or get_student_assessment_by_user(target_id)
+            or get_student_profile(target_id)
+            or get_employee_profile(target_id)
+        )
     except Exception as e:
         logger.exception("[VerifyAccess] Supabase query failed for %s: %s", target_id, e)
         if not is_demo_student_id(target_id):

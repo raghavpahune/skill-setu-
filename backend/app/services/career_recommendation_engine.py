@@ -109,6 +109,7 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
         get_student_assessment,
         get_student_assessment_by_user,
         get_student_profile,
+        get_employee_profile,
         SupabaseRepositoryError,
     )
     try:
@@ -120,6 +121,9 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
             return p
         if a:
             return a
+        ep = get_employee_profile(student_id)
+        if ep:
+            return ep
     except SupabaseRepositoryError as e:
         logger.warning("[RecommendationEngine] Supabase repository unavailable resolving student '%s': %s", student_id, e)
         if not is_demo_student_id(student_id):
