@@ -323,7 +323,7 @@ def _build_context(
 
         # Phase 17 & 18: Grounded Student Recommendation Context
         effective_student_id = student_id or (context_data.get("student_id") if context_data and isinstance(context_data, dict) else None)
-        if effective_student_id:
+        if effective_student_id and role == "student":
             # SECURITY CRITICAL: Authorize effective student ID before compute_career_recommendations()
             from app.routers.student import _verify_student_recommendations_access
             _verify_student_recommendations_access(effective_student_id, current_user)
