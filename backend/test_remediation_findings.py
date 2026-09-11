@@ -145,3 +145,68 @@ def test_skill_explainability_idor_protection():
 
     res_demo = client.get("/api/student/skill-explainability/sk-001?student_id=stu-001")
     assert res_demo.status_code == 200
+
+
+def test_gov_opportunities_and_schemes_recommended_authorization():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import save_user
+    import uuid
+
+    client = TestClient(app)
+    real_user_1 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    real_user_2 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    admin_user = f"usr-adm-{uuid.uuid4().hex[:8]}"
+
+    save_user({"id": real_user_1, "email": f"{real_user_1}@test.gov.in", "role": "STUDENT", "full_name": "Student 1", "is_active": True})
+    save_user({"id": real_user_2, "email": f"{real_user_2}@test.gov.in", "role": "STUDENT", "full_name": "Student 2", "is_active": True})
+    save_user({"id": admin_user, "email": f"{admin_user}@test.gov.in", "role": "ADMIN", "full_name": "Admin", "is_active": True})
+
+    token_1 = create_access_token({"sub": real_user_1, "role": "STUDENT", "email": f"{real_user_1}@test.gov.in"})
+    token_2 = create_access_token({"sub": real_user_2, "role": "STUDENT", "email": f"{real_user_2}@test.gov.in"})
+    token_admin = create_access_token({"sub": admin_user, "role": "ADMIN", "email": f"{admin_user}@test.gov.in"})
+
+    headers_1 = {"Authorization": f"Bearer {token_1}"}
+    headers_2 = {"Authorization": f"Bearer {token_2}"}
+    headers_admin = {"Authorization": f"Bearer {token_admin}"}
+
+    mock_profile_1 = {
+        "id": real_user_1,
+        "user_id": real_user_1,
+        "name": "Student 1",
+        "skills": [{"skill_id": "sk-001", "name": "Python", "proficiency": "intermediate"}],
+        "district": "Pune",
+        "education": "B.Tech",
+        "target_role": "Software Engineer",
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+    }
+
+    endpoints = [
+        f"/api/gov/opportunities/recommended/{real_user_1}",
+        f"/api/schemes/recommended/{real_user_1}",
+    ]
+
+    with patch("app.repositories.supabase_repository.get_student_profile", return_value=mock_profile_1):
+        for ep in endpoints:
+            res_unauth = client.get(ep)
+            assert res_unauth.status_code == 401
+
+            res_cross = client.get(ep, headers=headers_2)
+            assert res_cross.status_code == 403
+
+            res_owner = client.get(ep, headers=headers_1)
+            assert res_owner.status_code == 200
+
+            res_admin = client.get(ep, headers=headers_admin)
+            assert res_admin.status_code == 200
+
+    demo_endpoints = [
+        "/api/gov/opportunities/recommended/stu-001",
+        "/api/schemes/recommended/stu-001",
+    ]
+    for ep in demo_endpoints:
+        res_demo = client.get(ep)
+        assert res_demo.status_code == 200
+

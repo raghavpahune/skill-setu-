@@ -142,6 +142,9 @@ async def recommended_schemes(
     if student_id == "me" and current_user:
         resolved_id = current_user.get("id") or "me"
 
+    from app.routers.student import _verify_student_recommendations_access
+    _verify_student_recommendations_access(resolved_id, current_user)
+
     profile = None
     try:
         from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
