@@ -971,6 +971,9 @@ def _verify_student_recommendations_access(target_id: str, current_user: dict | 
                     a = item
                     break
 
+    if is_demo_student_id(target_id):
+        return
+
     if a and _is_private_user_record(a):
         if not current_user:
             raise HTTPException(
@@ -983,7 +986,8 @@ def _verify_student_recommendations_access(target_id: str, current_user: dict | 
         user_role = (current_user.get("role") or "").upper()
         record_user_id = a.get("user_id")
         is_owner = (
-            (record_user_id and user_id == record_user_id)
+            (target_id and user_id == target_id)
+            or (record_user_id and user_id == record_user_id)
             or (a.get("id") and user_id == a.get("id"))
             or (user_email and a.get("user_email") == user_email)
         )
