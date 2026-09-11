@@ -298,3 +298,58 @@ def test_student_assessments_and_registry_authorization():
         assert real_user_1 in reg_admin_ids
 
 
+def test_copilot_context_data_student_id_forwarding():
+    from fastapi.testclient import TestClient
+    from unittest.mock import patch, AsyncMock
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import save_user
+    import uuid
+
+    client = TestClient(app)
+    real_user_1 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    real_user_2 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    admin_user = f"usr-adm-{uuid.uuid4().hex[:8]}"
+
+    save_user({"id": real_user_1, "email": f"{real_user_1}@test.gov.in", "role": "STUDENT", "full_name": "Student 1", "is_active": True})
+    save_user({"id": real_user_2, "email": f"{real_user_2}@test.gov.in", "role": "STUDENT", "full_name": "Student 2", "is_active": True})
+    save_user({"id": admin_user, "email": f"{admin_user}@test.gov.in", "role": "ADMIN", "full_name": "Admin", "is_active": True})
+
+    from app.repositories.supabase_repository import upsert_student_profile
+    upsert_student_profile({
+        "user_id": real_user_1,
+        "name": "Student 1",
+        "full_name": "Student 1",
+        "skills": [{"skill_name": "Python", "proficiency": "intermediate"}],
+        "source": "USER_SUBMITTED",
+        "is_demo": False,
+    })
+
+    token_1 = create_access_token({"sub": real_user_1, "role": "STUDENT", "email": f"{real_user_1}@test.gov.in"})
+    token_2 = create_access_token({"sub": real_user_2, "role": "STUDENT", "email": f"{real_user_2}@test.gov.in"})
+    token_admin = create_access_token({"sub": admin_user, "role": "ADMIN", "email": f"{admin_user}@test.gov.in"})
+
+    headers_1 = {"Authorization": f"Bearer {token_1}"}
+    headers_2 = {"Authorization": f"Bearer {token_2}"}
+    headers_admin = {"Authorization": f"Bearer {token_admin}"}
+
+    payload = {
+        "question": "Explain skills",
+        "context_data": {"student_id": real_user_1},
+    }
+
+    assert client.post("/api/copilot/ask", json=payload).status_code == 401
+    assert client.post("/api/copilot/ask", json=payload, headers=headers_2).status_code == 403
+
+    with patch("ai.copilot.handle_question", new_callable=AsyncMock) as mock_handle:
+        mock_handle.return_value = {"answer": "mocked answer"}
+        res_owner = client.post("/api/copilot/ask", json=payload, headers=headers_1)
+        assert res_owner.status_code == 200
+        assert mock_handle.call_args.kwargs["student_id"] == real_user_1
+
+        res_admin = client.post("/api/copilot/ask", json=payload, headers=headers_admin)
+        assert res_admin.status_code == 200
+        assert mock_handle.call_args.kwargs["student_id"] == real_user_1
+
+
+
