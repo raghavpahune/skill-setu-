@@ -18,7 +18,7 @@ export default function CopilotPage({ roleOverride }) {
     roleOverride,
   });
 
-  const initialPrompt = searchParams.get('q') || '';
+  const initialPrompt = searchParams.get('q') || searchParams.get('prompt') || '';
   const urlDistrict = searchParams.get('district') || '';
   const urlStudentId = searchParams.get('student_id') || searchParams.get('student') || '';
   const urlTopic = searchParams.get('topic') || '';

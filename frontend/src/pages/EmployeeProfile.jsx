@@ -513,7 +513,7 @@ export default function EmployeeProfile() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(`/student/copilot?role=employee&prompt=${encodeURIComponent(`How can I transition from ${form.current_role || 'my current role'} to ${passport.target_role || form.target_role || 'my target role'}?`)}`)}
+                  onClick={() => navigate(`/student/copilot?role=employee&q=${encodeURIComponent(`How can I transition from ${form.current_role || 'my current role'} to ${passport.target_role || form.target_role || 'my target role'}?`)}`)}
                   className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
                 >
                   <span>🤖</span> Consult AI Copilot →
