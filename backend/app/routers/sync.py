@@ -70,21 +70,22 @@ async def get_sync_logs(
     offset: int = Query(0, ge=0),
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
+    from app.db import decode_sync_log
     if is_explicit_demo_mode(is_demo):
-        logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
+        raw_logs = list(get_demo("sync_logs"))
+        logs = [decode_sync_log(l) for l in raw_logs if l.get("is_demo") is True]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            logs = list_sync_logs(limit=limit + offset)
-            logs = [l for l in logs if not l.get("is_demo")]
+            raw_logs = list_sync_logs(limit=limit + offset)
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
-            logs = []
-        if not logs:
+            raw_logs = []
+        if not raw_logs:
             from app.db import _cache
-            logs = [l for l in _cache.get("sync_logs", []) if not l.get("is_demo")]
-    from app.db import decode_sync_log
-    logs = [decode_sync_log(l) for l in logs]
+            raw_logs = list(_cache.get("sync_logs", []))
+        decoded_logs = [decode_sync_log(l) for l in raw_logs]
+        logs = [l for l in decoded_logs if not l.get("is_demo")]
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     return logs[offset : offset + limit]
 
@@ -96,23 +97,24 @@ async def get_sync_status(
     dg_connector = DataGovConnector()
     adz_connector = AdzunaConnector()
     is_demo_mode = is_explicit_demo_mode(is_demo)
+    from app.db import decode_sync_log
 
     if is_demo_mode:
-        logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
+        raw_logs = list(get_demo("sync_logs"))
+        logs = [decode_sync_log(l) for l in raw_logs if l.get("is_demo") is True]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            logs = list_sync_logs(limit=20)
-            logs = [l for l in logs if not l.get("is_demo")]
+            raw_logs = list_sync_logs(limit=20)
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
-            logs = []
-        if not logs:
+            raw_logs = []
+        if not raw_logs:
             from app.db import _cache
-            logs = [l for l in _cache.get("sync_logs", []) if not l.get("is_demo")]
+            raw_logs = list(_cache.get("sync_logs", []))
+        decoded_logs = [decode_sync_log(l) for l in raw_logs]
+        logs = [l for l in decoded_logs if not l.get("is_demo")]
 
-    from app.db import decode_sync_log
-    logs = [decode_sync_log(l) for l in logs]
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_run = logs[0] if logs else None
     last_success = next((l for l in logs if l.get("status") == "success"), None)

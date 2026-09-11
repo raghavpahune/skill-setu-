@@ -528,10 +528,10 @@ def save_sync_log(log_entry: dict) -> bool:
                 "error_message", "started_at", "completed_at", "duration_ms",
             }
             db_payload = {k: v for k, v in log_entry.items() if k in valid_cols}
-            if "sources_detail" in log_entry and log_entry["sources_detail"]:
-                sources_payload = dict(log_entry["sources_detail"])
-                if "is_demo" in log_entry:
-                    sources_payload["_meta"] = {"is_demo": bool(log_entry.get("is_demo"))}
+            sources_payload = dict(log_entry.get("sources_detail") or {})
+            if "is_demo" in log_entry:
+                sources_payload["_meta"] = {"is_demo": bool(log_entry.get("is_demo"))}
+            if sources_payload:
                 encoded = json.dumps(sources_payload)
                 existing_err = db_payload.get("error_message") or ""
                 db_payload["error_message"] = f"{existing_err}||SOURCES_DETAIL:{encoded}"

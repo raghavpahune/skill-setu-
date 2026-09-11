@@ -471,3 +471,42 @@ def test_sync_log_persistence_encoding_and_decoding():
     assert decoded["error_message"] == "data.gov.in: FAILED - 500 server error"
     assert decoded["sources_detail"]["data.gov.in"]["status"] == "FAILED"
     assert decoded["sources_detail"]["data.gov.in"]["error"] == "500 server error"
+
+
+def test_sync_routes_filter_mixed_persisted_demo_and_real_logs():
+    import asyncio
+    import json
+    from app.routers.sync import get_sync_logs, get_sync_status
+
+    raw_demo_log = {
+        "id": "persisted-demo-1",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "success",
+        "records_fetched": 100,
+        "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": True}, "data.gov.in": {"status": "SUCCESS", "records_fetched": 100}}),
+        "started_at": "2026-09-12T05:00:00Z",
+        "completed_at": "2026-09-12T05:00:01Z",
+    }
+    raw_real_log = {
+        "id": "persisted-real-1",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "failed",
+        "records_fetched": 0,
+        "error_message": "data.gov.in: FAILED - 403 Forbidden||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": False}, "data.gov.in": {"status": "FAILED", "error": "403 Forbidden", "records_fetched": 0}}),
+        "started_at": "2026-09-12T05:01:00Z",
+        "completed_at": "2026-09-12T05:01:02Z",
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[raw_real_log, raw_demo_log]), \
+         patch("app.db._cache", {"sync_logs": [raw_real_log, raw_demo_log]}):
+        logs = asyncio.run(get_sync_logs(limit=20, offset=0, is_demo=False))
+        status = asyncio.run(get_sync_status(is_demo=False))
+
+    assert len(logs) == 1
+    assert logs[0]["id"] == "persisted-real-1"
+    assert status["status"] == "failed"
+    assert status["sources"]["data.gov.in"]["status"] == "FAILED"
+    assert status["last_sync"]["id"] == "persisted-real-1"
