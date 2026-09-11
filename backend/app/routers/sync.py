@@ -79,6 +79,11 @@ async def get_sync_logs(
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             logs = []
+        if not logs:
+            from app.db import _cache
+            logs = list(_cache.get("sync_logs", []))
+    from app.db import decode_sync_log
+    logs = [decode_sync_log(l) for l in logs]
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     return logs[offset : offset + limit]
 
@@ -89,8 +94,10 @@ async def get_sync_status(
 ):
     dg_connector = DataGovConnector()
     adz_connector = AdzunaConnector()
-    if is_explicit_demo_mode(is_demo):
-        logs = list(get_demo("sync_logs"))
+    is_demo_mode = is_explicit_demo_mode(is_demo)
+
+    if is_demo_mode:
+        logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
@@ -98,67 +105,211 @@ async def get_sync_status(
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             logs = []
+        if not logs:
+            from app.db import _cache
+            logs = [l for l in _cache.get("sync_logs", []) if l.get("is_demo") is False]
+
+    from app.db import decode_sync_log
+    logs = [decode_sync_log(l) for l in logs]
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_run = logs[0] if logs else None
     last_success = next((l for l in logs if l.get("status") == "success"), None)
 
-    last_details = (last_run.get("sources_detail") or {}) if last_run else {}
-    dg_detail = last_details.get("data.gov.in") or {}
-    dg_configured = dg_connector.has_api_key
-    adz_detail = last_details.get("adzuna") or {}
-    adz_configured = adz_connector.has_credentials
-    ind_detail = last_details.get("industry_signals") or {}
-    fc_detail = last_details.get("skill_forecasts") or {}
+    dg_configured = True if is_demo_mode else dg_connector.has_api_key
+    adz_configured = True if is_demo_mode else adz_connector.has_credentials
 
-    sources_summary = {
+    source_configs = {
         "data.gov.in": {
-            "source": "data.gov.in",
-            "status": dg_detail.get("status") or ("SUCCESS" if dg_configured else "NOT_CONFIGURED"),
             "configured": dg_configured,
-            "last_sync": last_run.get("completed_at") if last_run else None,
-            "records_fetched": dg_detail.get("records_fetched", 0),
-            "records_added": dg_detail.get("records_added", 0),
-            "records_updated": dg_detail.get("records_updated", 0),
-            "records_skipped": dg_detail.get("records_skipped", 0),
-            "error": dg_detail.get("error") or (None if dg_configured else "DATA_GOV_API_KEY is not configured in production environment."),
+            "aliases": ("all", "data.gov.in", "schemes", "ogd"),
+            "unconfigured_error": "DATA_GOV_API_KEY is not configured in production environment.",
         },
         "adzuna": {
-            "source": "adzuna",
-            "status": adz_detail.get("status") or ("SUCCESS" if adz_configured else "NOT_CONFIGURED"),
             "configured": adz_configured,
-            "last_sync": last_run.get("completed_at") if last_run else None,
-            "records_fetched": adz_detail.get("records_fetched", 0),
-            "records_added": adz_detail.get("records_added", 0),
-            "records_updated": adz_detail.get("records_updated", 0),
-            "records_skipped": adz_detail.get("records_skipped", 0),
-            "error": adz_detail.get("error") or (None if adz_configured else "ADZUNA_APP_ID / ADZUNA_APP_KEY not configured in production environment."),
+            "aliases": ("all", "adzuna", "jobs"),
+            "unconfigured_error": "ADZUNA_APP_ID / ADZUNA_APP_KEY not configured in production environment.",
         },
         "industry_signals": {
-            "source": "industry_signals",
-            "status": ind_detail.get("status", "IDLE"),
             "configured": True,
-            "last_sync": last_run.get("completed_at") if last_run else None,
-            "records_fetched": ind_detail.get("records_fetched", 0),
-            "records_added": ind_detail.get("records_added", 0),
-            "records_updated": ind_detail.get("records_updated", 0),
-            "records_skipped": ind_detail.get("records_skipped", 0),
-            "error": ind_detail.get("error"),
+            "aliases": ("all", "industry_signals", "industry"),
+            "unconfigured_error": None,
         },
         "skill_forecasts": {
-            "source": "skill_forecasts",
-            "status": fc_detail.get("status", "IDLE"),
             "configured": True,
-            "last_sync": last_run.get("completed_at") if last_run else None,
-            "records_fetched": fc_detail.get("records_fetched", 0),
-            "records_added": fc_detail.get("records_added", 0),
-            "records_updated": fc_detail.get("records_updated", 0),
-            "records_skipped": fc_detail.get("records_skipped", 0),
-            "error": fc_detail.get("error"),
+            "aliases": ("all", "skill_forecasts", "forecasts", "forecast"),
+            "unconfigured_error": None,
         },
     }
 
+    sources_summary = {}
+
+    for src_name, cfg in source_configs.items():
+        is_conf = cfg["configured"]
+        aliases = cfg["aliases"]
+        unconf_err = cfg["unconfigured_error"]
+
+        matching_log = next(
+            (
+                l for l in logs
+                if (isinstance(l.get("sources_detail"), dict) and src_name in l["sources_detail"])
+                or l.get("source_name") in aliases
+            ),
+            None,
+        )
+
+        if is_demo_mode:
+            demo_fetched = matching_log.get("records_fetched", 10) if matching_log else 10
+            sources_summary[src_name] = {
+                "source": src_name,
+                "status": "SUCCESS",
+                "configured": True,
+                "last_sync": matching_log.get("completed_at") if matching_log else None,
+                "records_fetched": demo_fetched,
+                "records_added": demo_fetched,
+                "records_updated": 0,
+                "records_skipped": 0,
+                "error": None,
+            }
+            continue
+
+        if not is_conf:
+            sources_summary[src_name] = {
+                "source": src_name,
+                "status": "NOT_CONFIGURED",
+                "configured": False,
+                "last_sync": matching_log.get("completed_at") if matching_log else None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+                "error": unconf_err,
+            }
+            continue
+
+        if matching_log is None:
+            sources_summary[src_name] = {
+                "source": src_name,
+                "status": "SUCCESS" if is_demo_mode else "IDLE",
+                "configured": True,
+                "last_sync": None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+                "error": None,
+            }
+            continue
+
+        last_sync_ts = matching_log.get("completed_at") or matching_log.get("started_at")
+        src_detail = (
+            matching_log.get("sources_detail", {}).get(src_name)
+            if isinstance(matching_log.get("sources_detail"), dict)
+            else None
+        )
+
+        if src_detail:
+            raw_status = (src_detail.get("status") or "").upper()
+            detail_err = src_detail.get("error")
+            rec_fetched = src_detail.get("records_fetched", 0)
+            rec_added = src_detail.get("records_added", 0)
+            rec_updated = src_detail.get("records_updated", 0)
+            rec_skipped = src_detail.get("records_skipped", 0)
+
+            if raw_status in ("FAILED", "FAIL"):
+                eval_status = "FAILED"
+                eval_error = detail_err or matching_log.get("error_message") or "Sync run failed"
+            elif raw_status == "PARTIAL":
+                eval_status = "PARTIAL"
+                eval_error = detail_err or matching_log.get("error_message")
+            elif raw_status == "NO_DATA" or (raw_status == "SUCCESS" and rec_fetched == 0):
+                eval_status = "NO_DATA"
+                eval_error = None
+            elif raw_status == "SUCCESS":
+                eval_status = "SUCCESS"
+                eval_error = None
+            elif raw_status == "NOT_CONFIGURED":
+                eval_status = "NOT_CONFIGURED"
+                eval_error = detail_err or unconf_err
+            else:
+                if matching_log.get("status") == "failed":
+                    eval_status = "FAILED"
+                    eval_error = detail_err or matching_log.get("error_message") or "Sync run failed"
+                elif rec_fetched > 0:
+                    eval_status = "SUCCESS"
+                    eval_error = None
+                else:
+                    eval_status = "NO_DATA"
+                    eval_error = None
+
+            sources_summary[src_name] = {
+                "source": src_name,
+                "status": eval_status,
+                "configured": True,
+                "last_sync": last_sync_ts,
+                "records_fetched": rec_fetched,
+                "records_added": rec_added,
+                "records_updated": rec_updated,
+                "records_skipped": rec_skipped,
+                "error": eval_error,
+            }
+        else:
+            log_st = (matching_log.get("status") or "").lower()
+            rec_fetched = matching_log.get("records_fetched", 0)
+            rec_added = matching_log.get("records_added", 0)
+            rec_updated = matching_log.get("records_updated", 0)
+            rec_skipped = matching_log.get("records_skipped", 0)
+            log_err = matching_log.get("error_message")
+
+            if log_st == "failed":
+                eval_status = "FAILED"
+                eval_error = log_err or "Sync run failed"
+            elif log_st == "partial":
+                eval_status = "PARTIAL"
+                eval_error = log_err
+            elif log_st == "success":
+                if rec_fetched > 0 or is_demo_mode:
+                    eval_status = "SUCCESS"
+                    eval_error = None
+                else:
+                    eval_status = "NO_DATA"
+                    eval_error = None
+            else:
+                eval_status = "FAILED"
+                eval_error = log_err or "Sync run failed"
+
+            sources_summary[src_name] = {
+                "source": src_name,
+                "status": eval_status,
+                "configured": True,
+                "last_sync": last_sync_ts,
+                "records_fetched": rec_fetched,
+                "records_added": rec_added,
+                "records_updated": rec_updated,
+                "records_skipped": rec_skipped,
+                "error": eval_error,
+            }
+
+    if is_demo_mode:
+        overall_status = "healthy"
+    else:
+        configured_statuses = [
+            s["status"] for s in sources_summary.values() if s.get("configured")
+        ]
+        if any(st == "FAILED" for st in configured_statuses):
+            overall_status = "failed"
+        elif sources_summary["data.gov.in"]["status"] in ("NO_DATA", "PARTIAL", "NOT_CONFIGURED"):
+            overall_status = "degraded"
+        elif any(st in ("NO_DATA", "PARTIAL") for st in configured_statuses):
+            overall_status = "degraded"
+        elif all(st == "IDLE" for st in configured_statuses):
+            overall_status = "idle"
+        elif sources_summary["data.gov.in"]["status"] == "SUCCESS":
+            overall_status = "healthy"
+        else:
+            overall_status = "degraded"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "api_key_configured": dg_configured,
         "adzuna_configured": adz_configured,
         "sources": sources_summary,

@@ -226,3 +226,248 @@ def test_sync_status_endpoint_per_source():
     assert "adzuna" in status_resp["sources"]
     assert "industry_signals" in status_resp["sources"]
     assert "skill_forecasts" in status_resp["sources"]
+
+
+def test_sync_status_latest_failed_reports_failed():
+    import asyncio
+    from app.routers.sync import get_sync_status
+
+    failed_log = {
+        "id": "log-fail-1",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "failed",
+        "records_fetched": 0,
+        "records_added": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": "data.gov.in: FAILED - 403 Forbidden: authentication failed",
+        "started_at": "2026-09-12T00:00:00Z",
+        "completed_at": "2026-09-12T00:00:01Z",
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "FAILED",
+                "error": "403 Forbidden: authentication failed",
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[failed_log]), \
+         patch("app.db._cache", {"sync_logs": [failed_log]}):
+        res = asyncio.run(get_sync_status(is_demo=False))
+
+    assert res["status"] == "failed"
+    assert res["sources"]["data.gov.in"]["status"] == "FAILED"
+    assert res["sources"]["data.gov.in"]["configured"] is True
+    assert "403 Forbidden" in res["sources"]["data.gov.in"]["error"]
+    assert res["sources"]["data.gov.in"]["records_fetched"] == 0
+    assert res["last_sync"]["id"] == "log-fail-1"
+
+
+def test_sync_status_configured_credentials_zero_records_no_data():
+    import asyncio
+    from app.routers.sync import get_sync_status
+
+    nodata_log = {
+        "id": "log-nodata-1",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "success",
+        "records_fetched": 0,
+        "records_added": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-12T00:00:00Z",
+        "completed_at": "2026-09-12T00:00:01Z",
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "NO_DATA",
+                "error": None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[nodata_log]), \
+         patch("app.db._cache", {"sync_logs": [nodata_log]}):
+        res = asyncio.run(get_sync_status(is_demo=False))
+
+    assert res["sources"]["data.gov.in"]["status"] == "NO_DATA"
+    assert res["sources"]["data.gov.in"]["error"] is None
+    assert res["sources"]["data.gov.in"]["records_fetched"] == 0
+    assert res["status"] == "degraded"
+
+
+def test_sync_status_historical_success_not_masking_current_failure():
+    import asyncio
+    from app.routers.sync import get_sync_status
+
+    recent_fail = {
+        "id": "log-recent-fail",
+        "source_name": "data.gov.in",
+        "status": "failed",
+        "records_fetched": 0,
+        "error_message": "data.gov.in: FAILED - Connection timed out",
+        "started_at": "2026-09-12T02:00:00Z",
+        "completed_at": "2026-09-12T02:00:02Z",
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "FAILED",
+                "error": "Connection timed out",
+                "records_fetched": 0,
+            }
+        },
+    }
+    old_success = {
+        "id": "log-old-success",
+        "source_name": "data.gov.in",
+        "status": "success",
+        "records_fetched": 50,
+        "records_added": 50,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-11T02:00:00Z",
+        "completed_at": "2026-09-11T02:00:05Z",
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "SUCCESS",
+                "error": None,
+                "records_fetched": 50,
+                "records_added": 50,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[recent_fail, old_success]), \
+         patch("app.db._cache", {"sync_logs": [recent_fail, old_success]}):
+        res = asyncio.run(get_sync_status(is_demo=False))
+
+    assert res["sources"]["data.gov.in"]["status"] == "FAILED"
+    assert res["status"] == "failed"
+    assert "timed out" in res["sources"]["data.gov.in"]["error"]
+    assert res["last_sync"]["id"] == "log-recent-fail"
+    assert res["last_successful_sync"]["id"] == "log-old-success"
+
+
+def test_sync_status_missing_credentials_reports_not_configured():
+    import asyncio
+    from app.routers.sync import get_sync_status
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", False), \
+         patch("app.ingestion.adzuna_connector.AdzunaConnector.has_credentials", False), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[]), \
+         patch("app.db._cache", {"sync_logs": []}):
+        res = asyncio.run(get_sync_status(is_demo=False))
+
+    assert res["sources"]["data.gov.in"]["status"] == "NOT_CONFIGURED"
+    assert res["sources"]["data.gov.in"]["configured"] is False
+    assert "DATA_GOV_API_KEY is not configured" in res["sources"]["data.gov.in"]["error"]
+    assert res["sources"]["adzuna"]["status"] == "NOT_CONFIGURED"
+    assert res["sources"]["adzuna"]["configured"] is False
+    assert "ADZUNA_APP_ID" in res["sources"]["adzuna"]["error"]
+    assert res["status"] == "degraded"
+
+
+def test_sync_status_successful_real_ingestion():
+    import asyncio
+    from app.routers.sync import get_sync_status
+
+    success_log = {
+        "id": "log-success-1",
+        "source_name": "data.gov.in",
+        "status": "success",
+        "records_fetched": 30,
+        "records_added": 30,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-12T03:00:00Z",
+        "completed_at": "2026-09-12T03:00:03Z",
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "SUCCESS",
+                "error": None,
+                "records_fetched": 30,
+                "records_added": 30,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[success_log]), \
+         patch("app.db._cache", {"sync_logs": [success_log]}):
+        res = asyncio.run(get_sync_status(is_demo=False))
+
+    assert res["sources"]["data.gov.in"]["status"] == "SUCCESS"
+    assert res["sources"]["data.gov.in"]["records_fetched"] == 30
+    assert res["sources"]["data.gov.in"]["error"] is None
+    assert res["status"] == "healthy"
+
+
+def test_sync_status_demo_mode_isolated():
+    import asyncio
+    from app.routers.sync import get_sync_status
+
+    res = asyncio.run(get_sync_status(is_demo=True))
+    assert res["status"] == "healthy"
+    assert res["sources"]["data.gov.in"]["status"] == "SUCCESS"
+    assert res["sources"]["adzuna"]["status"] == "SUCCESS"
+    assert res["sources"]["data.gov.in"]["configured"] is True
+    assert res["sources"]["adzuna"]["configured"] is True
+
+
+def test_sync_log_persistence_encoding_and_decoding():
+    from app.db import save_sync_log, decode_sync_log
+
+    entry = {
+        "id": "test-encode-id-1",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "failed",
+        "records_fetched": 0,
+        "records_added": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": "data.gov.in: FAILED - 500 server error",
+        "started_at": "2026-09-12T04:00:00Z",
+        "completed_at": "2026-09-12T04:00:01Z",
+        "duration_ms": 150,
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "FAILED",
+                "error": "500 server error",
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    }
+
+    mock_client = MagicMock()
+    with patch("app.db.get_supabase_client", return_value=mock_client):
+        save_sync_log(entry)
+        assert mock_client.table.called
+        upsert_call = mock_client.table("sync_logs").upsert.call_args[0][0]
+        assert "||SOURCES_DETAIL:" in upsert_call["error_message"]
+
+    decoded = decode_sync_log(upsert_call)
+    assert decoded["error_message"] == "data.gov.in: FAILED - 500 server error"
+    assert decoded["sources_detail"]["data.gov.in"]["status"] == "FAILED"
+    assert decoded["sources_detail"]["data.gov.in"]["error"] == "500 server error"

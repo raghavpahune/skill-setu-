@@ -1396,14 +1396,15 @@ def list_placements(course_ids: list[str] | None = None) -> list[dict[str, Any]]
 
 
 def list_sync_logs(limit: int = 100, source_name: str | None = None) -> list[dict[str, Any]]:
-    """List automated synchronization audit logs from Supabase."""
     try:
         client = get_client()
         query = client.table("sync_logs").select("*")
         if source_name:
             query = query.eq("source_name", source_name)
         res = query.order("started_at", desc=True).limit(limit).execute()
-        return getattr(res, "data", []) or []
+        rows = getattr(res, "data", []) or []
+        from app.db import decode_sync_log
+        return [decode_sync_log(r) for r in rows]
     except SupabaseRepositoryError:
         raise
     except Exception as e:

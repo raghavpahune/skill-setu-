@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import logging
 import time
+import uuid
 from typing import Any
 
 from app.config import settings
@@ -142,20 +143,75 @@ class IngestionScheduler:
 
                 if source in ("industry_signals", "industry"):
                     from app.ingestion.industry_intelligence import industry_ingestor
+                    from app.db import save_sync_log
                     ind_res = await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
                     now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     self._last_successful_run_timestamp = now_str
                     self._last_error = None
                     self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
+                    fetched_cnt = ind_res.get("records_fetched", ind_res.get("fetched", 0))
+                    added_cnt = ind_res.get("records_added", ind_res.get("added", 0))
+                    updated_cnt = ind_res.get("records_updated", ind_res.get("updated", 0))
+                    skipped_cnt = ind_res.get("records_duplicated", ind_res.get("skipped", 0))
+                    save_sync_log({
+                        "id": str(uuid.uuid4()),
+                        "source_name": source,
+                        "job_type": "scheduled_sync",
+                        "status": "success",
+                        "records_fetched": fetched_cnt,
+                        "records_added": added_cnt,
+                        "records_updated": updated_cnt,
+                        "records_skipped": skipped_cnt,
+                        "error_message": None,
+                        "started_at": attempt_time,
+                        "completed_at": now_str,
+                        "duration_ms": self._last_run_duration_ms,
+                        "sources_detail": {
+                            "industry_signals": {
+                                "status": "SUCCESS" if fetched_cnt > 0 else "NO_DATA",
+                                "error": None,
+                                "records_fetched": fetched_cnt,
+                                "records_added": added_cnt,
+                                "records_updated": updated_cnt,
+                                "records_skipped": skipped_cnt,
+                            }
+                        },
+                    })
                     return {"status": "success", "source": source, "industry_sync": ind_res, "duration_ms": self._last_run_duration_ms}
 
                 if source in ("skill_forecasts", "forecasts", "forecast"):
                     from app.services.forecast_engine import persist_computed_forecasts
+                    from app.db import save_sync_log
                     fc_res = await loop.run_in_executor(None, persist_computed_forecasts)
                     now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     self._last_successful_run_timestamp = now_str
                     self._last_error = None
                     self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
+                    fc_cnt = len(fc_res)
+                    save_sync_log({
+                        "id": str(uuid.uuid4()),
+                        "source_name": source,
+                        "job_type": "scheduled_sync",
+                        "status": "success",
+                        "records_fetched": fc_cnt,
+                        "records_added": fc_cnt,
+                        "records_updated": 0,
+                        "records_skipped": 0,
+                        "error_message": None,
+                        "started_at": attempt_time,
+                        "completed_at": now_str,
+                        "duration_ms": self._last_run_duration_ms,
+                        "sources_detail": {
+                            "skill_forecasts": {
+                                "status": "SUCCESS" if fc_cnt > 0 else "NO_DATA",
+                                "error": None,
+                                "records_fetched": fc_cnt,
+                                "records_added": fc_cnt,
+                                "records_updated": 0,
+                                "records_skipped": 0,
+                            }
+                        },
+                    })
                     return {"status": "success", "source": source, "forecasts_persisted": len(fc_res), "duration_ms": self._last_run_duration_ms}
 
                 result = await loop.run_in_executor(None, self.engine.run_sync, source)

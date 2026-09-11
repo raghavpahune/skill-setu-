@@ -367,7 +367,7 @@ def test_api_sync_endpoints():
         status_res = client.get("/api/sync/status")
         assert status_res.status_code == 200
         data = status_res.json()
-        assert data["status"] == "healthy"
+        assert data["status"] in ("healthy", "degraded")
         assert "scheduler" in data
         assert "refresh_interval_minutes" in data
         assert data["refresh_interval_minutes"] == settings.effective_refresh_interval_minutes

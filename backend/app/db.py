@@ -506,7 +506,6 @@ def delete_employer_demand(demand_id: str) -> bool:
 
 
 def save_sync_log(log_entry: dict) -> bool:
-    """Save or update sync audit log in memory and Supabase."""
     if not _cache:
         init_db()
     sync_id = log_entry.get("id")
@@ -529,12 +528,37 @@ def save_sync_log(log_entry: dict) -> bool:
                 "error_message", "started_at", "completed_at", "duration_ms",
             }
             db_payload = {k: v for k, v in log_entry.items() if k in valid_cols}
+            if "sources_detail" in log_entry and log_entry["sources_detail"]:
+                encoded = json.dumps(log_entry["sources_detail"])
+                existing_err = db_payload.get("error_message") or ""
+                db_payload["error_message"] = f"{existing_err}||SOURCES_DETAIL:{encoded}"
             client.table("sync_logs").upsert(db_payload).execute()
             logger.info("[DB] Persisted sync_log '%s' (%s) to Supabase.", sync_id, log_entry.get("status"))
             return True
         except Exception as e:
             logger.warning("[DB] Failed persisting sync_log to Supabase: %s", e)
     return False
+
+
+def decode_sync_log(log_entry: dict) -> dict:
+    if not isinstance(log_entry, dict):
+        return log_entry
+    decoded = dict(log_entry)
+    err_msg = decoded.get("error_message")
+    if err_msg and "||SOURCES_DETAIL:" in err_msg:
+        parts = err_msg.split("||SOURCES_DETAIL:", 1)
+        decoded["error_message"] = parts[0].strip() or None
+        try:
+            decoded["sources_detail"] = json.loads(parts[1])
+        except Exception:
+            pass
+    if not decoded.get("sources_detail") and _cache.get("sync_logs"):
+        entry_id = decoded.get("id")
+        if entry_id:
+            cached = next((item for item in _cache.get("sync_logs", []) if item.get("id") == entry_id), None)
+            if cached and cached.get("sources_detail"):
+                decoded["sources_detail"] = cached["sources_detail"]
+    return decoded
 
 
 def persist_schemes_to_supabase(schemes: list[dict]):
