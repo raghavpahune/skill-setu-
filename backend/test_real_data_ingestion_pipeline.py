@@ -625,3 +625,54 @@ def test_list_sync_logs_paginates_past_500_demo_logs_for_older_real_log():
         assert logs[0]["id"] == "real-older-active"
         assert logs[0]["status"] == "running"
         assert logs[0]["is_demo"] is False
+
+
+def test_list_sync_logs_paginates_past_50000_demo_logs_for_older_real_log():
+    from app.repositories.supabase_repository import list_sync_logs
+
+    mock_client = MagicMock()
+    mock_query = MagicMock()
+    mock_client.table.return_value.select.return_value = mock_query
+    mock_query.order.return_value = mock_query
+
+    def mock_range(start, end):
+        res = MagicMock()
+        if start < 50000:
+            count = min(end - start + 1, 50000 - start)
+            res.data = [
+                {
+                    "id": f"demo-{start + i}",
+                    "source_name": "data.gov.in",
+                    "job_type": "scheduled_sync",
+                    "status": "success",
+                    "records_fetched": 10,
+                    "error_message": '||SOURCES_DETAIL:{"_meta": {"is_demo": true}}',
+                    "started_at": "2026-09-12T10:00:00Z",
+                }
+                for i in range(count)
+            ]
+        elif start == 50000:
+            res.data = [
+                {
+                    "id": "real-older-than-50k",
+                    "source_name": "data.gov.in",
+                    "job_type": "scheduled_sync",
+                    "status": "running",
+                    "records_fetched": 0,
+                    "error_message": '||SOURCES_DETAIL:{"_meta": {"is_demo": false}}',
+                    "started_at": "2026-09-12T05:00:00Z",
+                }
+            ]
+        else:
+            res.data = []
+        mock_query.execute.return_value = res
+        return mock_query
+
+    mock_query.range.side_effect = mock_range
+
+    with patch("app.repositories.supabase_repository.get_client", return_value=mock_client):
+        logs = list_sync_logs(limit=1, is_demo=False)
+        assert len(logs) == 1
+        assert logs[0]["id"] == "real-older-than-50k"
+        assert logs[0]["status"] == "running"
+        assert logs[0]["is_demo"] is False

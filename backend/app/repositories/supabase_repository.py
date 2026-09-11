@@ -1433,8 +1433,6 @@ def list_sync_logs(
             if len(rows) < batch_size:
                 break
             offset += len(rows)
-            if offset >= 50000:
-                break
         return matched
     except SupabaseRepositoryError:
         raise
