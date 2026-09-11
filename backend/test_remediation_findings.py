@@ -117,3 +117,31 @@ def test_get_employee_profile_demo_fallback_on_connection_error():
 
                 with pytest.raises(SupabaseRepositoryError):
                     get_employee_profile("usr-real-prod-999")
+
+
+def test_skill_explainability_idor_protection():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import save_user
+    import uuid
+
+    client = TestClient(app)
+    real_user_1 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    real_user_2 = f"usr-std-{uuid.uuid4().hex[:8]}"
+
+    save_user({"id": real_user_1, "email": f"{real_user_1}@test.gov.in", "role": "STUDENT", "full_name": "Test User 1", "is_active": True})
+    token_1 = create_access_token({"sub": real_user_1, "role": "STUDENT", "email": f"{real_user_1}@test.gov.in"})
+    headers_1 = {"Authorization": f"Bearer {token_1}"}
+
+    res_unauth = client.get(f"/api/student/skill-explainability/sk-001?student_id={real_user_1}")
+    assert res_unauth.status_code == 401
+
+    res_cross = client.get(f"/api/student/skill-explainability/sk-001?student_id={real_user_2}", headers=headers_1)
+    assert res_cross.status_code == 403
+
+    res_public = client.get("/api/student/skill-explainability/sk-001")
+    assert res_public.status_code == 200
+
+    res_demo = client.get("/api/student/skill-explainability/sk-001?student_id=stu-001")
+    assert res_demo.status_code == 200

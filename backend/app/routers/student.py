@@ -85,6 +85,26 @@ async def skill_explainability(
     resolved_id = student_id
     if student_id == "me" and current_user:
         resolved_id = current_user.get("id")
+    is_demo_id = is_demo_student_id(resolved_id)
+    is_demo_fixture = False
+    if not is_demo_id and resolved_id:
+        demo_profiles = get_demo("student_profiles") or []
+        is_demo_fixture = any((p.get("user_id") or p.get("id")) == resolved_id for p in demo_profiles)
+    is_demo_req = is_demo_id or is_demo_fixture
+    if resolved_id and not is_demo_req:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to view personalized skill explainability.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        user_id = current_user.get("id")
+        user_role = (current_user.get("role") or "").upper()
+        if user_id != resolved_id and user_role != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You cannot access skill explainability for another user.",
+            )
     return get_skill_explainability(skill_query=skill, student_id=resolved_id)
 
 
