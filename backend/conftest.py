@@ -313,6 +313,15 @@ class MockSupabaseRpc:
                     for sk in req_skills:
                         if isinstance(sk, dict):
                             sid = str(sk.get("skill_id") or sk.get("id") or "").strip()
+                            if not sid:
+                                s_name = str(sk.get("skill_name") or sk.get("name") or "").strip().lower()
+                                if s_name:
+                                    for srow in self.client.table("skills").rows:
+                                        r_name = str(srow.get("name") or "").strip().lower()
+                                        syns = [str(x).strip().lower() for x in (srow.get("synonyms") or [])]
+                                        if r_name == s_name or s_name in syns:
+                                            sid = str(srow.get("id") or "").strip()
+                                            break
                             raw_prof = str(sk.get("proficiency") or "intermediate").strip().lower()
                             prof = raw_prof if raw_prof in ("beginner", "intermediate", "advanced", "expert") else "intermediate"
                             if sid:

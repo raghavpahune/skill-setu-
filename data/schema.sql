@@ -700,18 +700,30 @@ BEGIN
         DELETE FROM public.student_skills
         WHERE user_id = v_user_id
           AND skill_id NOT IN (
-              SELECT DISTINCT COALESCE(
-                  CASE
-                      WHEN (elem->>'skill_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-                      THEN (elem->>'skill_id')::uuid
-                      WHEN (elem->>'id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-                      THEN (elem->>'id')::uuid
-                      ELSE NULL
-                  END,
-                  (SELECT s.id FROM public.skills s WHERE lower(s.name) = lower(COALESCE(elem->>'skill_name', elem->>'name', '')) LIMIT 1)
-              )
-              FROM jsonb_array_elements(p_profile->'skills') AS elem
-              WHERE COALESCE(elem->>'skill_id', elem->>'id', elem->>'skill_name', elem->>'name') IS NOT NULL
+              SELECT resolved_skill_id
+              FROM (
+                  SELECT DISTINCT COALESCE(
+                      CASE
+                          WHEN (elem->>'skill_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                          THEN (elem->>'skill_id')::uuid
+                          WHEN (elem->>'id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                          THEN (elem->>'id')::uuid
+                          ELSE NULL
+                      END,
+                      (
+                          SELECT s.id FROM public.skills s
+                          WHERE lower(s.name) = lower(COALESCE(elem->>'skill_name', elem->>'name', ''))
+                             OR EXISTS (
+                                 SELECT 1 FROM unnest(COALESCE(s.synonyms, '{}'::text[])) syn
+                                 WHERE lower(syn) = lower(COALESCE(elem->>'skill_name', elem->>'name', ''))
+                             )
+                          LIMIT 1
+                      )
+                  ) AS resolved_skill_id
+                  FROM jsonb_array_elements(p_profile->'skills') AS elem
+                  WHERE COALESCE(elem->>'skill_id', elem->>'id', elem->>'skill_name', elem->>'name') IS NOT NULL
+              ) sub
+              WHERE resolved_skill_id IS NOT NULL
           );
 
         INSERT INTO public.student_skills (user_id, skill_id, proficiency)
@@ -729,7 +741,15 @@ BEGIN
                         THEN (elem->>'id')::uuid
                         ELSE NULL
                     END,
-                    (SELECT s.id FROM public.skills s WHERE lower(s.name) = lower(COALESCE(elem->>'skill_name', elem->>'name', '')) LIMIT 1)
+                    (
+                        SELECT s.id FROM public.skills s
+                        WHERE lower(s.name) = lower(COALESCE(elem->>'skill_name', elem->>'name', ''))
+                           OR EXISTS (
+                               SELECT 1 FROM unnest(COALESCE(s.synonyms, '{}'::text[])) syn
+                               WHERE lower(syn) = lower(COALESCE(elem->>'skill_name', elem->>'name', ''))
+                           )
+                        LIMIT 1
+                    )
                 ) AS target_skill_id,
                 CASE
                     WHEN lower(COALESCE(elem->>'proficiency', 'intermediate')) IN ('beginner', 'intermediate', 'advanced', 'expert')
