@@ -14,6 +14,7 @@ from app.ingestion.datagov_connector import (
     RESOURCE_NAPS_NATS_STIPEND,
     RESOURCE_PMKVY_SKILL,
 )
+from app.ingestion.adzuna_connector import AdzunaConnector
 from app.ingestion.sync_engine import SyncEngine
 from app.ingestion.scheduler import scheduler
 
@@ -86,7 +87,8 @@ async def get_sync_logs(
 async def get_sync_status(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
-    connector = DataGovConnector()
+    dg_connector = DataGovConnector()
+    adz_connector = AdzunaConnector()
     if is_explicit_demo_mode(is_demo):
         logs = list(get_demo("sync_logs"))
     else:
@@ -100,9 +102,66 @@ async def get_sync_status(
     last_run = logs[0] if logs else None
     last_success = next((l for l in logs if l.get("status") == "success"), None)
 
+    last_details = (last_run.get("sources_detail") or {}) if last_run else {}
+    dg_detail = last_details.get("data.gov.in") or {}
+    dg_configured = dg_connector.has_api_key
+    adz_detail = last_details.get("adzuna") or {}
+    adz_configured = adz_connector.has_credentials
+    ind_detail = last_details.get("industry_signals") or {}
+    fc_detail = last_details.get("skill_forecasts") or {}
+
+    sources_summary = {
+        "data.gov.in": {
+            "source": "data.gov.in",
+            "status": dg_detail.get("status") or ("SUCCESS" if dg_configured else "NOT_CONFIGURED"),
+            "configured": dg_configured,
+            "last_sync": last_run.get("completed_at") if last_run else None,
+            "records_fetched": dg_detail.get("records_fetched", 0),
+            "records_added": dg_detail.get("records_added", 0),
+            "records_updated": dg_detail.get("records_updated", 0),
+            "records_skipped": dg_detail.get("records_skipped", 0),
+            "error": dg_detail.get("error") or (None if dg_configured else "DATA_GOV_API_KEY is not configured in production environment."),
+        },
+        "adzuna": {
+            "source": "adzuna",
+            "status": adz_detail.get("status") or ("SUCCESS" if adz_configured else "NOT_CONFIGURED"),
+            "configured": adz_configured,
+            "last_sync": last_run.get("completed_at") if last_run else None,
+            "records_fetched": adz_detail.get("records_fetched", 0),
+            "records_added": adz_detail.get("records_added", 0),
+            "records_updated": adz_detail.get("records_updated", 0),
+            "records_skipped": adz_detail.get("records_skipped", 0),
+            "error": adz_detail.get("error") or (None if adz_configured else "ADZUNA_APP_ID / ADZUNA_APP_KEY not configured in production environment."),
+        },
+        "industry_signals": {
+            "source": "industry_signals",
+            "status": ind_detail.get("status", "IDLE"),
+            "configured": True,
+            "last_sync": last_run.get("completed_at") if last_run else None,
+            "records_fetched": ind_detail.get("records_fetched", 0),
+            "records_added": ind_detail.get("records_added", 0),
+            "records_updated": ind_detail.get("records_updated", 0),
+            "records_skipped": ind_detail.get("records_skipped", 0),
+            "error": ind_detail.get("error"),
+        },
+        "skill_forecasts": {
+            "source": "skill_forecasts",
+            "status": fc_detail.get("status", "IDLE"),
+            "configured": True,
+            "last_sync": last_run.get("completed_at") if last_run else None,
+            "records_fetched": fc_detail.get("records_fetched", 0),
+            "records_added": fc_detail.get("records_added", 0),
+            "records_updated": fc_detail.get("records_updated", 0),
+            "records_skipped": fc_detail.get("records_skipped", 0),
+            "error": fc_detail.get("error"),
+        },
+    }
+
     return {
         "status": "healthy",
-        "api_key_configured": connector.has_api_key,
+        "api_key_configured": dg_configured,
+        "adzuna_configured": adz_configured,
+        "sources": sources_summary,
         "scheduler": scheduler.get_status(),
         "refresh_interval_minutes": settings.effective_refresh_interval_minutes,
         "total_sync_runs": len(logs),

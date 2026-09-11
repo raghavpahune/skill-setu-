@@ -523,7 +523,13 @@ def save_sync_log(log_entry: dict) -> bool:
     client = get_supabase_client()
     if client:
         try:
-            client.table("sync_logs").upsert(log_entry).execute()
+            valid_cols = {
+                "id", "source_name", "job_type", "status",
+                "records_fetched", "records_added", "records_updated", "records_skipped",
+                "error_message", "started_at", "completed_at", "duration_ms",
+            }
+            db_payload = {k: v for k, v in log_entry.items() if k in valid_cols}
+            client.table("sync_logs").upsert(db_payload).execute()
             logger.info("[DB] Persisted sync_log '%s' (%s) to Supabase.", sync_id, log_entry.get("status"))
             return True
         except Exception as e:

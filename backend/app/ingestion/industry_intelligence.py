@@ -244,7 +244,11 @@ SAMPLE_VERIFIED_FEEDS = [
         "tools": ["Qdrant", "PostgreSQL pgvector", "Hugging Face", "Docker"],
         "source_url": "https://nasscom.in/research/genai-talent-index-2026",
         "source_name": "NASSCOM Strategic Review & FutureSkills Prime",
-        "source_type": SOURCE_TYPE_INDUSTRY_ANNOUNCEMENT,
+        "source_type": "DEMO_SYNTHETIC",
+        "source_label": "DEMO_SYNTHETIC",
+        "data_provenance": "DEMO_SYNTHETIC",
+        "validation_status": STATUS_APPROVED,
+        "is_demo": True,
         "published_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "external_id": "nasscom-genai-2026-q3",
     },
@@ -257,7 +261,11 @@ SAMPLE_VERIFIED_FEEDS = [
         "tools": ["Hardware-in-the-Loop Dyno", "Vector CANalyzer", "Thermal Imaging Scanners"],
         "source_url": "https://siam.in/reports/maharashtra-ev-workforce-2026",
         "source_name": "Society of Indian Automobile Manufacturers (SIAM)",
-        "source_type": SOURCE_TYPE_INDUSTRY_ANNOUNCEMENT,
+        "source_type": "DEMO_SYNTHETIC",
+        "source_label": "DEMO_SYNTHETIC",
+        "data_provenance": "DEMO_SYNTHETIC",
+        "validation_status": STATUS_APPROVED,
+        "is_demo": True,
         "published_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "external_id": "siam-ev-chakan-2026",
     },
@@ -270,7 +278,11 @@ SAMPLE_VERIFIED_FEEDS = [
         "tools": ["Siemens S7-1200", "Allen Bradley RSLogix", "Fanuc Robot Controller"],
         "source_url": "https://dvet.gov.in/notifications/iti-industry40-modernization",
         "source_name": "Directorate of Vocational Education & Training (DVET) Maharashtra",
-        "source_type": SOURCE_TYPE_OFFICIAL_GOV,
+        "source_type": "DEMO_SYNTHETIC",
+        "source_label": "DEMO_SYNTHETIC",
+        "data_provenance": "DEMO_SYNTHETIC",
+        "validation_status": STATUS_APPROVED,
+        "is_demo": True,
         "published_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "external_id": "dvet-circ-2026-108",
     },
@@ -283,7 +295,11 @@ SAMPLE_VERIFIED_FEEDS = [
         "tools": ["Kubernetes", "Prometheus", "Jaeger", "Terraform", "GitHub Actions"],
         "source_url": "https://cncf.io/reports/cloud-native-standards-2026",
         "source_name": "Cloud Native Computing Foundation (CNCF) & Linux Foundation",
-        "source_type": SOURCE_TYPE_TECH_DOCUMENTATION,
+        "source_type": "DEMO_SYNTHETIC",
+        "source_label": "DEMO_SYNTHETIC",
+        "data_provenance": "DEMO_SYNTHETIC",
+        "validation_status": STATUS_APPROVED,
+        "is_demo": True,
         "published_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "external_id": "cncf-landscape-2026",
     },
@@ -296,7 +312,11 @@ SAMPLE_VERIFIED_FEEDS = [
         "tools": ["Wireshark", "Splunk SIEM", "Suricata IDS", "Kali Linux"],
         "source_url": "https://msbte.org.in/curriculum/cybersecurity-elective-2026",
         "source_name": "Maharashtra State Board of Technical Education (MSBTE)",
-        "source_type": SOURCE_TYPE_OFFICIAL_GOV,
+        "source_type": "DEMO_SYNTHETIC",
+        "source_label": "DEMO_SYNTHETIC",
+        "data_provenance": "DEMO_SYNTHETIC",
+        "validation_status": STATUS_APPROVED,
+        "is_demo": True,
         "published_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "external_id": "msbte-curric-cyber-2026",
     },
@@ -359,7 +379,6 @@ class IndustryIntelligenceIngestor:
         }
 
     def validate_and_normalize(self, raw_data: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
-        """Validate raw incoming payload against IndustrySignal specification."""
         try:
             submission = IndustrySignalSubmission(**raw_data)
         except Exception as e:
@@ -369,7 +388,11 @@ class IndustryIntelligenceIngestor:
         published_at = submission.published_at or datetime.datetime.now(datetime.timezone.utc).isoformat()
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-        freshness = calculate_freshness(published_at, submission.is_active, submission.validation_status)
+        is_demo = bool(raw_data.get("is_demo") or raw_data.get("source_label") == "DEMO_SYNTHETIC" or raw_data.get("source_type") == "DEMO_SYNTHETIC" or raw_data.get("data_provenance") == "DEMO_SYNTHETIC")
+        data_provenance = str(raw_data.get("data_provenance") or ("DEMO_SYNTHETIC" if is_demo else "UNVERIFIED_EXTERNAL_SOURCE"))
+        val_status = str(raw_data.get("validation_status") or submission.validation_status)
+
+        freshness = calculate_freshness(published_at, submission.is_active, val_status)
 
         normalized_record: dict[str, Any] = {
             "id": sig_id,
@@ -385,15 +408,14 @@ class IndustryIntelligenceIngestor:
             "published_at": published_at,
             "collected_at": raw_data.get("collected_at") or now_iso,
             "updated_at": now_iso,
-            "validation_status": submission.validation_status,
+            "validation_status": val_status,
             "is_active": submission.is_active,
-            "is_demo": False,
-            "data_provenance": "VERIFIED_EXTERNAL_FEED",
+            "is_demo": is_demo,
+            "data_provenance": data_provenance,
             "freshness": freshness,
             "signature": generate_signal_signature(submission.title, submission.source_url, submission.source_name),
             "is_ai_processed": False,
             "ai_metadata": None,
-            # Backward compatibility fields
             "technology": submission.industry,
             "summary": submission.description,
             "impact_level": "high",

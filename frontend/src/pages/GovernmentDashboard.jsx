@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, Component } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Component } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BarChart,
@@ -461,11 +461,32 @@ export default function GovernmentDashboard() {
 
   const avgDeficit = Array.isArray(gaps) && gaps.length > 0
     ? `${Math.round(gaps.reduce((acc, g) => acc + (Number(g.gap_pct) || 0), 0) / gaps.length)}%`
-    : '0%';
+    : 'No Data';
 
   const actionsCount = Array.isArray(recommendations) && recommendations.length > 0
     ? `${recommendations.length} Actions`
     : '0 Actions';
+
+  const topEmerging = useMemo(() => {
+    if (Array.isArray(forecasts) && forecasts.length > 0) {
+      const top = forecasts[0];
+      return {
+        value: top.skill_name || 'AI & EV',
+        subtitle: `↑ ${top.future_demand || 'Rising'} ${top.period || '24M'} projection`,
+      };
+    }
+    if (Array.isArray(signals) && signals.length > 0) {
+      const topSig = signals[0];
+      return {
+        value: topSig.title ? (topSig.title.length > 20 ? `${topSig.title.slice(0, 18)}…` : topSig.title) : 'Active Signal',
+        subtitle: topSig.source || 'Industry Signal',
+      };
+    }
+    return {
+      value: 'No Data',
+      subtitle: 'No authoritative projections available',
+    };
+  }, [forecasts, signals]);
 
   const userRole = (role || user?.role || '').toUpperCase();
   const canPublish = userRole === 'GOVERNMENT' || userRole === 'ADMIN';
@@ -593,8 +614,8 @@ export default function GovernmentDashboard() {
               {/* Supporting Metric 4 */}
               <StatCard
                 title="Top Emerging Field"
-                value="AI & EV"
-                subtitle="↑ 82% 24M projected growth"
+                value={topEmerging.value}
+                subtitle={topEmerging.subtitle}
                 icon="🚀"
                 color="teal"
               />
@@ -677,8 +698,8 @@ export default function GovernmentDashboard() {
                 </div>
               ) : (
                 <EmptyState
-                  title="No In-Demand Skills Recorded"
-                  message="No active skill frequency data was returned by the demand sensing pipeline."
+                  title="No Authoritative Demand Data Available"
+                  message="Statewide employer skill demand requires active job listings. No vacancies are currently indexed."
                 />
               )}
             </div>
@@ -720,8 +741,8 @@ export default function GovernmentDashboard() {
                 </div>
               ) : (
                 <EmptyState
-                  title="No Deficits Detected"
-                  message="All evaluated trades meet baseline curriculum coverage for current employer demand."
+                  title="No Authoritative Deficits Detected"
+                  message="No active employer-linked skill deficit records available. Ingest real labour-market data to compute statewide deficits."
                 />
               )}
             </div>
@@ -834,8 +855,8 @@ export default function GovernmentDashboard() {
                 </div>
               ) : (
                 <EmptyState
-                  title="No Forecasting Projections"
-                  message="Predictive horizon models have not published active forecasts for this timeframe."
+                  title="No Authoritative Forecasts Available"
+                  message="Predictive horizon models require live employer demand and market telemetry."
                 />
               )}
             </div>
