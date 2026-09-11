@@ -448,3 +448,44 @@ def test_scheduler_catchup_ignores_demo_log():
     with patch("app.ingestion.scheduler.is_explicit_demo_mode", return_value=False), \
          patch("app.repositories.supabase_repository.list_sync_logs", return_value=[recent_demo_log]):
         assert sched._should_catchup_sync()
+
+
+def test_scheduler_detects_older_real_running_log_despite_more_recent_demo_logs():
+    sched = IngestionScheduler()
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    demo_rows = [
+        {
+            "id": f"demo-{i}",
+            "source_name": "data.gov.in",
+            "job_type": "scheduled_sync",
+            "status": "success",
+            "records_fetched": 100,
+            "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": True}}),
+            "started_at": (now_dt - datetime.timedelta(minutes=1, seconds=i)).isoformat(),
+            "completed_at": (now_dt - datetime.timedelta(minutes=1, seconds=i - 1)).isoformat(),
+        }
+        for i in range(12)
+    ]
+    real_running_row = {
+        "id": "real-running-active",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "running",
+        "records_fetched": 0,
+        "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": False}}),
+        "started_at": (now_dt - datetime.timedelta(minutes=2)).isoformat(),
+    }
+    all_rows = demo_rows + [real_running_row]
+
+    mock_client = MagicMock()
+    mock_query = MagicMock()
+    mock_client.table.return_value.select.return_value = mock_query
+    mock_query.order.return_value = mock_query
+    mock_query.limit.return_value = mock_query
+    mock_res = MagicMock()
+    mock_res.data = all_rows
+    mock_query.execute.return_value = mock_res
+
+    with patch("app.ingestion.scheduler.is_explicit_demo_mode", return_value=False), \
+         patch("app.repositories.supabase_repository.get_client", return_value=mock_client):
+        assert sched._check_active_distributed_sync(lease_seconds=900) is True

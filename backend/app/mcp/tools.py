@@ -99,7 +99,7 @@ def tool_get_sync_freshness(args: dict[str, Any]) -> dict[str, Any]:
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            logs = list_sync_logs(limit=50, source_name=requested_source)
+            logs = list_sync_logs(limit=50, source_name=requested_source, is_demo=False)
             logs = [l for l in logs if not l.get("is_demo")]
         except Exception:
             logs = []
@@ -181,7 +181,7 @@ def tool_get_sync_logs(args: dict[str, Any]) -> dict[str, Any]:
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            logs = list_sync_logs(limit=limit, source_name=source)
+            logs = list_sync_logs(limit=limit, source_name=source, is_demo=False)
             logs = [l for l in logs if not l.get("is_demo")]
         except Exception:
             logs = []

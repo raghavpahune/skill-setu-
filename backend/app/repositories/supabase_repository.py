@@ -1395,16 +1395,24 @@ def list_placements(course_ids: list[str] | None = None) -> list[dict[str, Any]]
         raise SupabaseRepositoryError(f"Database query failed for placements: {e}") from e
 
 
-def list_sync_logs(limit: int = 100, source_name: str | None = None) -> list[dict[str, Any]]:
+def list_sync_logs(
+    limit: int = 100,
+    source_name: str | None = None,
+    is_demo: bool | None = None,
+) -> list[dict[str, Any]]:
     try:
         client = get_client()
         query = client.table("sync_logs").select("*")
         if source_name:
             query = query.eq("source_name", source_name)
-        res = query.order("started_at", desc=True).limit(limit).execute()
+        fetch_limit = min(max(limit * 5, 50), 500) if is_demo is not None else limit
+        res = query.order("started_at", desc=True).limit(fetch_limit).execute()
         rows = getattr(res, "data", []) or []
         from app.db import decode_sync_log
-        return [decode_sync_log(r) for r in rows]
+        decoded = [decode_sync_log(r) for r in rows]
+        if is_demo is not None:
+            decoded = [r for r in decoded if bool(r.get("is_demo")) == is_demo]
+        return decoded[:limit]
     except SupabaseRepositoryError:
         raise
     except Exception as e:

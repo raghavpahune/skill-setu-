@@ -510,3 +510,67 @@ def test_sync_routes_filter_mixed_persisted_demo_and_real_logs():
     assert status["status"] == "failed"
     assert status["sources"]["data.gov.in"]["status"] == "FAILED"
     assert status["last_sync"]["id"] == "persisted-real-1"
+
+
+def test_list_sync_logs_overfetches_and_filters_demo_logs_before_limit():
+    import json
+    from app.repositories.supabase_repository import list_sync_logs
+    demo_rows = [
+        {
+            "id": f"demo-{i}",
+            "source_name": "data.gov.in",
+            "job_type": "scheduled_sync",
+            "status": "success",
+            "records_fetched": 100,
+            "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": True}}),
+            "started_at": f"2026-09-12T10:{i:02d}:00Z",
+            "completed_at": f"2026-09-12T10:{i:02d}:01Z",
+        }
+        for i in range(12)
+    ]
+    real_rows = [
+        {
+            "id": "real-running-1",
+            "source_name": "data.gov.in",
+            "job_type": "scheduled_sync",
+            "status": "running",
+            "records_fetched": 0,
+            "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": False}}),
+            "started_at": "2026-09-12T09:59:00Z",
+        },
+        {
+            "id": "real-success-2",
+            "source_name": "data.gov.in",
+            "job_type": "scheduled_sync",
+            "status": "success",
+            "records_fetched": 50,
+            "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": False}}),
+            "started_at": "2026-09-12T09:00:00Z",
+            "completed_at": "2026-09-12T09:00:05Z",
+        },
+    ]
+    all_rows = demo_rows + real_rows
+
+    mock_client = MagicMock()
+    mock_query = MagicMock()
+    mock_client.table.return_value.select.return_value = mock_query
+    mock_query.order.return_value = mock_query
+    mock_query.limit.return_value = mock_query
+    mock_res = MagicMock()
+    mock_res.data = all_rows
+    mock_query.execute.return_value = mock_res
+
+    with patch("app.repositories.supabase_repository.get_client", return_value=mock_client):
+        single_real = list_sync_logs(limit=1, is_demo=False)
+        assert len(single_real) == 1
+        assert single_real[0]["id"] == "real-running-1"
+        assert single_real[0]["is_demo"] is False
+        mock_query.limit.assert_called_with(50)
+
+        all_real = list_sync_logs(limit=10, is_demo=False)
+        assert len(all_real) == 2
+        assert [r["id"] for r in all_real] == ["real-running-1", "real-success-2"]
+
+        top_demo = list_sync_logs(limit=5, is_demo=True)
+        assert len(top_demo) == 5
+        assert all(r["is_demo"] is True for r in top_demo)

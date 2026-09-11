@@ -93,7 +93,7 @@ class IngestionScheduler:
                 logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
             else:
                 from app.repositories.supabase_repository import list_sync_logs
-                logs = list_sync_logs(limit=10)
+                logs = list_sync_logs(limit=10, is_demo=False)
                 logs = [l for l in logs if not l.get("is_demo")]
             now_dt = datetime.datetime.now(datetime.timezone.utc)
             for log in logs:
@@ -276,7 +276,7 @@ class IngestionScheduler:
         else:
             try:
                 from app.repositories.supabase_repository import list_sync_logs
-                logs = list_sync_logs(limit=10)
+                logs = list_sync_logs(limit=10, is_demo=False)
                 logs = [l for l in logs if not l.get("is_demo")]
             except Exception as exc:
                 logger.warning("Error fetching sync logs for catchup check: %s", exc)

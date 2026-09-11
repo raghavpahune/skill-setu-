@@ -77,7 +77,7 @@ async def get_sync_logs(
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            raw_logs = list_sync_logs(limit=limit + offset)
+            raw_logs = list_sync_logs(limit=limit + offset, is_demo=False)
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             raw_logs = []
@@ -105,7 +105,7 @@ async def get_sync_status(
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
-            raw_logs = list_sync_logs(limit=20)
+            raw_logs = list_sync_logs(limit=20, is_demo=False)
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             raw_logs = []
