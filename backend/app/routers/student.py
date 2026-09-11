@@ -650,9 +650,11 @@ async def recalculate_student_roadmap(
 @router.get("/students")
 async def list_students(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
+    current_user: dict | None = Depends(get_optional_current_user),
 ):
     """List all students (real profiles + user submitted assessments, or demo students in explicit demo mode)."""
-    if is_explicit_demo_mode(is_demo):
+    user_role = (current_user.get("role") or "").upper() if current_user else ""
+    if is_explicit_demo_mode(is_demo) or user_role != "ADMIN":
         profiles = get_demo("student_profiles")
         assessments = get_demo("student_assessments")
     else:
@@ -834,6 +836,17 @@ async def list_student_assessments(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database query failed listing student assessments.",
         ) from e
+
+    user_role = (current_user.get("role") or "").upper() if current_user else ""
+    user_id = current_user.get("id") if current_user else None
+    if user_role != "ADMIN":
+        filtered = []
+        for a in assessments:
+            if not _is_private_user_record(a):
+                filtered.append(a)
+            elif user_id and (a.get("user_id") == user_id or a.get("id") == user_id):
+                filtered.append(a)
+        assessments = filtered
 
     return {
         "status": "success",

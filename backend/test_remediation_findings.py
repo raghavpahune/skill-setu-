@@ -210,3 +210,81 @@ def test_gov_opportunities_and_schemes_recommended_authorization():
         res_demo = client.get(ep)
         assert res_demo.status_code == 200
 
+
+def test_student_assessments_and_registry_authorization():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.db import save_user
+    import uuid
+
+    client = TestClient(app)
+    real_user_1 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    real_user_2 = f"usr-std-{uuid.uuid4().hex[:8]}"
+    admin_user = f"usr-adm-{uuid.uuid4().hex[:8]}"
+
+    save_user({"id": real_user_1, "email": f"{real_user_1}@test.gov.in", "role": "STUDENT", "full_name": "Student 1", "is_active": True})
+    save_user({"id": real_user_2, "email": f"{real_user_2}@test.gov.in", "role": "STUDENT", "full_name": "Student 2", "is_active": True})
+    save_user({"id": admin_user, "email": f"{admin_user}@test.gov.in", "role": "ADMIN", "full_name": "Admin", "is_active": True})
+
+    token_1 = create_access_token({"sub": real_user_1, "role": "STUDENT", "email": f"{real_user_1}@test.gov.in"})
+    token_2 = create_access_token({"sub": real_user_2, "role": "STUDENT", "email": f"{real_user_2}@test.gov.in"})
+    token_admin = create_access_token({"sub": admin_user, "role": "ADMIN", "email": f"{admin_user}@test.gov.in"})
+
+    headers_1 = {"Authorization": f"Bearer {token_1}"}
+    headers_2 = {"Authorization": f"Bearer {token_2}"}
+    headers_admin = {"Authorization": f"Bearer {token_admin}"}
+
+    mock_assessments = [
+        {"id": "ast-demo-1", "user_id": "stu-001", "name": "Demo Student", "source": "DEMO_SYNTHETIC", "is_demo": True},
+        {"id": "ast-real-1", "user_id": real_user_1, "name": "Student 1", "source": "USER_SUBMITTED", "is_demo": False},
+    ]
+
+    with patch("app.repositories.supabase_repository.list_student_assessments", return_value=mock_assessments):
+        res_unauth = client.get("/api/student/assessments")
+        assert res_unauth.status_code == 200
+        unauth_ids = [a["id"] for a in res_unauth.json()["assessments"]]
+        assert "ast-demo-1" in unauth_ids
+        assert "ast-real-1" not in unauth_ids
+
+        res_other = client.get("/api/student/assessments", headers=headers_2)
+        assert res_other.status_code == 200
+        other_ids = [a["id"] for a in res_other.json()["assessments"]]
+        assert "ast-demo-1" in other_ids
+        assert "ast-real-1" not in other_ids
+
+        res_owner = client.get("/api/student/assessments", headers=headers_1)
+        assert res_owner.status_code == 200
+        owner_ids = [a["id"] for a in res_owner.json()["assessments"]]
+        assert "ast-demo-1" in owner_ids
+        assert "ast-real-1" in owner_ids
+
+        res_admin = client.get("/api/student/assessments", headers=headers_admin)
+        assert res_admin.status_code == 200
+        admin_ids = [a["id"] for a in res_admin.json()["assessments"]]
+        assert "ast-demo-1" in admin_ids
+        assert "ast-real-1" in admin_ids
+
+    mock_profiles = [
+        {"id": "prof-1", "user_id": real_user_1, "name": "Student 1", "target_role": "AI Engineer", "skill_match_pct": 80, "source": "USER_SUBMITTED"},
+    ]
+    with patch("app.repositories.supabase_repository.list_student_profiles", return_value=mock_profiles), \
+         patch("app.repositories.supabase_repository.list_student_assessments", return_value=[]):
+        res_reg_unauth = client.get("/api/students")
+        assert res_reg_unauth.status_code == 200
+        reg_unauth_ids = [s["user_id"] for s in res_reg_unauth.json()]
+        assert "stu-001" in reg_unauth_ids
+        assert real_user_1 not in reg_unauth_ids
+
+        res_reg_student = client.get("/api/students", headers=headers_1)
+        assert res_reg_student.status_code == 200
+        reg_std_ids = [s["user_id"] for s in res_reg_student.json()]
+        assert "stu-001" in reg_std_ids
+        assert real_user_1 not in reg_std_ids
+
+        res_reg_admin = client.get("/api/students", headers=headers_admin)
+        assert res_reg_admin.status_code == 200
+        reg_admin_ids = [s["user_id"] for s in res_reg_admin.json()]
+        assert real_user_1 in reg_admin_ids
+
+
