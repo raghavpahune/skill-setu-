@@ -160,8 +160,8 @@ export default function Layout({ children }) {
           col3Title: 'Workforce Intelligence',
           col3Links: [
             { path: '/student/copilot?role=employee', label: 'Skill Intelligence' },
-            { path: '/student?tab=signals', label: 'Industry & Technology Alerts' },
-            { path: '/student?tab=forecast', label: 'Future Skill Forecasts' },
+            { path: '/employee/profile', label: 'Industry & Technology Alerts' },
+            { path: '/student/copilot?role=employee&q=What+is+the+12-to-24+month+skill+forecast+for+emerging+roles+in+Maharashtra%3F', label: 'Future Skill Forecasts' },
           ],
         };
       case 'EMPLOYER':

@@ -145,10 +145,11 @@ async def recommended_schemes(
     profile = None
     try:
         from app.repositories.supabase_repository import get_student_profile, get_student_assessment, get_student_assessment_by_user
+        from app.core.time import parse_iso_timestamp
         p = get_student_profile(resolved_id)
         a = get_student_assessment(resolved_id) or get_student_assessment_by_user(resolved_id)
-        p_time = (p.get("updated_at") or p.get("created_at") or "") if p else ""
-        a_time = (a.get("updated_at") or a.get("created_at") or "") if a else ""
+        p_time = parse_iso_timestamp((p.get("updated_at") or p.get("created_at") or "") if p else "")
+        a_time = parse_iso_timestamp((a.get("updated_at") or a.get("created_at") or "") if a else "")
         if p and (p.get("skills") or not a or p_time >= a_time):
             profile = p
         elif a:

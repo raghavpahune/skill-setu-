@@ -52,7 +52,27 @@ async def student_industry_alerts(
     resolved_id = student_id
     if student_id == "me" and current_user:
         resolved_id = current_user.get("id")
-    return get_personalized_industry_alerts(domain_id=domain, student_id=resolved_id)
+    is_demo_id = is_demo_student_id(resolved_id)
+    is_demo_fixture = False
+    if not is_demo_id and resolved_id:
+        demo_profiles = get_demo("student_profiles") or []
+        is_demo_fixture = any((p.get("user_id") or p.get("id")) == resolved_id for p in demo_profiles)
+    is_demo_req = is_demo_id or is_demo_fixture
+    if resolved_id and not is_demo_req:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to view personalized industry alerts.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        user_id = current_user.get("id")
+        user_role = (current_user.get("role") or "").upper()
+        if user_id != resolved_id and user_role != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You cannot access industry alerts for another user.",
+            )
+    return get_personalized_industry_alerts(domain_id=domain, student_id=resolved_id, current_user=current_user)
 
 
 @router.get("/student/skill-explainability/{skill}")
@@ -115,9 +135,14 @@ async def my_skill_passport(
             detail=f"Database query failed for student profile '{user_id}'.",
         ) from e
 
-    prof_time = (matched_profile.get("updated_at") or matched_profile.get("created_at") or "") if matched_profile else ""
-    asst_time = (matched_assessment.get("updated_at") or matched_assessment.get("created_at") or "") if matched_assessment else ""
-    use_profile = bool(matched_profile and (matched_profile.get("skills") or not matched_assessment or prof_time >= asst_time))
+    from app.core.time import parse_iso_timestamp
+    demo_skills_id_map = {s["id"]: s.get("name", "") for s in (get_demo("skills") or [])}
+    prof_time = parse_iso_timestamp((matched_profile.get("updated_at") or matched_profile.get("created_at") or "") if matched_profile else "")
+    asst_time = parse_iso_timestamp((matched_assessment.get("updated_at") or matched_assessment.get("created_at") or "") if matched_assessment else "")
+    if matched_assessment:
+        use_profile = bool(matched_profile and matched_profile.get("skills") and prof_time >= asst_time)
+    else:
+        use_profile = bool(matched_profile)
 
     if use_profile and matched_profile:
         current = []
@@ -151,15 +176,22 @@ async def my_skill_passport(
         if not req_sids:
             req_sids = ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"]
 
-        required = [
-            {
-                "skill_id": sid,
-                "skill_name": skills_map.get(sid, {}).get("name", sid),
-                "category": skills_map.get(sid, {}).get("category", "General"),
-                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
-            }
-            for sid in req_sids
-        ]
+        required = []
+        for sid in req_sids:
+            auth_sid = sid
+            if auth_sid not in skills_map:
+                d_name = demo_skills_id_map.get(sid, "")
+                if d_name and d_name.lower() in skills_name_map:
+                    auth_sid = skills_name_map[d_name.lower()]["id"]
+                elif sid.lower() in skills_name_map:
+                    auth_sid = skills_name_map[sid.lower()]["id"]
+            sk_meta = skills_map.get(auth_sid, {})
+            required.append({
+                "skill_id": auth_sid,
+                "skill_name": sk_meta.get("name", sid),
+                "category": sk_meta.get("category", "General"),
+                "nsqf_level": sk_meta.get("nsqf_level", 5),
+            })
         missing = [r for r in required if r["skill_id"] not in curr_sids]
         match_pct = int((len(required) - len(missing)) / max(1, len(required)) * 100) if required else 0
         if matched_profile.get("skill_match_pct") is not None:
@@ -200,15 +232,22 @@ async def my_skill_passport(
                 "nsqf_level": cs.get("nsqf_level") or sk_obj.get("nsqf_level", 5),
             })
 
-        required = [
-            {
-                "skill_id": sid,
-                "skill_name": skills_map.get(sid, {}).get("name", sid),
-                "category": skills_map.get(sid, {}).get("category", "General"),
-                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
-            }
-            for sid in req_sids
-        ]
+        required = []
+        for sid in req_sids:
+            auth_sid = sid
+            if auth_sid not in skills_map:
+                d_name = demo_skills_id_map.get(sid, "")
+                if d_name and d_name.lower() in skills_name_map:
+                    auth_sid = skills_name_map[d_name.lower()]["id"]
+                elif sid.lower() in skills_name_map:
+                    auth_sid = skills_name_map[sid.lower()]["id"]
+            sk_obj = skills_map.get(auth_sid, {})
+            required.append({
+                "skill_id": auth_sid,
+                "skill_name": sk_obj.get("name", sid),
+                "category": sk_obj.get("category", "General"),
+                "nsqf_level": sk_obj.get("nsqf_level", 5),
+            })
         missing = [r for r in required if r["skill_id"] not in curr_sids]
 
         return {
@@ -304,9 +343,14 @@ async def skill_passport(
                 p = item
                 break
 
-    p_time = (p.get("updated_at") or p.get("created_at") or "") if p else ""
-    a_time = (a.get("updated_at") or a.get("created_at") or "") if a else ""
-    use_p = bool(p and (p.get("skills") or not a or p_time >= a_time))
+    from app.core.time import parse_iso_timestamp
+    demo_skills_id_map = {s["id"]: s.get("name", "") for s in (get_demo("skills") or [])}
+    p_time = parse_iso_timestamp((p.get("updated_at") or p.get("created_at") or "") if p else "")
+    a_time = parse_iso_timestamp((a.get("updated_at") or a.get("created_at") or "") if a else "")
+    if a:
+        use_p = bool(p and p.get("skills") and p_time >= a_time)
+    else:
+        use_p = bool(p)
 
     if use_p and p:
         if _is_private_user_record(p):
@@ -354,15 +398,22 @@ async def skill_passport(
         if not req_sids:
             req_sids = ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"]
 
-        required = [
-            {
-                "skill_id": sid,
-                "skill_name": skills_map.get(sid, {}).get("name", sid),
-                "category": skills_map.get(sid, {}).get("category", "General"),
-                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
-            }
-            for sid in req_sids
-        ]
+        required = []
+        for sid in req_sids:
+            auth_sid = sid
+            if auth_sid not in skills_map:
+                d_name = demo_skills_id_map.get(sid, "")
+                if d_name and d_name.lower() in skills_name_map:
+                    auth_sid = skills_name_map[d_name.lower()]["id"]
+                elif sid.lower() in skills_name_map:
+                    auth_sid = skills_name_map[sid.lower()]["id"]
+            sk_meta = skills_map.get(auth_sid, {})
+            required.append({
+                "skill_id": auth_sid,
+                "skill_name": sk_meta.get("name", sid),
+                "category": sk_meta.get("category", "General"),
+                "nsqf_level": sk_meta.get("nsqf_level", 5),
+            })
         missing = [r for r in required if r["skill_id"] not in curr_sids]
         match_pct = int((len(required) - len(missing)) / max(1, len(required)) * 100) if required else 0
         if p.get("skill_match_pct") is not None:
@@ -404,7 +455,15 @@ async def skill_passport(
 
         target_role = a.get("career_goal", "AI Engineer")
         from app.services.student_service import ROLE_REQUIREMENTS_MAP
-        req_sids = ROLE_REQUIREMENTS_MAP.get(target_role.lower(), ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"])
+        role_key = target_role.lower().strip()
+        req_sids = ROLE_REQUIREMENTS_MAP.get(role_key)
+        if not req_sids:
+            for r_k, sids in ROLE_REQUIREMENTS_MAP.items():
+                if r_k in role_key or role_key in r_k:
+                    req_sids = sids
+                    break
+        if not req_sids:
+            req_sids = ["sk-001", "sk-002", "sk-003", "sk-004", "sk-005", "sk-006"]
 
         curr_skills = []
         curr_sids = set()
@@ -424,15 +483,22 @@ async def skill_passport(
                 "nsqf_level": cs.get("nsqf_level") or sk_obj.get("nsqf_level", 5),
             })
 
-        required = [
-            {
-                "skill_id": sid,
-                "skill_name": skills_map.get(sid, {}).get("name", sid),
-                "category": skills_map.get(sid, {}).get("category", "General"),
-                "nsqf_level": skills_map.get(sid, {}).get("nsqf_level", 5),
-            }
-            for sid in req_sids
-        ]
+        required = []
+        for sid in req_sids:
+            auth_sid = sid
+            if auth_sid not in skills_map:
+                d_name = demo_skills_id_map.get(sid, "")
+                if d_name and d_name.lower() in skills_name_map:
+                    auth_sid = skills_name_map[d_name.lower()]["id"]
+                elif sid.lower() in skills_name_map:
+                    auth_sid = skills_name_map[sid.lower()]["id"]
+            sk_meta = skills_map.get(auth_sid, {})
+            required.append({
+                "skill_id": auth_sid,
+                "skill_name": sk_meta.get("name", sid),
+                "category": sk_meta.get("category", "General"),
+                "nsqf_level": sk_meta.get("nsqf_level", 5),
+            })
         missing = [r for r in required if r["skill_id"] not in curr_sids]
 
         return {

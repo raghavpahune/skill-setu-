@@ -322,6 +322,14 @@ class DemoProvider(LLMProvider):
                 "* **Action:** Submit candidate skill feedback to accelerate state-level syllabus adjustments."
             )
 
+        if "forecast" in prompt_lower or "trend" in prompt_lower:
+            return (
+                "### 12-to-24 Month Skill Forecast\n\n"
+                "* **Rising Exponentially:** AI Agents (+45%), Generative AI (+42%), EV Battery Tech (+38%).\n"
+                "* **Stable Core:** Python, React, Cloud Computing, CNC Machining.\n"
+                "* **Automating / Shifting:** Traditional Manual Drafting, Basic Data Entry."
+            )
+
         if "transition" in prompt_lower or "upskill" in prompt_lower or "employee" in prompt_lower or "mobility" in prompt_lower or ctx.get("employee_profile"):
             ep = ctx.get("employee_profile") or {}
             c_role = ep.get("current_role") or "Experienced Professional"

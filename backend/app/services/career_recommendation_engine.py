@@ -112,11 +112,12 @@ def _resolve_student_profile(student_id: str) -> dict[str, Any] | None:
         get_employee_profile,
         SupabaseRepositoryError,
     )
+    from app.core.time import parse_iso_timestamp
     try:
         a = get_student_assessment(student_id) or get_student_assessment_by_user(student_id)
         p = get_student_profile(student_id)
-        p_time = (p.get("updated_at") or p.get("created_at") or "") if p else ""
-        a_time = (a.get("updated_at") or a.get("created_at") or "") if a else ""
+        p_time = parse_iso_timestamp((p.get("updated_at") or p.get("created_at") or "") if p else "")
+        a_time = parse_iso_timestamp((a.get("updated_at") or a.get("created_at") or "") if a else "")
         if p and (p.get("skills") or not a or p_time >= a_time):
             return p
         if a:

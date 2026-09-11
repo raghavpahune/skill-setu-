@@ -584,6 +584,10 @@ def upsert_student_roadmap(roadmap_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_employee_profile(user_id: str) -> dict[str, Any] | None:
+    from app.db import _cache
+    from app.config import settings
+    from app.core.security import is_demo_student_id
+
     db_profile = None
     try:
         client = get_client()
@@ -591,12 +595,12 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
         if res.data and len(res.data) > 0:
             db_profile = res.data[0]
     except Exception as e:
+        if settings.use_demo_data and (is_demo_student_id(user_id) or str(user_id).startswith(("demo-", "emp-demo-"))):
+            cached_profiles = _cache.get("employee_profiles", [])
+            return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
         logger.error("[SupabaseRepo] Failed fetching employee_profile user_id='%s': %s", user_id, e)
         raise SupabaseRepositoryError(f"Database query failed for employee profile '{user_id}': {e}") from e
 
-    from app.db import _cache
-    from app.config import settings
-    from app.core.security import is_demo_student_id
     if db_profile:
         return db_profile
     if settings.use_demo_data and (is_demo_student_id(user_id) or str(user_id).startswith(("demo-", "emp-demo-"))):
