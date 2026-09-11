@@ -241,9 +241,9 @@ def _build_context(
 
         if queried_skill_info:
             if queried_skill_info["type"] == "indexed" and (is_demo or (skills_ok and jobs_ok and job_skills_ok and course_skills_ok)):
-                skill_obj = queried_skill_info["skill"]
-                sid = skill_obj["id"]
-                sname = skill_obj["name"]
+                skill_obj = queried_skill_info.get("skill", {})
+                sid = skill_obj.get("id", "")
+                sname = skill_obj.get("name", "")
 
                 matching_js = [js for js in job_skills if js["skill_id"] == sid]
                 matching_job_ids = {js["job_id"] for js in matching_js}
@@ -287,7 +287,7 @@ def _build_context(
                     "sample_courses": teaching_courses,
                 }
             else:
-                tech_name = queried_skill_info["skill"]["name"] if queried_skill_info.get("skill") else queried_skill_info.get("name", "")
+                tech_name = queried_skill_info.get("skill", {}).get("name", "") if queried_skill_info.get("skill") else queried_skill_info.get("name", "")
                 context["query_type"] = "skill_specific"
                 context["data_available_for_skill"] = False
                 dataset_label = "Maharashtra 10-district demo dataset" if is_demo else "authoritative database"
@@ -389,8 +389,13 @@ def _build_context(
             if is_demo:
                 from app.db import get_demo
                 context["student_profiles"] = [
-                    {"name": p["name"], "target_role": p["target_role"], "match": p["skill_match_pct"]}
+                    {
+                        "name": p.get("name") or p.get("full_name", ""),
+                        "target_role": p.get("target_role", ""),
+                        "match": p.get("skill_match_pct", 0),
+                    }
                     for p in get_demo("student_profiles")
+                    if isinstance(p, dict)
                 ]
             else:
                 caller_id = (current_user and current_user.get("id")) or student_id
@@ -471,7 +476,7 @@ def _build_context(
             for p in student_profiles_list:
                 target = p.get("target_role", "")
                 if target and target.lower() in q_lower:
-                    skills_map = {s["id"]: s.get("name", "") for s in skills}
+                    skills_map = {s.get("id"): s.get("name", "") for s in skills if isinstance(s, dict) and s.get("id")}
                     context["focused_career_role"] = {
                         "role": target,
                         "required_skills": [skills_map.get(sid, sid) for sid in p.get("required_skills", [])],

@@ -785,9 +785,11 @@ async def submit_student_assessment(
                         "skill_name": s_name,
                         "proficiency": sk.get("proficiency", "intermediate"),
                     })
+            candidate_name = submission.name or existing_prof.get("name") or existing_prof.get("full_name") or current_user.get("full_name") or current_user.get("name")
             profile_sync_payload = {
                 "user_id": user_id,
-                "full_name": submission.name or existing_prof.get("full_name") or current_user.get("full_name"),
+                "name": candidate_name,
+                "full_name": candidate_name,
                 "preferred_location": submission.district or existing_prof.get("preferred_location"),
                 "target_role": submission.career_goal or existing_prof.get("target_role"),
                 "desired_role": submission.career_goal or existing_prof.get("desired_role"),
