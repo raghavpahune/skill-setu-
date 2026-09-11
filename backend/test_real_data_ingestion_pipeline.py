@@ -555,17 +555,20 @@ def test_list_sync_logs_overfetches_and_filters_demo_logs_before_limit():
     mock_query = MagicMock()
     mock_client.table.return_value.select.return_value = mock_query
     mock_query.order.return_value = mock_query
-    mock_query.limit.return_value = mock_query
-    mock_res = MagicMock()
-    mock_res.data = all_rows
-    mock_query.execute.return_value = mock_res
+
+    def mock_range(start, end):
+        res = MagicMock()
+        res.data = all_rows[start : end + 1]
+        mock_query.execute.return_value = res
+        return mock_query
+
+    mock_query.range.side_effect = mock_range
 
     with patch("app.repositories.supabase_repository.get_client", return_value=mock_client):
         single_real = list_sync_logs(limit=1, is_demo=False)
         assert len(single_real) == 1
         assert single_real[0]["id"] == "real-running-1"
         assert single_real[0]["is_demo"] is False
-        mock_query.limit.assert_called_with(50)
 
         all_real = list_sync_logs(limit=10, is_demo=False)
         assert len(all_real) == 2
@@ -574,3 +577,51 @@ def test_list_sync_logs_overfetches_and_filters_demo_logs_before_limit():
         top_demo = list_sync_logs(limit=5, is_demo=True)
         assert len(top_demo) == 5
         assert all(r["is_demo"] is True for r in top_demo)
+
+
+def test_list_sync_logs_paginates_past_500_demo_logs_for_older_real_log():
+    import json
+    from app.repositories.supabase_repository import list_sync_logs
+    demo_rows = [
+        {
+            "id": f"demo-{i}",
+            "source_name": "data.gov.in",
+            "job_type": "scheduled_sync",
+            "status": "success",
+            "records_fetched": 10,
+            "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": True}}),
+            "started_at": f"2026-09-12T10:{i // 60:02d}:{i % 60:02d}Z",
+            "completed_at": f"2026-09-12T10:{i // 60:02d}:{i % 60:02d}Z",
+        }
+        for i in range(520)
+    ]
+    real_row = {
+        "id": "real-older-active",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "running",
+        "records_fetched": 0,
+        "error_message": "||SOURCES_DETAIL:" + json.dumps({"_meta": {"is_demo": False}}),
+        "started_at": "2026-09-12T08:00:00Z",
+    }
+    all_rows = demo_rows + [real_row]
+
+    mock_client = MagicMock()
+    mock_query = MagicMock()
+    mock_client.table.return_value.select.return_value = mock_query
+    mock_query.order.return_value = mock_query
+
+    def mock_range(start, end):
+        res = MagicMock()
+        res.data = all_rows[start : end + 1]
+        mock_query.execute.return_value = res
+        return mock_query
+
+    mock_query.range.side_effect = mock_range
+
+    with patch("app.repositories.supabase_repository.get_client", return_value=mock_client):
+        logs = list_sync_logs(limit=1, is_demo=False)
+        assert len(logs) == 1
+        assert logs[0]["id"] == "real-older-active"
+        assert logs[0]["status"] == "running"
+        assert logs[0]["is_demo"] is False

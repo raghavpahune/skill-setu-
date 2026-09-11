@@ -1405,14 +1405,37 @@ def list_sync_logs(
         query = client.table("sync_logs").select("*")
         if source_name:
             query = query.eq("source_name", source_name)
-        fetch_limit = min(max(limit * 5, 50), 500) if is_demo is not None else limit
-        res = query.order("started_at", desc=True).limit(fetch_limit).execute()
-        rows = getattr(res, "data", []) or []
+        if is_demo is None:
+            res = query.order("started_at", desc=True).limit(limit).execute()
+            rows = getattr(res, "data", []) or []
+            from app.db import decode_sync_log
+            return [decode_sync_log(r) for r in rows]
+
         from app.db import decode_sync_log
-        decoded = [decode_sync_log(r) for r in rows]
-        if is_demo is not None:
-            decoded = [r for r in decoded if bool(r.get("is_demo")) == is_demo]
-        return decoded[:limit]
+        matched: list[dict[str, Any]] = []
+        batch_size = max(min(limit * 5, 200), 50)
+        offset = 0
+        while len(matched) < limit:
+            res = (
+                query.order("started_at", desc=True)
+                .range(offset, offset + batch_size - 1)
+                .execute()
+            )
+            rows = getattr(res, "data", []) or []
+            if not rows:
+                break
+            for r in rows:
+                decoded = decode_sync_log(r)
+                if bool(decoded.get("is_demo")) == is_demo:
+                    matched.append(decoded)
+                    if len(matched) >= limit:
+                        break
+            if len(rows) < batch_size:
+                break
+            offset += len(rows)
+            if offset >= 50000:
+                break
+        return matched
     except SupabaseRepositoryError:
         raise
     except Exception as e:

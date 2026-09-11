@@ -464,7 +464,7 @@ def test_scheduler_detects_older_real_running_log_despite_more_recent_demo_logs(
             "started_at": (now_dt - datetime.timedelta(minutes=1, seconds=i)).isoformat(),
             "completed_at": (now_dt - datetime.timedelta(minutes=1, seconds=i - 1)).isoformat(),
         }
-        for i in range(12)
+        for i in range(520)
     ]
     real_running_row = {
         "id": "real-running-active",
@@ -481,10 +481,14 @@ def test_scheduler_detects_older_real_running_log_despite_more_recent_demo_logs(
     mock_query = MagicMock()
     mock_client.table.return_value.select.return_value = mock_query
     mock_query.order.return_value = mock_query
-    mock_query.limit.return_value = mock_query
-    mock_res = MagicMock()
-    mock_res.data = all_rows
-    mock_query.execute.return_value = mock_res
+
+    def mock_range(start, end):
+        res = MagicMock()
+        res.data = all_rows[start : end + 1]
+        mock_query.execute.return_value = res
+        return mock_query
+
+    mock_query.range.side_effect = mock_range
 
     with patch("app.ingestion.scheduler.is_explicit_demo_mode", return_value=False), \
          patch("app.repositories.supabase_repository.get_client", return_value=mock_client):
