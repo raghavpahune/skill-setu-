@@ -90,10 +90,11 @@ class IngestionScheduler:
     def _check_active_distributed_sync(self, lease_seconds: int = 900) -> bool:
         try:
             if is_explicit_demo_mode():
-                logs = list(get_demo("sync_logs"))
+                logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
             else:
                 from app.repositories.supabase_repository import list_sync_logs
                 logs = list_sync_logs(limit=10)
+                logs = [l for l in logs if not l.get("is_demo")]
             now_dt = datetime.datetime.now(datetime.timezone.utc)
             for log in logs:
                 if log.get("status") == "running":
@@ -271,11 +272,12 @@ class IngestionScheduler:
 
     def _should_catchup_sync(self) -> bool:
         if is_explicit_demo_mode():
-            logs = list(get_demo("sync_logs"))
+            logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
         else:
             try:
                 from app.repositories.supabase_repository import list_sync_logs
                 logs = list_sync_logs(limit=10)
+                logs = [l for l in logs if not l.get("is_demo")]
             except Exception as exc:
                 logger.warning("Error fetching sync logs for catchup check: %s", exc)
                 logs = []
