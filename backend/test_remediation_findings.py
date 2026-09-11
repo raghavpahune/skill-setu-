@@ -238,6 +238,7 @@ def test_student_assessments_and_registry_authorization():
     mock_assessments = [
         {"id": "ast-demo-1", "user_id": "stu-001", "name": "Demo Student", "source": "DEMO_SYNTHETIC", "is_demo": True},
         {"id": "ast-real-1", "user_id": real_user_1, "name": "Student 1", "source": "USER_SUBMITTED", "is_demo": False},
+        {"id": "ast-anon-1", "user_id": None, "name": "Anonymous Student", "source": "USER_SUBMITTED", "is_demo": False},
     ]
 
     with patch("app.repositories.supabase_repository.list_student_assessments", return_value=mock_assessments):
@@ -246,24 +247,33 @@ def test_student_assessments_and_registry_authorization():
         unauth_ids = [a["id"] for a in res_unauth.json()["assessments"]]
         assert "ast-demo-1" in unauth_ids
         assert "ast-real-1" not in unauth_ids
+        assert "ast-anon-1" not in unauth_ids
 
         res_other = client.get("/api/student/assessments", headers=headers_2)
         assert res_other.status_code == 200
         other_ids = [a["id"] for a in res_other.json()["assessments"]]
         assert "ast-demo-1" in other_ids
         assert "ast-real-1" not in other_ids
+        assert "ast-anon-1" not in other_ids
 
         res_owner = client.get("/api/student/assessments", headers=headers_1)
         assert res_owner.status_code == 200
         owner_ids = [a["id"] for a in res_owner.json()["assessments"]]
         assert "ast-demo-1" in owner_ids
         assert "ast-real-1" in owner_ids
+        assert "ast-anon-1" not in owner_ids
 
         res_admin = client.get("/api/student/assessments", headers=headers_admin)
         assert res_admin.status_code == 200
         admin_ids = [a["id"] for a in res_admin.json()["assessments"]]
         assert "ast-demo-1" in admin_ids
         assert "ast-real-1" in admin_ids
+        assert "ast-anon-1" in admin_ids
+
+    with patch("app.repositories.supabase_repository.get_student_assessment", return_value={"id": "ast-anon-1", "user_id": None, "name": "Anonymous Student", "source": "USER_SUBMITTED", "is_demo": False}):
+        assert client.get("/api/student/assessment/ast-anon-1").status_code == 401
+        assert client.get("/api/student/assessment/ast-anon-1", headers=headers_1).status_code == 403
+        assert client.get("/api/student/assessment/ast-anon-1", headers=headers_admin).status_code == 200
 
     mock_profiles = [
         {"id": "prof-1", "user_id": real_user_1, "name": "Student 1", "target_role": "AI Engineer", "skill_match_pct": 80, "source": "USER_SUBMITTED"},

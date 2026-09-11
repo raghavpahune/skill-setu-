@@ -114,7 +114,9 @@ def _is_private_user_record(record: dict) -> bool:
         return False
     if record.get("source") in ("DEMO_SYNTHETIC", "BENCHMARK_NATIONAL") or record.get("is_demo") is True:
         return False
-    return bool(record.get("user_id"))
+    if is_demo_student_id(record.get("id")) or is_demo_student_id(record.get("user_id")):
+        return False
+    return True
 
 
 @router.get("/student/me/passport")
