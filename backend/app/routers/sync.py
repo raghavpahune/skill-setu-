@@ -71,17 +71,18 @@ async def get_sync_logs(
     is_demo: bool | None = Query(None, description="Explicit demo/real mode selector"),
 ):
     if is_explicit_demo_mode(is_demo):
-        logs = list(get_demo("sync_logs"))
+        logs = [l for l in get_demo("sync_logs") if l.get("is_demo") is True]
     else:
         try:
             from app.repositories.supabase_repository import list_sync_logs
             logs = list_sync_logs(limit=limit + offset)
+            logs = [l for l in logs if not l.get("is_demo")]
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             logs = []
         if not logs:
             from app.db import _cache
-            logs = list(_cache.get("sync_logs", []))
+            logs = [l for l in _cache.get("sync_logs", []) if not l.get("is_demo")]
     from app.db import decode_sync_log
     logs = [decode_sync_log(l) for l in logs]
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
@@ -102,12 +103,13 @@ async def get_sync_status(
         try:
             from app.repositories.supabase_repository import list_sync_logs
             logs = list_sync_logs(limit=20)
+            logs = [l for l in logs if not l.get("is_demo")]
         except Exception as e:
             logger.warning("[Sync] Failed fetching sync_logs from repository: %s", e)
             logs = []
         if not logs:
             from app.db import _cache
-            logs = [l for l in _cache.get("sync_logs", []) if l.get("is_demo") is False]
+            logs = [l for l in _cache.get("sync_logs", []) if not l.get("is_demo")]
 
     from app.db import decode_sync_log
     logs = [decode_sync_log(l) for l in logs]

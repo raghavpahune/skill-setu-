@@ -66,6 +66,7 @@ class SyncEngine:
             "started_at": started_at,
             "completed_at": None,
             "duration_ms": 0,
+            "is_demo": is_explicit_demo_mode(),
         }
         save_sync_log(log_entry)
 

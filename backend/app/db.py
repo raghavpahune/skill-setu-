@@ -529,7 +529,10 @@ def save_sync_log(log_entry: dict) -> bool:
             }
             db_payload = {k: v for k, v in log_entry.items() if k in valid_cols}
             if "sources_detail" in log_entry and log_entry["sources_detail"]:
-                encoded = json.dumps(log_entry["sources_detail"])
+                sources_payload = dict(log_entry["sources_detail"])
+                if "is_demo" in log_entry:
+                    sources_payload["_meta"] = {"is_demo": bool(log_entry.get("is_demo"))}
+                encoded = json.dumps(sources_payload)
                 existing_err = db_payload.get("error_message") or ""
                 db_payload["error_message"] = f"{existing_err}||SOURCES_DETAIL:{encoded}"
             client.table("sync_logs").upsert(db_payload).execute()
@@ -550,14 +553,20 @@ def decode_sync_log(log_entry: dict) -> dict:
         decoded["error_message"] = parts[0].strip() or None
         try:
             decoded["sources_detail"] = json.loads(parts[1])
+            if "_meta" in decoded["sources_detail"]:
+                decoded["is_demo"] = decoded["sources_detail"]["_meta"].get("is_demo", False)
+                del decoded["sources_detail"]["_meta"]
         except Exception:
             pass
-    if not decoded.get("sources_detail") and _cache.get("sync_logs"):
+    if _cache.get("sync_logs"):
         entry_id = decoded.get("id")
         if entry_id:
             cached = next((item for item in _cache.get("sync_logs", []) if item.get("id") == entry_id), None)
-            if cached and cached.get("sources_detail"):
-                decoded["sources_detail"] = cached["sources_detail"]
+            if cached:
+                if not decoded.get("sources_detail") and cached.get("sources_detail"):
+                    decoded["sources_detail"] = cached["sources_detail"]
+                if "is_demo" in cached and "is_demo" not in decoded:
+                    decoded["is_demo"] = cached["is_demo"]
     return decoded
 
 
