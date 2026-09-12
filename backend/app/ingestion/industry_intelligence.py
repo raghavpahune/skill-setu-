@@ -361,7 +361,8 @@ class IndustryIntelligenceIngestor:
         pending = sum(1 for s in signals if s.get("validation_status") == STATUS_PENDING)
         rejected = sum(1 for s in signals if s.get("validation_status") == STATUS_REJECTED)
         active = sum(1 for s in signals if s.get("is_active") is True)
-        user_sub = sum(1 for s in signals if s.get("source") == "USER_SUBMITTED" or s.get("data_provenance") == "VERIFIED_EXTERNAL_FEED")
+        user_sub = sum(1 for s in signals if s.get("source") == "USER_SUBMITTED" or s.get("data_provenance") == "USER_SUBMITTED")
+        verified_ext = sum(1 for s in signals if s.get("data_provenance") == "VERIFIED_EXTERNAL_FEED" and not s.get("is_demo") and s.get("source_label") != "DEMO_SYNTHETIC")
         demo_count = sum(1 for s in signals if s.get("is_demo") is True or s.get("source_label") == "DEMO_SYNTHETIC")
 
         return {
@@ -371,7 +372,8 @@ class IndustryIntelligenceIngestor:
             "pending_count": pending,
             "rejected_count": rejected,
             "active_count": active,
-            "verified_ingested_count": user_sub,
+            "verified_ingested_count": verified_ext,
+            "user_submitted_count": user_sub,
             "demo_synthetic_count": demo_count,
             "registered_sources_count": len(self.sources),
             "sources": self.sources,

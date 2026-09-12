@@ -555,7 +555,7 @@ export default function EmployeeProfile() {
             {alerts && alerts.length > 0 && (
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
                 <h2 className="text-sm font-black text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                  <span>📊</span> Industry Telemetry & Technology Signals ({form.industry})
+                  <span>📊</span> Industry Intelligence & Technology Signals ({form.industry})
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {alerts.map((al) => (

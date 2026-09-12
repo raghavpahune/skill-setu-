@@ -274,7 +274,7 @@ export default function Landing() {
         <StatCard
           label="Tracked Competencies"
           value={stats.skillsCount}
-          subtext="NSQF & NCO-2015 mapped"
+          subtext="NSQF aligned"
           trend="55 standardized"
           icon="🎯"
         />

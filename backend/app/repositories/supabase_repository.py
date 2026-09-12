@@ -1039,7 +1039,12 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
         sig_record["updated_at"] = now_iso
         sig_record.setdefault("source", "USER_SUBMITTED")
         sig_record.setdefault("is_demo", False)
-        sig_record.setdefault("data_provenance", "VERIFIED_EXTERNAL_FEED")
+        if sig_record.get("source") == "USER_SUBMITTED":
+            sig_record.setdefault("data_provenance", "USER_SUBMITTED")
+        elif sig_record.get("is_demo") or sig_record.get("source_label") == "DEMO_SYNTHETIC":
+            sig_record.setdefault("data_provenance", "DEMO_SYNTHETIC")
+        else:
+            sig_record.setdefault("data_provenance", "UNVERIFIED_EXTERNAL_SOURCE")
 
         clean_sig = {k: v for k, v in sig_record.items() if k in VALID_INDUSTRY_SIGNAL_COLUMNS}
         res = client.table("industry_signals").upsert(clean_sig).execute()

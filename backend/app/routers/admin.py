@@ -846,7 +846,7 @@ async def list_admin_industry_signals(
             "validation_status": val_st,
             "is_active": is_act,
             "is_demo": s.get("is_demo", s.get("source_label") == "DEMO_SYNTHETIC"),
-            "data_provenance": s.get("data_provenance") or ("DEMO_SYNTHETIC" if s.get("source_label") == "DEMO_SYNTHETIC" else "VERIFIED_EXTERNAL_FEED"),
+            "data_provenance": s.get("data_provenance") or ("DEMO_SYNTHETIC" if s.get("source_label") == "DEMO_SYNTHETIC" else "UNVERIFIED_EXTERNAL_SOURCE"),
             "freshness": fresh,
             "admin_notes": s.get("admin_notes"),
             "is_ai_processed": s.get("is_ai_processed", False),

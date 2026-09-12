@@ -1486,3 +1486,73 @@ def test_scheduler_execute_sync_industry_signals_partial_preserves_error_and_pri
     assert saved_log["sources_detail"]["industry_signals"]["status"] == "PARTIAL"
     assert "Malformed URL" in saved_log["error_message"]
 
+
+def test_user_submitted_signal_provenance_not_verified_external_feed():
+    from unittest.mock import MagicMock, patch
+    from app.repositories.supabase_repository import create_industry_signal
+
+    mock_client = MagicMock()
+    mock_res = MagicMock()
+    mock_res.data = [{
+        "id": "test-sig-uuid-1",
+        "title": "Custom User Submitted Signal",
+        "source": "USER_SUBMITTED",
+        "data_provenance": "USER_SUBMITTED",
+        "is_demo": False,
+    }]
+    mock_client.table.return_value.upsert.return_value.execute.return_value = mock_res
+
+    with patch("app.repositories.supabase_repository.get_client", return_value=mock_client), \
+         patch("app.db._flush_real_table"):
+        sig = create_industry_signal({
+            "title": "Custom User Submitted Signal",
+            "source": "USER_SUBMITTED",
+        })
+        assert sig["data_provenance"] == "USER_SUBMITTED"
+        assert sig["data_provenance"] != "VERIFIED_EXTERNAL_FEED"
+
+
+def test_industry_intelligence_pipeline_status_distinguishes_user_and_verified():
+    from unittest.mock import patch
+    from app.ingestion.industry_intelligence import IndustryIntelligenceIngestor
+
+    sample_signals = [
+        {
+            "id": "sig-1",
+            "title": "Verified Signal",
+            "source": "EXTERNAL_API",
+            "data_provenance": "VERIFIED_EXTERNAL_FEED",
+            "is_demo": False,
+            "validation_status": "APPROVED",
+            "is_active": True,
+        },
+        {
+            "id": "sig-2",
+            "title": "User Signal",
+            "source": "USER_SUBMITTED",
+            "data_provenance": "USER_SUBMITTED",
+            "is_demo": False,
+            "validation_status": "PENDING",
+            "is_active": True,
+        },
+        {
+            "id": "sig-3",
+            "title": "Demo Signal",
+            "source": "DEMO",
+            "source_label": "DEMO_SYNTHETIC",
+            "data_provenance": "DEMO_SYNTHETIC",
+            "is_demo": True,
+            "validation_status": "APPROVED",
+            "is_active": True,
+        },
+    ]
+
+    ingestor = IndustryIntelligenceIngestor()
+    with patch("app.repositories.supabase_repository.list_industry_signals", return_value=sample_signals):
+        status = ingestor.get_ingestion_status()
+        assert status["total_signals"] == 3
+        assert status["verified_ingested_count"] == 1
+        assert status["user_submitted_count"] == 1
+        assert status["demo_synthetic_count"] == 1
+
+

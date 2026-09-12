@@ -51,7 +51,7 @@ The current SkillSetuAI Maharashtra dataset does not contain sufficient **${labe
 * **State Deficit Status:** Cannot compute a verified demand percentage or deficit gap for ${label} due to lack of local job telemetry.
 
 #### General Industry Context:
-**${label}** is recognized in modern software engineering for high-concurrency microservices, cloud-native backend infrastructure, and systems tooling. Related programming and cloud competencies with active verified employer demand in Maharashtra include **Python** (26% demand, 146 active roles), **Java**, **React**, and **Cloud Computing (AWS/Kubernetes)**.
+**${label}** is recognized in modern software engineering for high-concurrency microservices, cloud-native backend infrastructure, and systems tooling. Related programming and cloud competencies in the reference benchmark index include **Python**, **Java**, **React**, and **Cloud Computing (AWS/Kubernetes)**.
 
 #### Recommendation:
 To track ${label} demand systematically, submit candidate skill feedback via the Employer Dashboard or configure specialized tech job ingestion feeds.`,
@@ -109,9 +109,9 @@ Connect to the live SkillSetuAI backend to load your verified real-time district
   if (q.includes('python')) {
     const isPune = q.includes('pune') || dLower === 'pune';
     return {
-      answer: `### Verified Skill Intelligence: Python
+      answer: `**Reference Skill Intelligence: Python (Offline Demo Benchmark)**
 
-Based on indexed SkillSetuAI labour-market records across Maharashtra:
+Based on indexed SkillSetuAI benchmark demo records across Maharashtra:
 
 * **Category / Domain:** Programming (NSQF Level 5)
 * **Active Hiring Demand:** Appears in **26%** of tracked job postings (**146** active postings out of 556 total).
@@ -208,9 +208,9 @@ Bridge top priority technical deficits through hands-on capstone projects and ap
   // 5. Gaps / Deficit query
   if (q.includes('gap') || q.includes('deficit')) {
     return {
-      answer: `### Identified Skill Deficit Analysis
+      answer: `**Reference Skill Deficit Analysis (Offline Demo Benchmark)**
 
-Comparison of employer job specifications against accredited vocational curricula in Maharashtra:
+Comparison of sample employer job specifications against vocational curricula in the benchmark index:
 
 | Skill Name | Domain | Priority | Demand % | Coverage % | Deficit |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -230,9 +230,9 @@ Comparison of employer job specifications against accredited vocational curricul
 
   // Default Maharashtra overview
   return {
-    answer: `### SkillSetuAI Labour-Market Intelligence
+    answer: `**SkillSetuAI Labour-Market Intelligence (Offline Reference)**
 
-SkillSetuAI continuously indexes 55+ skills, 560+ job postings, and 27 accredited training courses across 10 Maharashtra districts.
+SkillSetuAI provides workforce intelligence across Maharashtra districts. Connect to the live service for real-time indexed vacancies and verified training records.
 
 **Suggested inquiries:**
 * *'Tell me about requirement for Python developer in Pune'*
