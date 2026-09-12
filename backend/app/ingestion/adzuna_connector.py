@@ -154,14 +154,18 @@ class AdzunaConnector(BaseSourceAdapter):
             return []
 
         url = f"{ADZUNA_BASE_URL}/{page}"
-        params = {
+        params: dict[str, Any] = {
             "app_id": self.app_id,
             "app_key": self.app_key,
             "results_per_page": results_per_page,
-            "what": what,
             "where": where,
             "content-type": "application/json",
         }
+        if what:
+            if " OR " in what:
+                params["what_or"] = " ".join([w.strip() for w in what.split(" OR ") if w.strip()])
+            else:
+                params["what"] = what
 
         last_error = None
         for attempt in range(1, self.max_retries + 1):

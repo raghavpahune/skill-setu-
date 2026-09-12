@@ -242,7 +242,7 @@ class SyncEngine:
             if src_norm in ("all", "industry_signals", "industry"):
                 try:
                     from app.ingestion.industry_intelligence import industry_ingestor
-                    ind_res = industry_ingestor.ingest_from_feeds()
+                    ind_res = industry_ingestor.ingest_from_feeds(is_demo=is_explicit_demo_mode())
                     ind_fetched = ind_res.get("records_fetched", ind_res.get("fetched", 0))
                     ind_added = ind_res.get("records_added", ind_res.get("added", 0))
                     ind_updated = ind_res.get("records_updated", ind_res.get("updated", 0))
@@ -273,31 +273,43 @@ class SyncEngine:
                     }
 
             if src_norm in ("all", "skill_forecasts", "forecasts", "forecast"):
-                try:
-                    from app.services.forecast_engine import persist_computed_forecasts
-                    fc_res = persist_computed_forecasts()
-                    fc_count = len(fc_res)
-                    total_added += fc_count
-                    source_successes.append("skill_forecasts")
+                if not is_supabase_connected() and not is_explicit_demo_mode():
+                    err_text = "Supabase client is not configured or unavailable in production environment."
+                    source_errors.append(f"skill_forecasts: NOT_CONFIGURED - {err_text}")
                     sources_detail["skill_forecasts"] = {
-                        "status": "SUCCESS" if fc_count else "NO_DATA",
-                        "error": None,
-                        "records_fetched": fc_count,
-                        "records_added": fc_count,
-                        "records_updated": 0,
-                        "records_skipped": 0,
-                    }
-                except Exception as err:
-                    logger.warning("[SyncEngine] Forecasts persistence failed: %s", err)
-                    source_errors.append(f"skill_forecasts: FAILED - {err}")
-                    sources_detail["skill_forecasts"] = {
-                        "status": "FAILED",
-                        "error": str(err),
+                        "status": "NOT_CONFIGURED",
+                        "error": err_text,
                         "records_fetched": 0,
                         "records_added": 0,
                         "records_updated": 0,
                         "records_skipped": 0,
                     }
+                else:
+                    try:
+                        from app.services.forecast_engine import persist_computed_forecasts
+                        fc_res = persist_computed_forecasts()
+                        fc_count = len(fc_res)
+                        total_added += fc_count
+                        source_successes.append("skill_forecasts")
+                        sources_detail["skill_forecasts"] = {
+                            "status": "SUCCESS" if fc_count else "NO_DATA",
+                            "error": None,
+                            "records_fetched": fc_count,
+                            "records_added": fc_count,
+                            "records_updated": 0,
+                            "records_skipped": 0,
+                        }
+                    except Exception as err:
+                        logger.warning("[SyncEngine] Forecasts persistence failed: %s", err)
+                        source_errors.append(f"skill_forecasts: FAILED - {err}")
+                        sources_detail["skill_forecasts"] = {
+                            "status": "FAILED",
+                            "error": str(err),
+                            "records_fetched": 0,
+                            "records_added": 0,
+                            "records_updated": 0,
+                            "records_skipped": 0,
+                        }
 
             duration_ms = int((time.perf_counter() - start_perf) * 1000)
             completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat()

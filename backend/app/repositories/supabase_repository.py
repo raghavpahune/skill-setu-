@@ -1659,6 +1659,10 @@ def upsert_skills(skills_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "nsqf_level": s.get("nsqf_level", 5),
                 "synonyms": s.get("synonyms", []),
             }
+            if s.get("id"):
+                clean["id"] = s["id"]
+            else:
+                clean["id"] = str(uuid.uuid4())
             clean_skills.append(clean)
         res = client.table("skills").upsert(clean_skills, on_conflict="name").execute()
         return getattr(res, "data", []) or clean_skills

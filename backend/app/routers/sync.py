@@ -5,7 +5,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, status, Depends
 logger = logging.getLogger(__name__)
 from app.config import settings
 from app.core.data_mode import is_explicit_demo_mode
-from app.db import get_demo
+from app.db import get_demo, is_supabase_connected
 from app.ingestion.datagov_connector import (
     DataGovConnector,
     RESOURCE_SCHOLARSHIP_ALLOCATION,
@@ -139,9 +139,9 @@ async def get_sync_status(
             "unconfigured_error": None,
         },
         "skill_forecasts": {
-            "configured": True,
+            "configured": is_supabase_connected(),
             "aliases": ("skill_forecasts", "forecasts", "forecast"),
-            "unconfigured_error": None,
+            "unconfigured_error": "Supabase client is not configured or unavailable in production environment.",
         },
     }
 
@@ -267,6 +267,15 @@ async def get_sync_status(
             elif log_st == "partial":
                 eval_status = "PARTIAL"
                 eval_error = log_err
+            elif log_st == "no_data":
+                eval_status = "NO_DATA"
+                eval_error = None
+            elif log_st == "not_configured":
+                eval_status = "NOT_CONFIGURED"
+                eval_error = log_err or unconf_err
+            elif log_st == "idle":
+                eval_status = "IDLE"
+                eval_error = None
             elif log_st == "success":
                 if rec_fetched > 0:
                     eval_status = "SUCCESS"

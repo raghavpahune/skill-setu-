@@ -268,8 +268,8 @@ def test_admin_industry_signal_crud_and_moderation():
 # 5. SCHEDULER INTEGRATION
 # ============================================================================
 
-def test_scheduler_industry_sync_execution():
-    """Verify scheduler execute_sync supports industry_signals source."""
+def test_scheduler_industry_sync_execution(monkeypatch):
+    monkeypatch.setattr("app.ingestion.scheduler.is_explicit_demo_mode", lambda: True)
     import asyncio
     result = asyncio.run(scheduler.execute_sync(source="industry_signals"))
     assert result["status"] == "success"

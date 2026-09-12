@@ -160,7 +160,13 @@ async def get_industry_signal(
     else:
         try:
             matched = get_industry_signal_repo(signal_id)
-            if matched and (matched.get("is_demo") is True or matched.get("source") == "DEMO_SYNTHETIC"):
+            if matched and (
+                matched.get("is_demo") is True
+                or matched.get("source") == "DEMO_SYNTHETIC"
+                or matched.get("source_label") == "DEMO_SYNTHETIC"
+                or matched.get("source_type") == "DEMO_SYNTHETIC"
+                or matched.get("data_provenance") == "DEMO_SYNTHETIC"
+            ):
                 matched = None
         except SupabaseRepositoryError as e:
             logger.exception("[Signals] Failed fetching industry signal '%s' from Supabase: %s", signal_id, e)

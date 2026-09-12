@@ -925,3 +925,76 @@ def test_sync_status_idle_source_does_not_copy_unrelated_aggregate_log():
         assert sources[s_name]["records_updated"] == 0
         assert sources[s_name]["records_skipped"] == 0
         assert sources[s_name]["error"] is None
+
+
+def test_industry_signals_real_mode_no_sample_feeds_ingested():
+    from unittest.mock import patch
+    from app.ingestion.sync_engine import SyncEngine
+
+    with patch("app.ingestion.sync_engine.is_explicit_demo_mode", return_value=False), \
+         patch("app.ingestion.industry_intelligence.IndustryIntelligenceIngestor.validate_and_normalize") as mock_val, \
+         patch("app.db.save_industry_signal") as mock_save:
+
+        engine = SyncEngine()
+        res = engine.run_sync("industry_signals")
+
+    assert mock_val.call_count == 0
+    assert mock_save.call_count == 0
+    assert res["sources_detail"]["industry_signals"]["status"] == "NO_DATA"
+    assert res["sources_detail"]["industry_signals"]["records_fetched"] == 0
+    assert res["sources_detail"]["industry_signals"]["records_added"] == 0
+    assert res["sources_detail"]["industry_signals"]["records_updated"] == 0
+    assert res["sources_detail"]["industry_signals"]["records_skipped"] == 0
+
+
+def test_industry_signals_ingest_from_feeds_real_mode_rejects_synthetic():
+    from app.ingestion.industry_intelligence import industry_ingestor, SAMPLE_VERIFIED_FEEDS
+
+    res_empty = industry_ingestor.ingest_from_feeds(is_demo=False)
+    assert res_empty["status"] == "NO_DATA"
+    assert res_empty["records_fetched"] == 0
+    assert res_empty["records_added"] == 0
+
+    res_synthetic = industry_ingestor.ingest_from_feeds(SAMPLE_VERIFIED_FEEDS, is_demo=False)
+    assert res_synthetic["records_added"] == 0
+    assert res_synthetic["records_rejected"] == len(SAMPLE_VERIFIED_FEEDS)
+
+
+def test_adzuna_what_or_parameter_conversion():
+    from unittest.mock import patch, MagicMock
+    from app.ingestion.adzuna_connector import AdzunaConnector
+
+    captured_params = {}
+
+    def mock_get(url, params=None, **kwargs):
+        nonlocal captured_params
+        captured_params = params or {}
+        return MagicMock(status_code=200, json=lambda: {"results": []})
+
+    connector = AdzunaConnector(app_id="test_id", app_key="test_key")
+    with patch("httpx.get", side_effect=mock_get):
+        res = connector.fetch_raw(
+            what="engineer OR technician OR developer OR analyst",
+            is_demo=False,
+        )
+
+    assert res == []
+    assert connector.last_status == "NO_DATA"
+    assert connector.last_error is None
+    assert "what_or" in captured_params
+    assert captured_params["what_or"] == "engineer technician developer analyst"
+    assert "what" not in captured_params
+
+
+def test_adzuna_live_empty_results_returns_no_data():
+    from unittest.mock import patch, MagicMock
+    from app.ingestion.adzuna_connector import AdzunaConnector
+
+    connector = AdzunaConnector(app_id="test_id", app_key="test_key")
+    with patch("httpx.get", return_value=MagicMock(status_code=200, json=lambda: {"results": []})):
+        res = connector.fetch_raw(is_demo=False)
+
+    assert res == []
+    assert connector.last_status == "NO_DATA"
+    assert connector.last_error is None
+

@@ -121,8 +121,10 @@ def compute_multi_horizon_forecasts(is_demo: bool | None = None) -> list[dict[st
     forecast_results = []
 
     for sk in skills:
-        sid = sk["id"]
-        s_name = sk["name"]
+        sid = sk.get("id")
+        s_name = sk.get("name")
+        if not sid or not s_name:
+            continue
         s_name_lower = s_name.lower().strip()
         category = sk.get("category", "General")
         nsqf = sk.get("nsqf_level", 5)

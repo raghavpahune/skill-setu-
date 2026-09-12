@@ -145,7 +145,10 @@ class IngestionScheduler:
                 if source in ("industry_signals", "industry"):
                     from app.ingestion.industry_intelligence import industry_ingestor
                     from app.db import save_sync_log
-                    ind_res = await loop.run_in_executor(None, industry_ingestor.ingest_from_feeds)
+                    ind_res = await loop.run_in_executor(
+                        None,
+                        lambda: industry_ingestor.ingest_from_feeds(is_demo=is_explicit_demo_mode()),
+                    )
                     now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     self._last_successful_run_timestamp = now_str
                     self._last_error = None
