@@ -150,18 +150,19 @@ class IngestionScheduler:
                         lambda: industry_ingestor.ingest_from_feeds(is_demo=is_explicit_demo_mode()),
                     )
                     now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                    self._last_successful_run_timestamp = now_str
-                    self._last_error = None
-                    self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
                     fetched_cnt = ind_res.get("records_fetched", ind_res.get("fetched", 0))
                     added_cnt = ind_res.get("records_added", ind_res.get("added", 0))
                     updated_cnt = ind_res.get("records_updated", ind_res.get("updated", 0))
                     skipped_cnt = ind_res.get("records_duplicated", ind_res.get("skipped", 0))
+                    if fetched_cnt > 0:
+                        self._last_successful_run_timestamp = now_str
+                    self._last_error = None
+                    self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
                     save_sync_log({
                         "id": str(uuid.uuid4()),
                         "source_name": source,
                         "job_type": "scheduled_sync",
-                        "status": "success",
+                        "status": "success" if fetched_cnt > 0 else "NO_DATA",
                         "records_fetched": fetched_cnt,
                         "records_added": added_cnt,
                         "records_updated": updated_cnt,
@@ -182,22 +183,23 @@ class IngestionScheduler:
                             }
                         },
                     })
-                    return {"status": "success", "source": source, "industry_sync": ind_res, "duration_ms": self._last_run_duration_ms}
+                    return {"status": "success" if fetched_cnt > 0 else "no_data", "source": source, "industry_sync": ind_res, "duration_ms": self._last_run_duration_ms}
 
                 if source in ("skill_forecasts", "forecasts", "forecast"):
                     from app.services.forecast_engine import persist_computed_forecasts
                     from app.db import save_sync_log
                     fc_res = await loop.run_in_executor(None, persist_computed_forecasts)
                     now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                    self._last_successful_run_timestamp = now_str
+                    fc_cnt = len(fc_res)
+                    if fc_cnt > 0:
+                        self._last_successful_run_timestamp = now_str
                     self._last_error = None
                     self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
-                    fc_cnt = len(fc_res)
                     save_sync_log({
                         "id": str(uuid.uuid4()),
                         "source_name": source,
                         "job_type": "scheduled_sync",
-                        "status": "success",
+                        "status": "success" if fc_cnt > 0 else "NO_DATA",
                         "records_fetched": fc_cnt,
                         "records_added": fc_cnt,
                         "records_updated": 0,
@@ -218,7 +220,7 @@ class IngestionScheduler:
                             }
                         },
                     })
-                    return {"status": "success", "source": source, "forecasts_persisted": len(fc_res), "duration_ms": self._last_run_duration_ms}
+                    return {"status": "success" if fc_cnt > 0 else "no_data", "source": source, "forecasts_persisted": len(fc_res), "duration_ms": self._last_run_duration_ms}
 
                 result = await loop.run_in_executor(None, self.engine.run_sync, source)
 

@@ -332,7 +332,7 @@ CREATE TABLE IF NOT EXISTS sync_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_name TEXT NOT NULL,
     job_type TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed', 'partial')),
+    status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed', 'partial', 'no_data', 'NO_DATA')),
     records_fetched INT DEFAULT 0,
     records_added INT DEFAULT 0,
     records_updated INT DEFAULT 0,

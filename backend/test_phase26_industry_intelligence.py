@@ -48,8 +48,8 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def setup_test_environment():
-    """Reset database caches and demo dataset before each test run."""
+def setup_test_environment(monkeypatch):
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
     init_db()
 
 

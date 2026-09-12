@@ -505,7 +505,20 @@ def delete_employer_demand(demand_id: str) -> bool:
     return repo_deleted or cache_deleted
 
 
+VALID_SYNC_LOG_STATUSES = {
+    "running", "RUNNING",
+    "success", "SUCCESS",
+    "failed", "FAILED",
+    "partial", "PARTIAL",
+    "no_data", "NO_DATA",
+}
+
+
 def save_sync_log(log_entry: dict) -> bool:
+    status_val = log_entry.get("status")
+    if not status_val or status_val not in VALID_SYNC_LOG_STATUSES:
+        logger.warning("[DB] Rejecting sync_log with invalid status: %s", status_val)
+        return False
     if not _cache:
         init_db()
     sync_id = log_entry.get("id")
@@ -540,7 +553,8 @@ def save_sync_log(log_entry: dict) -> bool:
             return True
         except Exception as e:
             logger.warning("[DB] Failed persisting sync_log to Supabase: %s", e)
-    return False
+            return False
+    return True
 
 
 def decode_sync_log(log_entry: dict) -> dict:

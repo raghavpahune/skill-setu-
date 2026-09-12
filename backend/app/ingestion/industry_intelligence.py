@@ -490,6 +490,16 @@ class IndustryIntelligenceIngestor:
                 "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "duration_ms": 0,
                 "is_demo": False if is_demo is False else True,
+                "sources_detail": {
+                    "industry_signals": {
+                        "status": "NO_DATA",
+                        "error": None,
+                        "records_fetched": 0,
+                        "records_added": 0,
+                        "records_updated": 0,
+                        "records_skipped": 0,
+                    }
+                },
             })
             return summary
 
@@ -568,10 +578,19 @@ class IndustryIntelligenceIngestor:
             "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "duration_ms": 15,
             "is_demo": False if is_demo is False else True,
+            "sources_detail": {
+                "industry_signals": {
+                    "status": "SUCCESS" if summary["status"] == "success" else "PARTIAL",
+                    "error": "; ".join(errors) if errors else None,
+                    "records_fetched": summary["records_fetched"],
+                    "records_added": added,
+                    "records_updated": updated,
+                    "records_skipped": duplicated,
+                }
+            },
         })
 
         return summary
 
 
-# Global Singleton Instance
 industry_ingestor = IndustryIntelligenceIngestor()

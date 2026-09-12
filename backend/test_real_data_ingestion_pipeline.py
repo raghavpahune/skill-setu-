@@ -1057,3 +1057,264 @@ def test_scheduler_sync_logs_include_is_demo_field(monkeypatch):
     assert saved_logs[-1]["is_demo"] is True
 
 
+def test_sync_log_persistence_statuses_cache_and_supabase():
+    from app.db import save_sync_log, decode_sync_log, _cache
+
+    _cache["sync_logs"] = []
+    valid_cases = ["NO_DATA", "no_data", "success", "SUCCESS", "failed", "FAILED", "partial", "PARTIAL", "running", "RUNNING"]
+    for idx, st in enumerate(valid_cases):
+        entry = {
+            "id": f"test-status-{idx}",
+            "source_name": "industry_signals",
+            "job_type": "scheduled_sync",
+            "status": st,
+            "records_fetched": 0,
+            "records_added": 0,
+            "records_updated": 0,
+            "records_skipped": 0,
+            "error_message": None,
+            "started_at": "2026-09-12T04:00:00Z",
+            "completed_at": "2026-09-12T04:00:01Z",
+            "duration_ms": 100,
+        }
+        res = save_sync_log(entry)
+        assert res is True
+        assert any(l["id"] == f"test-status-{idx}" for l in _cache.get("sync_logs", []))
+
+    mock_client = MagicMock()
+    with patch("app.db.get_supabase_client", return_value=mock_client):
+        entry = {
+            "id": "test-supa-no-data",
+            "source_name": "industry_signals",
+            "job_type": "scheduled_sync",
+            "status": "NO_DATA",
+            "records_fetched": 0,
+            "records_added": 0,
+            "records_updated": 0,
+            "records_skipped": 0,
+            "error_message": None,
+            "started_at": "2026-09-12T04:00:00Z",
+            "completed_at": "2026-09-12T04:00:01Z",
+            "duration_ms": 50,
+            "sources_detail": {
+                "industry_signals": {
+                    "status": "NO_DATA",
+                    "error": None,
+                    "records_fetched": 0,
+                    "records_added": 0,
+                    "records_updated": 0,
+                    "records_skipped": 0,
+                }
+            },
+        }
+        res = save_sync_log(entry)
+        assert res is True
+        assert mock_client.table.called
+        upsert_call = mock_client.table("sync_logs").upsert.call_args[0][0]
+        assert upsert_call["status"] == "NO_DATA"
+        decoded = decode_sync_log(upsert_call)
+        assert decoded["sources_detail"]["industry_signals"]["status"] == "NO_DATA"
+
+
+def test_sync_log_persistence_rejects_arbitrary_invalid_status():
+    from app.db import save_sync_log, _cache
+
+    _cache["sync_logs"] = []
+    invalid_cases = ["INVALID_STATUS", "UNKNOWN", "NOT_CONFIGURED", "IDLE", "", None]
+    for idx, inv_st in enumerate(invalid_cases):
+        entry = {
+            "id": f"test-invalid-{idx}",
+            "source_name": "industry_signals",
+            "job_type": "scheduled_sync",
+            "status": inv_st,
+        }
+        res = save_sync_log(entry)
+        assert res is False
+        assert not any(l.get("id") == f"test-invalid-{idx}" for l in _cache.get("sync_logs", []))
+
+
+def test_scheduler_industry_signals_persists_no_data_when_zero_fetched(monkeypatch):
+    import asyncio
+    from app.ingestion.scheduler import IngestionScheduler
+    from app.db import _cache
+
+    _cache["sync_logs"] = []
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "real")
+    sched = IngestionScheduler()
+    res = asyncio.run(sched.execute_sync(source="industry_signals"))
+    assert res["status"] == "no_data"
+    cached = _cache.get("sync_logs", [])
+    assert len(cached) >= 1
+    last_log = cached[-1]
+    assert last_log["source_name"] == "industry_signals"
+    assert last_log["status"] == "NO_DATA"
+    assert last_log["records_fetched"] == 0
+    assert last_log["sources_detail"]["industry_signals"]["status"] == "NO_DATA"
+
+
+def test_scheduler_skill_forecasts_persists_no_data_when_zero_computed(monkeypatch):
+    import asyncio
+    from app.ingestion.scheduler import IngestionScheduler
+    from app.db import _cache
+
+    _cache["sync_logs"] = []
+    monkeypatch.setattr("app.services.forecast_engine.persist_computed_forecasts", lambda: [])
+    sched = IngestionScheduler()
+    res = asyncio.run(sched.execute_sync(source="skill_forecasts"))
+    assert res["status"] == "no_data"
+    cached = _cache.get("sync_logs", [])
+    assert len(cached) >= 1
+    last_log = cached[-1]
+    assert last_log["source_name"] == "skill_forecasts"
+    assert last_log["status"] == "NO_DATA"
+    assert last_log["records_fetched"] == 0
+    assert last_log["sources_detail"]["skill_forecasts"]["status"] == "NO_DATA"
+
+
+def test_sync_status_api_reflects_no_data_and_degraded_overall(monkeypatch):
+    from starlette.testclient import TestClient
+    from app.main import app
+    from app.db import _cache, save_sync_log
+
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "real")
+    monkeypatch.setattr("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True)
+    monkeypatch.setattr("app.ingestion.adzuna_connector.AdzunaConnector.has_credentials", True)
+    monkeypatch.setattr("app.routers.sync.is_supabase_connected", lambda: True)
+    monkeypatch.setattr("app.repositories.supabase_repository.list_sync_logs", lambda **kwargs: [])
+
+    _cache["sync_logs"] = []
+    save_sync_log({
+        "id": "log-dg-no-data",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "NO_DATA",
+        "records_fetched": 0,
+        "records_added": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-12T04:00:00Z",
+        "completed_at": "2026-09-12T04:00:01Z",
+        "duration_ms": 100,
+        "is_demo": False,
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "NO_DATA",
+                "error": None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    })
+    save_sync_log({
+        "id": "log-ind-no-data",
+        "source_name": "industry_signals",
+        "job_type": "scheduled_sync",
+        "status": "NO_DATA",
+        "records_fetched": 0,
+        "records_added": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-12T04:00:02Z",
+        "completed_at": "2026-09-12T04:00:03Z",
+        "duration_ms": 100,
+        "is_demo": False,
+        "sources_detail": {
+            "industry_signals": {
+                "status": "NO_DATA",
+                "error": None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    })
+
+    monkeypatch.setattr("app.config.settings.sync_on_startup", False)
+    monkeypatch.setattr("app.config.settings.auto_sync_enabled", False)
+
+    client = TestClient(app)
+    res = client.get("/api/sync/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sources"]["data.gov.in"]["status"] == "NO_DATA"
+    assert data["sources"]["industry_signals"]["status"] == "NO_DATA"
+    assert data["status"] == "degraded"
+
+
+def test_sync_status_api_demo_log_isolation_from_real_status(monkeypatch):
+    from starlette.testclient import TestClient
+    from app.main import app
+    from app.db import _cache, save_sync_log
+
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "real")
+    monkeypatch.setattr("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True)
+    monkeypatch.setattr("app.repositories.supabase_repository.list_sync_logs", lambda **kwargs: [])
+
+    _cache["sync_logs"] = []
+    save_sync_log({
+        "id": "demo-log-success",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "success",
+        "records_fetched": 50,
+        "records_added": 50,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-12T04:00:10Z",
+        "completed_at": "2026-09-12T04:00:11Z",
+        "duration_ms": 100,
+        "is_demo": True,
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "SUCCESS",
+                "error": None,
+                "records_fetched": 50,
+                "records_added": 50,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    })
+    save_sync_log({
+        "id": "real-log-no-data",
+        "source_name": "data.gov.in",
+        "job_type": "scheduled_sync",
+        "status": "NO_DATA",
+        "records_fetched": 0,
+        "records_added": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
+        "error_message": None,
+        "started_at": "2026-09-12T04:00:00Z",
+        "completed_at": "2026-09-12T04:00:01Z",
+        "duration_ms": 100,
+        "is_demo": False,
+        "sources_detail": {
+            "data.gov.in": {
+                "status": "NO_DATA",
+                "error": None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+            }
+        },
+    })
+
+    monkeypatch.setattr("app.config.settings.sync_on_startup", False)
+    monkeypatch.setattr("app.config.settings.auto_sync_enabled", False)
+
+    client = TestClient(app)
+    res = client.get("/api/sync/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sources"]["data.gov.in"]["status"] == "NO_DATA"
+
+
+
