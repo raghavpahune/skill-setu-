@@ -998,3 +998,62 @@ def test_adzuna_live_empty_results_returns_no_data():
     assert connector.last_status == "NO_DATA"
     assert connector.last_error is None
 
+
+def test_admin_industry_ingestion_real_mode_no_feeds(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.config import settings
+
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "real")
+    monkeypatch.setattr(settings, "admin_api_key", "test-admin-secret-999")
+
+    with TestClient(app) as client:
+        res = client.post(
+            "/api/admin/industry/ingest",
+            headers={"X-Admin-Key": "test-admin-secret-999"},
+            json=None,
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "success"
+        summary = data["summary"]
+        assert summary["status"] == "NO_DATA"
+        assert summary["records_fetched"] == 0
+        assert summary["records_added"] == 0
+
+
+def test_ingest_from_feeds_no_args_real_mode_rejects_sample(monkeypatch):
+    from app.ingestion.industry_intelligence import industry_ingestor
+
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "real")
+    res = industry_ingestor.ingest_from_feeds()
+    assert res["status"] == "NO_DATA"
+    assert res["records_fetched"] == 0
+    assert res["records_added"] == 0
+
+
+def test_scheduler_sync_logs_include_is_demo_field(monkeypatch):
+    import asyncio
+    from app.ingestion.scheduler import IngestionScheduler
+
+    saved_logs = []
+
+    def mock_save_log(log_entry):
+        saved_logs.append(dict(log_entry))
+
+    monkeypatch.setattr("app.db.save_sync_log", mock_save_log)
+
+    sched = IngestionScheduler()
+
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "real")
+    asyncio.run(sched.execute_sync(source="industry_signals"))
+    assert len(saved_logs) >= 1
+    assert saved_logs[-1]["source_name"] == "industry_signals"
+    assert saved_logs[-1]["is_demo"] is False
+
+    monkeypatch.setenv("SKILLSETU_DATA_MODE", "demo")
+    asyncio.run(sched.execute_sync(source="industry_signals"))
+    assert len(saved_logs) >= 2
+    assert saved_logs[-1]["is_demo"] is True
+
+

@@ -780,7 +780,8 @@ class IndustrySignalAdminUpdate(BaseModel):
 @router.post("/admin/industry/ingest", dependencies=[Depends(verify_admin_key)])
 async def trigger_admin_industry_ingestion(feeds: list[dict[str, Any]] | None = None):
     """Admin endpoint to manually trigger automated ingestion across trusted industry feeds."""
-    result = industry_ingestor.ingest_from_feeds(feeds)
+    from app.core.data_mode import is_explicit_demo_mode
+    result = industry_ingestor.ingest_from_feeds(feeds, is_demo=is_explicit_demo_mode())
     return {
         "status": "success",
         "message": f"Industry ingestion run finished: {result['records_added']} added, {result['records_updated']} updated, {result['records_duplicated']} duplicated, {result['records_rejected']} rejected.",

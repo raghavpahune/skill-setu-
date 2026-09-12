@@ -454,8 +454,11 @@ class IndustryIntelligenceIngestor:
             update_industry_signal,
             save_sync_log,
         )
+        from app.core.data_mode import is_explicit_demo_mode
 
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        if is_demo is None:
+            is_demo = is_explicit_demo_mode()
         if is_demo is False and feeds is None:
             feed_data = []
         else:

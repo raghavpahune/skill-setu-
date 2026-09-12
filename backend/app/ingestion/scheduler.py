@@ -170,6 +170,7 @@ class IngestionScheduler:
                         "started_at": attempt_time,
                         "completed_at": now_str,
                         "duration_ms": self._last_run_duration_ms,
+                        "is_demo": is_explicit_demo_mode(),
                         "sources_detail": {
                             "industry_signals": {
                                 "status": "SUCCESS" if fetched_cnt > 0 else "NO_DATA",
@@ -205,6 +206,7 @@ class IngestionScheduler:
                         "started_at": attempt_time,
                         "completed_at": now_str,
                         "duration_ms": self._last_run_duration_ms,
+                        "is_demo": is_explicit_demo_mode(),
                         "sources_detail": {
                             "skill_forecasts": {
                                 "status": "SUCCESS" if fc_cnt > 0 else "NO_DATA",
