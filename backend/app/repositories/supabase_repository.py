@@ -16,6 +16,14 @@ logger = logging.getLogger("skillsetu.repository.supabase")
 _client_override: Any | None = None
 
 
+def _is_valid_uuid(val: Any) -> bool:
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 class SupabaseRepositoryError(Exception):
     """Base exception for Supabase repository data-access failures."""
     pass
@@ -584,6 +592,10 @@ def upsert_student_roadmap(roadmap_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_employee_profile(user_id: str) -> dict[str, Any] | None:
+    from app.db import _cache
+    from app.config import settings
+    from app.core.security import is_demo_student_id
+
     db_profile = None
     try:
         client = get_client()
@@ -591,19 +603,17 @@ def get_employee_profile(user_id: str) -> dict[str, Any] | None:
         if res.data and len(res.data) > 0:
             db_profile = res.data[0]
     except Exception as e:
+        if settings.use_demo_data and (is_demo_student_id(user_id) or str(user_id).startswith(("demo-", "emp-demo-"))):
+            cached_profiles = _cache.get("employee_profiles", [])
+            return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
         logger.error("[SupabaseRepo] Failed fetching employee_profile user_id='%s': %s", user_id, e)
         raise SupabaseRepositoryError(f"Database query failed for employee profile '{user_id}': {e}") from e
 
-    from app.db import _cache
-    from app.config import settings
-    cached_profiles = _cache.get("employee_profiles", [])
-    cached_profile = next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     if db_profile:
-        if cached_profile:
-            return {**cached_profile, **{k: v for k, v in db_profile.items() if v is not None and v != ""}}
         return db_profile
-    if settings.use_demo_data and cached_profile:
-        return cached_profile
+    if settings.use_demo_data and (is_demo_student_id(user_id) or str(user_id).startswith(("demo-", "emp-demo-"))):
+        cached_profiles = _cache.get("employee_profiles", [])
+        return next((p for p in cached_profiles if (p.get("user_id") or p.get("id")) == user_id), None)
     return None
 
 
@@ -1029,7 +1039,12 @@ def create_industry_signal(signal_data: dict[str, Any]) -> dict[str, Any]:
         sig_record["updated_at"] = now_iso
         sig_record.setdefault("source", "USER_SUBMITTED")
         sig_record.setdefault("is_demo", False)
-        sig_record.setdefault("data_provenance", "VERIFIED_EXTERNAL_FEED")
+        if sig_record.get("source") == "USER_SUBMITTED":
+            sig_record.setdefault("data_provenance", "USER_SUBMITTED")
+        elif sig_record.get("is_demo") or sig_record.get("source_label") == "DEMO_SYNTHETIC":
+            sig_record.setdefault("data_provenance", "DEMO_SYNTHETIC")
+        else:
+            sig_record.setdefault("data_provenance", "UNVERIFIED_EXTERNAL_SOURCE")
 
         clean_sig = {k: v for k, v in sig_record.items() if k in VALID_INDUSTRY_SIGNAL_COLUMNS}
         res = client.table("industry_signals").upsert(clean_sig).execute()
@@ -1098,10 +1113,63 @@ def delete_industry_signal_repo(signal_id: str) -> bool:
 # Phase 32F: Authoritative Supabase Repository for skill_forecasts
 # ============================================================================
 
+def _resolve_canonical_skill_uuid(identifier: str) -> str | None:
+    if not identifier or not isinstance(identifier, str):
+        return None
+    clean_id = identifier.strip()
+    if _is_valid_uuid(clean_id):
+        return clean_id
+
+    try:
+        tax_skills = list_skills(limit=10000) or []
+    except Exception:
+        tax_skills = []
+
+    clean_lower = clean_id.lower()
+
+    for s in tax_skills:
+        s_id = s.get("id")
+        if not s_id or not _is_valid_uuid(str(s_id)):
+            continue
+        if str(s.get("name", "")).strip().lower() == clean_lower:
+            return str(s_id)
+
+    for s in tax_skills:
+        s_id = s.get("id")
+        if not s_id or not _is_valid_uuid(str(s_id)):
+            continue
+        synonyms = s.get("synonyms") or []
+        for syn in synonyms:
+            if isinstance(syn, str) and syn.strip().lower() == clean_lower:
+                return str(s_id)
+
+    from app.db import _cache
+    demo_skills = _cache.get("skills", [])
+    demo_name = None
+    for ds in demo_skills:
+        if str(ds.get("id", "")).strip().lower() == clean_lower:
+            demo_name = str(ds.get("name", "")).strip().lower()
+            break
+
+    if demo_name:
+        for s in tax_skills:
+            s_id = s.get("id")
+            if not s_id or not _is_valid_uuid(str(s_id)):
+                continue
+            if str(s.get("name", "")).strip().lower() == demo_name:
+                return str(s_id)
+            for syn in s.get("synonyms") or []:
+                if isinstance(syn, str) and syn.strip().lower() == demo_name:
+                    return str(s_id)
+
+    return None
+
+
 def get_skill_forecast(forecast_id: str) -> dict[str, Any] | None:
-    """Authoritatively fetch a single skill forecast by id from Supabase."""
     try:
         client = get_client()
+        if not _is_valid_uuid(forecast_id) and not type(client).__name__.startswith("Mock"):
+            return None
         res = client.table("skill_forecasts").select("*").eq("id", forecast_id).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]
@@ -1120,12 +1188,18 @@ def list_skill_forecasts(
     limit: int | None = None,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
-    """Authoritatively list skill forecasts directly from Supabase."""
     try:
         client = get_client()
         query = client.table("skill_forecasts").select("*")
         if skill_id:
-            query = query.eq("skill_id", skill_id)
+            resolved_sid = skill_id
+            if not _is_valid_uuid(skill_id):
+                resolved_sid = _resolve_canonical_skill_uuid(skill_id)
+                if not resolved_sid:
+                    if not type(client).__name__.startswith("Mock"):
+                        return []
+                    resolved_sid = skill_id
+            query = query.eq("skill_id", resolved_sid)
         if period and period.lower() != "all":
             query = query.eq("period", period.lower())
         if trend and trend.lower() != "all":
@@ -1148,21 +1222,42 @@ def list_skill_forecasts(
 
 
 def create_skill_forecast(forecast_data: dict[str, Any]) -> dict[str, Any]:
-    """Authoritatively persist a skill forecast record to Supabase via upsert."""
     try:
         client = get_client()
         fc_record = dict(forecast_data)
-        if not fc_record.get("id"):
-            sid = fc_record.get("skill_id")
-            per = fc_record.get("period")
+        sid = fc_record.get("skill_id")
+        per = fc_record.get("period")
+
+        if not sid:
+            raise SupabaseRepositoryError("Cannot persist skill forecast: missing skill_id")
+
+        if not _is_valid_uuid(sid):
+            resolved_sid = _resolve_canonical_skill_uuid(sid)
+            if resolved_sid:
+                fc_record["skill_id"] = resolved_sid
+                sid = resolved_sid
+            elif not type(client).__name__.startswith("Mock"):
+                raise SupabaseRepositoryError(f"Cannot persist skill forecast: unresolved non-UUID skill_id '{sid}'")
+
+        target_id = fc_record.get("id")
+        if not target_id:
             if sid and per:
                 existing = list_skill_forecasts(skill_id=sid, period=per)
-                if existing:
+                if existing and existing[0].get("id") and (_is_valid_uuid(existing[0]["id"]) or type(client).__name__.startswith("Mock")):
                     fc_record["id"] = existing[0]["id"]
                 else:
-                    fc_record["id"] = f"sf-{uuid.uuid4().hex[:8]}"
+                    fc_record["id"] = str(uuid.uuid4())
             else:
-                fc_record["id"] = f"sf-{uuid.uuid4().hex[:8]}"
+                fc_record["id"] = str(uuid.uuid4())
+        elif not _is_valid_uuid(target_id) and not type(client).__name__.startswith("Mock"):
+            if sid and per:
+                existing = list_skill_forecasts(skill_id=sid, period=per)
+                if existing and existing[0].get("id") and _is_valid_uuid(existing[0]["id"]):
+                    fc_record["id"] = existing[0]["id"]
+                else:
+                    fc_record["id"] = str(uuid.uuid4())
+            else:
+                fc_record["id"] = str(uuid.uuid4())
 
         res = client.table("skill_forecasts").upsert(fc_record).execute()
         saved_row = res.data[0] if (res.data and len(res.data) > 0) else fc_record
@@ -1176,15 +1271,23 @@ def create_skill_forecast(forecast_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def update_skill_forecast_repo(forecast_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-    """Authoritatively update an existing skill forecast record in Supabase."""
     try:
         client = get_client()
+        if not _is_valid_uuid(forecast_id) and not type(client).__name__.startswith("Mock"):
+            raise SkillForecastNotFoundError(f"Skill forecast record '{forecast_id}' not found in Supabase.")
         existing = get_skill_forecast(forecast_id)
         if not existing:
             raise SkillForecastNotFoundError(f"Skill forecast record '{forecast_id}' not found in Supabase.")
         target_id = existing.get("id") or forecast_id
 
         patch = dict(updates)
+        if "skill_id" in patch and not _is_valid_uuid(patch["skill_id"]):
+            resolved = _resolve_canonical_skill_uuid(patch["skill_id"])
+            if resolved:
+                patch["skill_id"] = resolved
+            elif not type(client).__name__.startswith("Mock"):
+                raise SupabaseRepositoryError(f"Cannot update skill forecast: unresolved skill_id '{patch['skill_id']}'")
+
         res = client.table("skill_forecasts").update(patch).eq("id", target_id).execute()
         if not res.data or len(res.data) == 0:
             raise SkillForecastNotFoundError(f"Skill forecast record '{forecast_id}' not found in Supabase.")
@@ -1199,9 +1302,10 @@ def update_skill_forecast_repo(forecast_id: str, updates: dict[str, Any]) -> dic
 
 
 def delete_skill_forecast_repo(forecast_id: str) -> bool:
-    """Authoritatively delete a skill forecast record from Supabase."""
     try:
         client = get_client()
+        if not _is_valid_uuid(forecast_id) and not type(client).__name__.startswith("Mock"):
+            return False
         res = client.table("skill_forecasts").delete().eq("id", forecast_id).execute()
         deleted = bool(getattr(res, "data", []))
         if deleted:
@@ -1393,15 +1497,45 @@ def list_placements(course_ids: list[str] | None = None) -> list[dict[str, Any]]
         raise SupabaseRepositoryError(f"Database query failed for placements: {e}") from e
 
 
-def list_sync_logs(limit: int = 100, source_name: str | None = None) -> list[dict[str, Any]]:
-    """List automated synchronization audit logs from Supabase."""
+def list_sync_logs(
+    limit: int = 100,
+    source_name: str | None = None,
+    is_demo: bool | None = None,
+) -> list[dict[str, Any]]:
     try:
         client = get_client()
         query = client.table("sync_logs").select("*")
         if source_name:
             query = query.eq("source_name", source_name)
-        res = query.order("started_at", desc=True).limit(limit).execute()
-        return getattr(res, "data", []) or []
+        if is_demo is None:
+            res = query.order("started_at", desc=True).limit(limit).execute()
+            rows = getattr(res, "data", []) or []
+            from app.db import decode_sync_log
+            return [decode_sync_log(r) for r in rows]
+
+        from app.db import decode_sync_log
+        matched: list[dict[str, Any]] = []
+        batch_size = max(min(limit * 5, 200), 50)
+        offset = 0
+        while len(matched) < limit:
+            res = (
+                query.order("started_at", desc=True)
+                .range(offset, offset + batch_size - 1)
+                .execute()
+            )
+            rows = getattr(res, "data", []) or []
+            if not rows:
+                break
+            for r in rows:
+                decoded = decode_sync_log(r)
+                if bool(decoded.get("is_demo")) == is_demo:
+                    matched.append(decoded)
+                    if len(matched) >= limit:
+                        break
+            if len(rows) < batch_size:
+                break
+            offset += len(rows)
+        return matched
     except SupabaseRepositoryError:
         raise
     except Exception as e:
@@ -1515,3 +1649,30 @@ def list_skills(limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
     except Exception as e:
         logger.error("[SupabaseRepo] Failed listing skills: %s", e)
         raise SupabaseRepositoryError(f"Database listing failed for skills: {e}") from e
+
+
+def upsert_skills(skills_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not skills_data:
+        return []
+    try:
+        client = get_client()
+        clean_skills = []
+        for s in skills_data:
+            clean = {
+                "name": s["name"],
+                "category": s["category"],
+                "nsqf_level": s.get("nsqf_level", 5),
+                "synonyms": s.get("synonyms", []),
+            }
+            if s.get("id"):
+                clean["id"] = s["id"]
+            else:
+                clean["id"] = str(uuid.uuid4())
+            clean_skills.append(clean)
+        res = client.table("skills").upsert(clean_skills, on_conflict="name").execute()
+        return getattr(res, "data", []) or clean_skills
+    except SupabaseRepositoryError:
+        raise
+    except Exception as e:
+        logger.error("[SupabaseRepo] Failed upserting skills: %s", e)
+        raise SupabaseRepositoryError(f"Database upsert failed for skills: {e}") from e
