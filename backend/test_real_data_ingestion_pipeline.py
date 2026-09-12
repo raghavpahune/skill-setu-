@@ -1444,3 +1444,45 @@ def test_scheduler_execute_sync_all_populates_full_telemetry():
     assert status["last_successful_run_timestamp"] == "2026-09-12T14:00:00Z"
     assert status["last_run_duration_ms"] == 1200
     assert status["last_error"] is None
+
+
+def test_scheduler_execute_sync_industry_signals_partial_preserves_error_and_prior_success():
+    import asyncio
+    from unittest.mock import MagicMock
+    from app.ingestion.scheduler import IngestionScheduler
+
+    sched = IngestionScheduler()
+    sched._last_successful_run_timestamp = "2026-09-12T10:00:00Z"
+
+    partial_ind_res = {
+        "status": "partial",
+        "last_run": "2026-09-12T12:30:00Z",
+        "records_fetched": 5,
+        "records_added": 3,
+        "records_updated": 0,
+        "records_duplicated": 0,
+        "records_rejected": 2,
+        "errors": ["Rejected item 'Invalid Feed Item': Malformed URL"],
+    }
+
+    mock_ingestor = MagicMock()
+    mock_ingestor.ingest_from_feeds.return_value = partial_ind_res
+
+    with patch("app.ingestion.industry_intelligence.industry_ingestor", mock_ingestor), \
+         patch("app.db.save_sync_log") as mock_save_log:
+        res = asyncio.run(sched.execute_sync(source="industry_signals"))
+
+    assert res["status"] == "partial"
+    assert "Malformed URL" in res["error_message"]
+
+    status = sched.get_status()
+    assert status["last_run_timestamp"] is not None
+    assert status["last_successful_run_timestamp"] == "2026-09-12T10:00:00Z"
+    assert "Malformed URL" in status["last_error"]
+
+    mock_save_log.assert_called_once()
+    saved_log = mock_save_log.call_args[0][0]
+    assert saved_log["status"] == "partial"
+    assert saved_log["sources_detail"]["industry_signals"]["status"] == "PARTIAL"
+    assert "Malformed URL" in saved_log["error_message"]
+

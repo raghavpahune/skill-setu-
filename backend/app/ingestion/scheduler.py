@@ -154,28 +154,46 @@ class IngestionScheduler:
                     added_cnt = ind_res.get("records_added", ind_res.get("added", 0))
                     updated_cnt = ind_res.get("records_updated", ind_res.get("updated", 0))
                     skipped_cnt = ind_res.get("records_duplicated", ind_res.get("skipped", 0))
+                    ind_status_raw = (ind_res.get("status") or ("success" if fetched_cnt > 0 else "NO_DATA")).lower()
+                    errors_list = ind_res.get("errors", [])
+                    ind_err = "; ".join(errors_list) if errors_list else ind_res.get("error_message")
                     self._last_run_timestamp = now_str
-                    self._last_successful_run_timestamp = now_str
-                    self._last_error = None
                     self._last_run_duration_ms = int((time.perf_counter() - start_perf) * 1000)
+                    if ind_status_raw in ("success", "no_data"):
+                        self._last_successful_run_timestamp = now_str
+                        self._last_error = None
+                        persisted_status = "success" if fetched_cnt > 0 else "NO_DATA"
+                        detail_status = "SUCCESS" if fetched_cnt > 0 else "NO_DATA"
+                        return_status = "success" if fetched_cnt > 0 else "no_data"
+                    elif ind_status_raw == "partial":
+                        self._last_error = ind_err
+                        persisted_status = "partial"
+                        detail_status = "PARTIAL"
+                        return_status = "partial"
+                    else:
+                        self._last_error = ind_err or "Industry sync run failed"
+                        persisted_status = "failed"
+                        detail_status = "FAILED"
+                        return_status = "failed"
+
                     save_sync_log({
                         "id": str(uuid.uuid4()),
                         "source_name": source,
                         "job_type": "scheduled_sync",
-                        "status": "success" if fetched_cnt > 0 else "NO_DATA",
+                        "status": persisted_status,
                         "records_fetched": fetched_cnt,
                         "records_added": added_cnt,
                         "records_updated": updated_cnt,
                         "records_skipped": skipped_cnt,
-                        "error_message": None,
+                        "error_message": ind_err,
                         "started_at": attempt_time,
                         "completed_at": now_str,
                         "duration_ms": self._last_run_duration_ms,
                         "is_demo": is_explicit_demo_mode(),
                         "sources_detail": {
                             "industry_signals": {
-                                "status": "SUCCESS" if fetched_cnt > 0 else "NO_DATA",
-                                "error": None,
+                                "status": detail_status,
+                                "error": ind_err,
                                 "records_fetched": fetched_cnt,
                                 "records_added": added_cnt,
                                 "records_updated": updated_cnt,
@@ -183,7 +201,13 @@ class IngestionScheduler:
                             }
                         },
                     })
-                    return {"status": "success" if fetched_cnt > 0 else "no_data", "source": source, "industry_sync": ind_res, "duration_ms": self._last_run_duration_ms}
+                    return {
+                        "status": return_status,
+                        "source": source,
+                        "industry_sync": ind_res,
+                        "duration_ms": self._last_run_duration_ms,
+                        "error_message": ind_err,
+                    }
 
                 if source in ("skill_forecasts", "forecasts", "forecast"):
                     from app.services.forecast_engine import persist_computed_forecasts
