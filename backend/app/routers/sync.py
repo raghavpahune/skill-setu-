@@ -117,7 +117,10 @@ async def get_sync_status(
 
     logs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
     last_run = logs[0] if logs else None
-    last_success = next((l for l in logs if l.get("status") == "success"), None)
+    last_success = next(
+        (l for l in logs if (l.get("status") or "").lower() in ("success", "no_data")),
+        None,
+    )
 
     dg_configured = True if is_demo_mode else dg_connector.has_api_key
     adz_configured = True if is_demo_mode else adz_connector.has_credentials
@@ -335,7 +338,7 @@ async def get_sync_status(
         "api_key_configured": dg_configured,
         "adzuna_configured": adz_configured,
         "sources": sources_summary,
-        "scheduler": scheduler.get_status(),
+        "scheduler": scheduler.get_status(latest_log=last_run, latest_success_log=last_success),
         "refresh_interval_minutes": settings.effective_refresh_interval_minutes,
         "total_sync_runs": len(logs),
         "last_sync": last_run,

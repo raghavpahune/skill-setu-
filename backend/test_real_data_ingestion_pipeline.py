@@ -1317,4 +1317,130 @@ def test_sync_status_api_demo_log_isolation_from_real_status(monkeypatch):
     assert data["sources"]["data.gov.in"]["status"] == "NO_DATA"
 
 
+def test_sync_status_scheduler_telemetry_reconciled_from_authoritative_sync_log(monkeypatch):
+    import asyncio
+    from app.db import _cache
+    from app.ingestion.scheduler import scheduler
+    from app.routers.sync import get_sync_status
 
+    auth_log = {
+        "id": "real-authoritative-all-sync",
+        "source_name": "all",
+        "job_type": "automated_external_ingestion",
+        "status": "success",
+        "records_fetched": 320,
+        "records_added": 165,
+        "records_updated": 49,
+        "records_skipped": 86,
+        "error_message": None,
+        "started_at": "2026-09-12T12:18:00.000000+00:00",
+        "completed_at": "2026-09-12T12:19:04.651402+00:00",
+        "duration_ms": 64651,
+        "is_demo": False,
+        "sources_detail": {
+            "data.gov.in": {"status": "SUCCESS", "records_fetched": 130, "error": None},
+            "adzuna": {"status": "SUCCESS", "records_fetched": 25, "error": None},
+            "industry_signals": {"status": "NO_DATA", "records_fetched": 0, "error": None},
+            "skill_forecasts": {"status": "SUCCESS", "records_fetched": 165, "error": None},
+        },
+    }
+
+    _cache["sync_logs"] = [auth_log]
+    scheduler._last_run_timestamp = None
+    scheduler._last_attempted_run_timestamp = None
+    scheduler._last_successful_run_timestamp = None
+    scheduler._last_run_duration_ms = 0
+    scheduler._last_error = None
+
+    with patch("app.repositories.supabase_repository.list_sync_logs", return_value=[auth_log]):
+        res = asyncio.run(get_sync_status(is_demo=False))
+
+    sched_telemetry = res["scheduler"]
+    assert sched_telemetry["last_run_timestamp"] == "2026-09-12T12:19:04.651402+00:00"
+    assert sched_telemetry["last_attempted_run_timestamp"] == "2026-09-12T12:18:00.000000+00:00"
+    assert sched_telemetry["last_successful_run_timestamp"] == "2026-09-12T12:19:04.651402+00:00"
+    assert sched_telemetry["last_run_duration_ms"] == 64651
+    assert sched_telemetry["last_error"] is None
+
+
+def test_scheduler_execute_sync_legitimate_no_data_populates_successful_telemetry():
+    import asyncio
+    from unittest.mock import MagicMock
+    from app.ingestion.scheduler import IngestionScheduler
+
+    sched = IngestionScheduler()
+    mock_engine = MagicMock()
+    mock_engine.run_sync.return_value = {
+        "status": "no_data",
+        "source": "data.gov.in",
+        "duration_ms": 150,
+        "records_fetched": 0,
+        "error_message": None,
+        "completed_at": "2026-09-12T13:00:00Z",
+    }
+    sched.engine = mock_engine
+
+    res = asyncio.run(sched.execute_sync(source="data.gov.in"))
+    assert res["status"] == "no_data"
+
+    status = sched.get_status()
+    assert status["last_run_timestamp"] == "2026-09-12T13:00:00Z"
+    assert status["last_successful_run_timestamp"] == "2026-09-12T13:00:00Z"
+    assert status["last_error"] is None
+    assert status["last_run_duration_ms"] == 150
+
+
+def test_scheduler_execute_sync_partial_records_error_and_preserves_prior_success():
+    import asyncio
+    from unittest.mock import MagicMock
+    from app.ingestion.scheduler import IngestionScheduler
+
+    sched = IngestionScheduler()
+    sched._last_successful_run_timestamp = "2026-09-12T11:00:00Z"
+
+    mock_engine = MagicMock()
+    mock_engine.run_sync.return_value = {
+        "status": "partial",
+        "source": "all",
+        "duration_ms": 320,
+        "error_message": "adzuna: FAILED - rate limited",
+        "completed_at": "2026-09-12T12:00:00Z",
+    }
+    sched.engine = mock_engine
+
+    res = asyncio.run(sched.execute_sync(source="all"))
+    assert res["status"] == "partial"
+
+    status = sched.get_status()
+    assert status["last_run_timestamp"] == "2026-09-12T12:00:00Z"
+    assert status["last_successful_run_timestamp"] == "2026-09-12T11:00:00Z"
+    assert status["last_error"] == "adzuna: FAILED - rate limited"
+    assert status["last_run_duration_ms"] == 320
+
+
+def test_scheduler_execute_sync_all_populates_full_telemetry():
+    import asyncio
+    from unittest.mock import MagicMock
+    from app.ingestion.scheduler import IngestionScheduler
+
+    sched = IngestionScheduler()
+    mock_engine = MagicMock()
+    mock_engine.run_sync.return_value = {
+        "status": "success",
+        "source": "all",
+        "duration_ms": 1200,
+        "records_fetched": 320,
+        "error_message": None,
+        "completed_at": "2026-09-12T14:00:00Z",
+    }
+    sched.engine = mock_engine
+
+    res = asyncio.run(sched.execute_sync(source="all"))
+    assert res["status"] == "success"
+
+    status = sched.get_status()
+    assert status["last_run_timestamp"] == "2026-09-12T14:00:00Z"
+    assert status["last_attempted_run_timestamp"] is not None
+    assert status["last_successful_run_timestamp"] == "2026-09-12T14:00:00Z"
+    assert status["last_run_duration_ms"] == 1200
+    assert status["last_error"] is None
