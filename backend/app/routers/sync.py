@@ -125,22 +125,22 @@ async def get_sync_status(
     source_configs = {
         "data.gov.in": {
             "configured": dg_configured,
-            "aliases": ("all", "data.gov.in", "schemes", "ogd"),
+            "aliases": ("data.gov.in", "schemes", "ogd"),
             "unconfigured_error": "DATA_GOV_API_KEY is not configured in production environment.",
         },
         "adzuna": {
             "configured": adz_configured,
-            "aliases": ("all", "adzuna", "jobs"),
+            "aliases": ("adzuna", "jobs"),
             "unconfigured_error": "ADZUNA_APP_ID / ADZUNA_APP_KEY not configured in production environment.",
         },
         "industry_signals": {
             "configured": True,
-            "aliases": ("all", "industry_signals", "industry"),
+            "aliases": ("industry_signals", "industry"),
             "unconfigured_error": None,
         },
         "skill_forecasts": {
             "configured": True,
-            "aliases": ("all", "skill_forecasts", "forecasts", "forecast"),
+            "aliases": ("skill_forecasts", "forecasts", "forecast"),
             "unconfigured_error": None,
         },
     }
@@ -193,7 +193,7 @@ async def get_sync_status(
         if matching_log is None:
             sources_summary[src_name] = {
                 "source": src_name,
-                "status": "SUCCESS" if is_demo_mode else "IDLE",
+                "status": "IDLE",
                 "configured": True,
                 "last_sync": None,
                 "records_fetched": 0,
@@ -221,10 +221,10 @@ async def get_sync_status(
 
             if raw_status in ("FAILED", "FAIL"):
                 eval_status = "FAILED"
-                eval_error = detail_err or matching_log.get("error_message") or "Sync run failed"
+                eval_error = detail_err or f"{src_name} sync run failed"
             elif raw_status == "PARTIAL":
                 eval_status = "PARTIAL"
-                eval_error = detail_err or matching_log.get("error_message")
+                eval_error = detail_err
             elif raw_status == "NO_DATA" or (raw_status == "SUCCESS" and rec_fetched == 0):
                 eval_status = "NO_DATA"
                 eval_error = None
@@ -235,10 +235,7 @@ async def get_sync_status(
                 eval_status = "NOT_CONFIGURED"
                 eval_error = detail_err or unconf_err
             else:
-                if matching_log.get("status") == "failed":
-                    eval_status = "FAILED"
-                    eval_error = detail_err or matching_log.get("error_message") or "Sync run failed"
-                elif rec_fetched > 0:
+                if rec_fetched > 0:
                     eval_status = "SUCCESS"
                     eval_error = None
                 else:
@@ -256,7 +253,7 @@ async def get_sync_status(
                 "records_skipped": rec_skipped,
                 "error": eval_error,
             }
-        else:
+        elif matching_log.get("source_name") in aliases:
             log_st = (matching_log.get("status") or "").lower()
             rec_fetched = matching_log.get("records_fetched", 0)
             rec_added = matching_log.get("records_added", 0)
@@ -266,12 +263,12 @@ async def get_sync_status(
 
             if log_st == "failed":
                 eval_status = "FAILED"
-                eval_error = log_err or "Sync run failed"
+                eval_error = log_err or f"{src_name} sync run failed"
             elif log_st == "partial":
                 eval_status = "PARTIAL"
                 eval_error = log_err
             elif log_st == "success":
-                if rec_fetched > 0 or is_demo_mode:
+                if rec_fetched > 0:
                     eval_status = "SUCCESS"
                     eval_error = None
                 else:
@@ -279,7 +276,7 @@ async def get_sync_status(
                     eval_error = None
             else:
                 eval_status = "FAILED"
-                eval_error = log_err or "Sync run failed"
+                eval_error = log_err or f"{src_name} sync run failed"
 
             sources_summary[src_name] = {
                 "source": src_name,
@@ -291,6 +288,18 @@ async def get_sync_status(
                 "records_updated": rec_updated,
                 "records_skipped": rec_skipped,
                 "error": eval_error,
+            }
+        else:
+            sources_summary[src_name] = {
+                "source": src_name,
+                "status": "IDLE",
+                "configured": True,
+                "last_sync": None,
+                "records_fetched": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "records_skipped": 0,
+                "error": None,
             }
 
     if is_demo_mode:

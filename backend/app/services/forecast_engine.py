@@ -308,7 +308,10 @@ def persist_computed_forecasts(forecasts: list[dict[str, Any]] | None = None) ->
                 "trend": trend_val,
                 "confidence": conf_val,
             }
-            saved = create_skill_forecast(record)
-            persisted.append(saved)
+            try:
+                saved = create_skill_forecast(record)
+                persisted.append(saved)
+            except Exception as e:
+                logger.warning("[ForecastEngine] Skipped skill forecast persistence for %s (%s): %s", sid, period, e)
 
     return persisted

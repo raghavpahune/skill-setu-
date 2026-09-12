@@ -342,6 +342,7 @@ class SyncEngine:
                 "error_message": error_msg,
                 "completed_at": completed_at,
                 "duration_ms": duration_ms,
+                "sources_detail": sources_detail,
             })
             save_sync_log(log_entry)
             return log_entry

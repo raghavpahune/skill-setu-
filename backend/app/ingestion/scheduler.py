@@ -216,9 +216,6 @@ class IngestionScheduler:
                     return {"status": "success", "source": source, "forecasts_persisted": len(fc_res), "duration_ms": self._last_run_duration_ms}
 
                 result = await loop.run_in_executor(None, self.engine.run_sync, source)
-                if source == "all":
-                    from app.services.forecast_engine import persist_computed_forecasts
-                    await loop.run_in_executor(None, persist_computed_forecasts)
 
                 if "source" not in result:
                     result["source"] = source

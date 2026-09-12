@@ -533,8 +533,8 @@ def save_sync_log(log_entry: dict) -> bool:
                 sources_payload["_meta"] = {"is_demo": bool(log_entry.get("is_demo"))}
             if sources_payload:
                 encoded = json.dumps(sources_payload)
-                existing_err = db_payload.get("error_message") or ""
-                db_payload["error_message"] = f"{existing_err}||SOURCES_DETAIL:{encoded}"
+                existing_err = (db_payload.get("error_message") or "").split("||SOURCES_DETAIL:", 1)[0].strip()
+                db_payload["error_message"] = f"{existing_err}||SOURCES_DETAIL:{encoded}" if existing_err else f"||SOURCES_DETAIL:{encoded}"
             client.table("sync_logs").upsert(db_payload).execute()
             logger.info("[DB] Persisted sync_log '%s' (%s) to Supabase.", sync_id, log_entry.get("status"))
             return True

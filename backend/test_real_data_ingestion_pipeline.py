@@ -676,3 +676,252 @@ def test_list_sync_logs_paginates_past_50000_demo_logs_for_older_real_log():
         assert logs[0]["id"] == "real-older-than-50k"
         assert logs[0]["status"] == "running"
         assert logs[0]["is_demo"] is False
+
+
+def test_create_skill_forecast_authoritative_uuid_resolution_and_rejection():
+    import uuid
+    from unittest.mock import patch, MagicMock
+    from app.repositories.supabase_repository import (
+        create_skill_forecast,
+        SupabaseRepositoryError,
+        _is_valid_uuid,
+    )
+    from app.services.forecast_engine import persist_computed_forecasts
+
+    canonical_skill_uuid = str(uuid.uuid4())
+    fake_taxonomy = [
+        {
+            "id": canonical_skill_uuid,
+            "name": "Machine Learning",
+            "synonyms": ["ml", "deep learning"],
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_table = MagicMock()
+    mock_client.table.return_value = mock_table
+
+    def mock_upsert(record, *args, **kwargs):
+        res = MagicMock()
+        res.data = [record]
+        mock_table.execute.return_value = res
+        return mock_table
+
+    mock_table.upsert.side_effect = mock_upsert
+    mock_table.execute.return_value = MagicMock(data=[])
+
+    with patch("app.repositories.supabase_repository.get_client", return_value=mock_client), \
+         patch("app.repositories.supabase_repository.list_skills", return_value=fake_taxonomy), \
+         patch("app.repositories.supabase_repository.list_skill_forecasts", return_value=[]):
+
+        resolved_by_name = create_skill_forecast({
+            "id": "sf-f7b4caca",
+            "skill_id": "Machine Learning",
+            "period": "6m",
+            "current_demand": "high",
+            "future_demand": "very_high",
+            "trend": "rising",
+            "confidence": 85,
+        })
+        assert _is_valid_uuid(resolved_by_name["id"])
+        assert resolved_by_name["id"] != "sf-f7b4caca"
+        assert resolved_by_name["skill_id"] == canonical_skill_uuid
+
+        resolved_by_synonym = create_skill_forecast({
+            "skill_id": "deep learning",
+            "period": "12m",
+            "current_demand": "high",
+            "future_demand": "very_high",
+            "trend": "rising",
+            "confidence": 90,
+        })
+        assert _is_valid_uuid(resolved_by_synonym["id"])
+        assert resolved_by_synonym["skill_id"] == canonical_skill_uuid
+
+        already_uuid = str(uuid.uuid4())
+        direct_uuid = create_skill_forecast({
+            "skill_id": already_uuid,
+            "period": "24m",
+            "current_demand": "medium",
+            "future_demand": "high",
+            "trend": "rising",
+            "confidence": 75,
+        })
+        assert _is_valid_uuid(direct_uuid["id"])
+        assert direct_uuid["skill_id"] == already_uuid
+
+        import pytest
+        with pytest.raises(SupabaseRepositoryError) as exc_info:
+            create_skill_forecast({
+                "skill_id": "unresolvable-skill-xyz-9999",
+                "period": "6m",
+                "current_demand": "low",
+                "future_demand": "low",
+                "trend": "stable",
+                "confidence": 50,
+            })
+        assert "unresolved non-UUID skill_id" in str(exc_info.value)
+
+        batch_inputs = [
+            {
+                "skill_id": canonical_skill_uuid,
+                "skill_name": "Machine Learning",
+                "current_demand_score": 80.0,
+                "projected_6m": 85.0,
+                "projected_12m": 90.0,
+                "projected_24m": 95.0,
+                "trend": "rising",
+                "confidence_score": 90,
+            },
+            {
+                "skill_id": "unresolvable-nonexistent-skill-abc",
+                "skill_name": "Ghost Skill",
+                "current_demand_score": 20.0,
+                "projected_6m": 20.0,
+                "projected_12m": 20.0,
+                "projected_24m": 20.0,
+                "trend": "stable",
+                "confidence_score": 50,
+            }
+        ]
+        persisted = persist_computed_forecasts(batch_inputs)
+        assert len(persisted) == 3
+        for item in persisted:
+            assert _is_valid_uuid(item["id"])
+            assert item["skill_id"] == canonical_skill_uuid
+
+
+def test_sync_status_per_source_isolation_prevents_aggregate_bleeding():
+    import asyncio
+    import json
+    from unittest.mock import patch
+    from app.routers.sync import get_sync_status
+
+    aggregate_error = 'skill_forecasts: FAILED - Database persistence failed for skill forecast: {\'message\': \'invalid input syntax for type uuid: "sf-f7b4caca"\', \'code\': \'22P02\'}'
+    sources_detail_meta = {
+        "_meta": {"is_demo": False},
+        "data.gov.in": {
+            "status": "SUCCESS",
+            "error": None,
+            "records_fetched": 110,
+            "records_added": 44,
+            "records_updated": 5,
+            "records_skipped": 61,
+        },
+        "adzuna": {
+            "status": "SUCCESS",
+            "error": None,
+            "records_fetched": 25,
+            "records_added": 0,
+            "records_updated": 0,
+            "records_skipped": 25,
+        },
+        "industry_signals": {
+            "status": "NO_DATA",
+            "error": None,
+            "records_fetched": 0,
+            "records_added": 0,
+            "records_updated": 0,
+            "records_skipped": 0,
+        },
+        "skill_forecasts": {
+            "status": "FAILED",
+            "error": aggregate_error,
+            "records_fetched": 0,
+            "records_added": 0,
+            "records_updated": 0,
+            "records_skipped": 0,
+        },
+    }
+
+    raw_aggregate_log = {
+        "id": "real-aggregate-log-1",
+        "source_name": "all",
+        "job_type": "scheduled_sync",
+        "status": "partial",
+        "records_fetched": 135,
+        "records_added": 44,
+        "records_updated": 5,
+        "records_skipped": 86,
+        "error_message": f"{aggregate_error}||SOURCES_DETAIL:{json.dumps(sources_detail_meta)}",
+        "started_at": "2026-09-12T07:00:00Z",
+        "completed_at": "2026-09-12T07:00:05Z",
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.ingestion.adzuna_connector.AdzunaConnector.has_credentials", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[raw_aggregate_log]), \
+         patch("app.db._cache", {"sync_logs": [raw_aggregate_log]}):
+
+        status_result = asyncio.run(get_sync_status(is_demo=False))
+
+    sources = status_result["sources"]
+    assert status_result["status"] == "failed"
+
+    dg = sources["data.gov.in"]
+    assert dg["status"] == "SUCCESS"
+    assert dg["records_fetched"] == 110
+    assert dg["records_added"] == 44
+    assert dg["records_updated"] == 5
+    assert dg["records_skipped"] == 61
+    assert dg["error"] is None
+
+    adz = sources["adzuna"]
+    assert adz["status"] == "SUCCESS"
+    assert adz["records_fetched"] == 25
+    assert adz["records_added"] == 0
+    assert adz["records_updated"] == 0
+    assert adz["records_skipped"] == 25
+    assert adz["error"] is None
+
+    ind = sources["industry_signals"]
+    assert ind["status"] == "NO_DATA"
+    assert ind["records_fetched"] == 0
+    assert ind["records_added"] == 0
+    assert ind["records_updated"] == 0
+    assert ind["records_skipped"] == 0
+    assert ind["error"] is None
+
+    sf = sources["skill_forecasts"]
+    assert sf["status"] == "FAILED"
+    assert sf["records_fetched"] == 0
+    assert sf["records_added"] == 0
+    assert sf["records_updated"] == 0
+    assert sf["records_skipped"] == 0
+    assert "invalid input syntax for type uuid" in sf["error"]
+
+
+def test_sync_status_idle_source_does_not_copy_unrelated_aggregate_log():
+    import asyncio
+    from unittest.mock import patch
+    from app.routers.sync import get_sync_status
+
+    legacy_aggregate_log = {
+        "id": "legacy-all-run",
+        "source_name": "all",
+        "job_type": "scheduled_sync",
+        "status": "partial",
+        "records_fetched": 135,
+        "records_added": 44,
+        "records_updated": 5,
+        "records_skipped": 86,
+        "error_message": "skill_forecasts: FAILED - Database persistence failed",
+        "started_at": "2026-09-12T07:00:00Z",
+        "completed_at": "2026-09-12T07:00:05Z",
+    }
+
+    with patch("app.ingestion.datagov_connector.DataGovConnector.has_api_key", True), \
+         patch("app.ingestion.adzuna_connector.AdzunaConnector.has_credentials", True), \
+         patch("app.repositories.supabase_repository.list_sync_logs", return_value=[legacy_aggregate_log]), \
+         patch("app.db._cache", {"sync_logs": [legacy_aggregate_log]}):
+
+        status_result = asyncio.run(get_sync_status(is_demo=False))
+
+    sources = status_result["sources"]
+    for s_name in ("data.gov.in", "adzuna", "industry_signals", "skill_forecasts"):
+        assert sources[s_name]["status"] == "IDLE"
+        assert sources[s_name]["records_fetched"] == 0
+        assert sources[s_name]["records_added"] == 0
+        assert sources[s_name]["records_updated"] == 0
+        assert sources[s_name]["records_skipped"] == 0
+        assert sources[s_name]["error"] is None
